@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# ci.yml — LAVRay Android: проверки репозитория, сборка ядра Go (gomobile) и приложения,
+# проверка APK и дымовой тест на эмуляторе. Без секретов: релизные APK собирает release.yml.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Бюджет размера APK на ABI, МБ (1 МБ = 1000000 байт). Замер 0.9.3: 52.9 / 53.6 / 56.4 МБ.
+  # Держите в одном значении с release.yml.
+  APK_BUDGET_MB: "arm64-v8a=58 armeabi-v7a=59 x86_64=62"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Быстрые проверки без Android: тесты и генератор строк, запреты, почта авторов, секреты.
+  # ---------------------------------------------------------------------------
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0 # проверка почты авторов читает историю
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: "Тесты tools/i18n и tools/protogen"
+        run: node --test "tools/i18n/**/*.test.mjs" "tools/protogen/**/*.test.mjs"
+
+      - name: "Строки сгенерированы и свежие"
+        run: node tools/i18n/generate.mjs --check
+
+      - name: "Запреты: Happ и sing-box в строках"
+        run: bash scripts/ci-hygiene.sh strings
+
+      - name: "Нет ключей и токенов в репозитории"
+        run: bash scripts/ci-hygiene.sh secrets
+
+      # Только свои коммиты: PR из форка несёт чужую почту, там проверка не применима.
+      - name: "Почта автора у каждого коммита"
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/ci-hygiene.sh authors
+
+  # ---------------------------------------------------------------------------
+  # Ядро Go -> AAR, затем Gradle: release (ABI-сплиты), тесты, lint. CI собирает без секретов,
+  # поэтому release-APK здесь подписан отладочным ключом и годится только для проверок.
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build
+
+      - name: "Ядро: go vet, go test, gomobile bind"
+        run: bash scripts/build-core.sh
+
+      - name: "Gradle: assembleRelease, assembleDebug, testDebugUnitTest, lintDebug"
+        run: ./gradlew --stacktrace assembleRelease assembleDebug testDebugUnitTest lintDebug
+
+      - name: "APK: размер и выравнивание 16 КБ"
+        run: bash scripts/ci-apk.sh verify app/build/outputs/apk/release
+
+      - name: "Подготовка артефактов"
+        run: |
+          bash scripts/ci-apk.sh stage app/build/outputs/apk/release dist -ci
+          mkdir -p smoke
+          cp "$(bash scripts/ci-apk.sh find app/build/outputs/apk/debug x86_64)" smoke/app-debug-x86_64.apk
+
+      - name: "Артефакт: arm64-v8a"
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-arm64-v8a
+          path: dist/*-arm64-v8a-ci.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Артефакт: armeabi-v7a"
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-armeabi-v7a
+          path: dist/*-armeabi-v7a-ci.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Артефакт: x86_64"
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-x86_64
+          path: dist/*-x86_64-ci.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: "Артефакт: отладочный APK для дымового теста"
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-debug-x86_64
+          path: smoke/app-debug-x86_64.apk
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: "Артефакт: отчёт lint"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: "Артефакт: отчёт юнит-тестов (при сбое)"
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Дымовой тест: приложение запускается, процесс :vpn поднимает ядро и оно отвечает.
+  # ---------------------------------------------------------------------------
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk-debug-x86_64
+          path: smoke
+
+      - name: "KVM для эмулятора"
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: "Эмулятор API 36 x86_64: запуск приложения и ядра"
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash scripts/ci-smoke.sh smoke/app-debug-x86_64.apk
+
+      - name: "Артефакт: logcat дымового теста"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logcat
+          path: smoke-logcat.txt
+          if-no-files-found: warn
+          retention-days: 7

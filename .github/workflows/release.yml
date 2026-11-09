@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# release.yml — релиз LAVRay Android по тегу v*: APK подписаны релизным ключом из секретов Actions,
+# имена LAVRay-<версия>-<abi>.apk, SHA256SUMS, GitHub Release (latest). Ключ: docs/SIGNING.md.
+#
+# Три джоба с разными правами:
+#   verify   проверки и тег (без секретов, contents: read)
+#   build    сборка и подпись (секреты только здесь, contents: read)
+#   publish  создание релиза (contents: write, без секретов и без сборки)
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Держите в одном значении с ci.yml.
+  APK_BUDGET_MB: "arm64-v8a=58 armeabi-v7a=59 x86_64=62"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Тег обязан совпасть с versionName, а заметки релиза обязаны лежать в репозитории:
+      # без них джоб падает, пустой релиз не публикуется.
+      - name: "Версия, тег, заметки релиза"
+        id: meta
+        run: |
+          version="$(bash scripts/ci-apk.sh version)"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::тег $GITHUB_REF_NAME не равен v$version (versionName в app/build.gradle.kts)"
+            exit 1
+          fi
+          notes="docs/release-notes/$GITHUB_REF_NAME.md"
+          if [ ! -s "$notes" ]; then
+            echo "::error::нет заметок релиза $notes (или файл пуст): создайте его и перенесите тег"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: "Тесты tools/i18n и tools/protogen"
+        run: node --test "tools/i18n/**/*.test.mjs" "tools/protogen/**/*.test.mjs"
+
+      - name: "Строки сгенерированы и свежие"
+        run: node tools/i18n/generate.mjs --check
+
+      - name: "Запреты, ключи и токены, почта авторов (вся история тега)"
+        run: bash scripts/ci-hygiene.sh all
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      # Первым делом: без любого из четырёх секретов Gradle молча подписал бы отладочным ключом.
+      - name: "Секреты подписи заданы"
+        env:
+          S_KEYSTORE_B64: ${{ secrets.LAVRAY_KEYSTORE_B64 }}
+          S_KEYSTORE_PASSWORD: ${{ secrets.LAVRAY_KEYSTORE_PASSWORD }}
+          S_KEY_ALIAS: ${{ secrets.LAVRAY_KEY_ALIAS }}
+          S_KEY_PASSWORD: ${{ secrets.LAVRAY_KEY_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "$S_KEYSTORE_B64" ] || missing+=(LAVRAY_KEYSTORE_B64)
+          [ -n "$S_KEYSTORE_PASSWORD" ] || missing+=(LAVRAY_KEYSTORE_PASSWORD)
+          [ -n "$S_KEY_ALIAS" ] || missing+=(LAVRAY_KEY_ALIAS)
+          [ -n "$S_KEY_PASSWORD" ] || missing+=(LAVRAY_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::не заданы секреты репозитория: ${missing[*]}. Релиз не собирается без релизного ключа (docs/SIGNING.md)"
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup-build
+        with:
+          cache-read-only: "true"
+
+      - name: "Ядро: go vet, go test, gomobile bind"
+        run: bash scripts/build-core.sh
+
+      # Ключ декодируется во временный каталог вне рабочей копии ($RUNNER_TEMP), права 600.
+      # Значения не печатаются; удаление ниже в шаге с always().
+      - name: "Ключ: расшифровка во временный файл"
+        env:
+          S_KEYSTORE_B64: ${{ secrets.LAVRAY_KEYSTORE_B64 }}
+          S_KEYSTORE_PASSWORD: ${{ secrets.LAVRAY_KEYSTORE_PASSWORD }}
+          S_KEY_ALIAS: ${{ secrets.LAVRAY_KEY_ALIAS }}
+        run: |
+          umask 077
+          ks_dir="$(mktemp -d "$RUNNER_TEMP/lavray-ks.XXXXXX")"
+          echo "LAVRAY_KS_DIR=$ks_dir" >> "$GITHUB_ENV"
+          printf '%s' "$S_KEYSTORE_B64" | base64 -d > "$ks_dir/release.jks" \
+            || { echo "::error::LAVRAY_KEYSTORE_B64 не является base64 (docs/SIGNING.md)"; exit 1; }
+          [ -s "$ks_dir/release.jks" ] || { echo "::error::LAVRAY_KEYSTORE_B64 пуст после декодирования"; exit 1; }
+          echo "LAVRAY_KEYSTORE_PATH=$ks_dir/release.jks" >> "$GITHUB_ENV"
+          export KS_PASS="$S_KEYSTORE_PASSWORD"
+          keytool -list -keystore "$ks_dir/release.jks" -storepass:env KS_PASS -alias "$S_KEY_ALIAS" > /dev/null 2>&1 \
+            || { echo "::error::keytool не открыл хранилище или алиас: проверьте LAVRAY_KEYSTORE_B64, LAVRAY_KEYSTORE_PASSWORD и LAVRAY_KEY_ALIAS"; exit 1; }
+          echo "хранилище ключей открыто, алиас найден"
+
+      - name: "Gradle: assembleRelease, testDebugUnitTest"
+        env:
+          LAVRAY_KEYSTORE_PASSWORD: ${{ secrets.LAVRAY_KEYSTORE_PASSWORD }}
+          LAVRAY_KEY_ALIAS: ${{ secrets.LAVRAY_KEY_ALIAS }}
+          LAVRAY_KEY_PASSWORD: ${{ secrets.LAVRAY_KEY_PASSWORD }}
+        # Без кэша сборки и кэша конфигурации: подписанные результаты и значения секретов не должны
+        # попасть ни в какой кэш.
+        run: ./gradlew --stacktrace --no-build-cache --no-configuration-cache assembleRelease testDebugUnitTest
+
+      - name: "Ключ: удаление временного файла"
+        if: always()
+        run: |
+          if [ -n "${LAVRAY_KS_DIR:-}" ]; then rm -rf "$LAVRAY_KS_DIR"; fi
+
+      - name: "APK: размер и выравнивание 16 КБ"
+        run: bash scripts/ci-apk.sh verify app/build/outputs/apk/release
+
+      - name: "APK: подпись не отладочная"
+        run: |
+          for apk in app/build/outputs/apk/release/*.apk; do
+            echo "$apk"
+            bash scripts/ci-apk.sh signer "$apk" release
+          done
+
+      - name: "Имена LAVRay-<версия>-<abi>.apk"
+        run: bash scripts/ci-apk.sh stage app/build/outputs/apk/release dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-apks
+          path: dist/LAVRay-*.apk
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # единственное место с правом записи: создание релиза
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-apks
+          path: dist
+
+      - name: "SHA256SUMS"
+        run: |
+          cd dist
+          [ "$(ls LAVRay-"$VERSION"-*.apk | wc -l)" -eq 3 ] || { echo "::error::ожидалось 3 APK LAVRay-$VERSION-<abi>.apk"; exit 1; }
+          sha256sum LAVRay-"$VERSION"-*.apk > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          ls -l
+
+      - name: "GitHub Release (latest)"
+        run: |
+          notes="docs/release-notes/$TAG.md"
+          [ -s "$notes" ] || { echo "::error::нет заметок релиза $notes"; exit 1; }
+          assets=(dist/LAVRay-"$VERSION"-*.apk dist/SHA256SUMS)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # Повторный запуск того же тега: заменить ассеты и заметки.
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "LAVRay $VERSION" \
+              --notes-file "$notes" --latest
+          else
+            gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "LAVRay $VERSION" --notes-file "$notes" --latest
+          fi
