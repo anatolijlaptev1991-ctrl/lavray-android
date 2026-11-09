@@ -15,6 +15,15 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- The per-app picker lists apps that have a launcher icon. This query is the narrowest way to see them: no
+         QUERY_ALL_PACKAGES permission, no package list of the whole device. Apps without a launcher entry stay invisible. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/backup_rules"

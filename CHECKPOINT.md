@@ -29,3 +29,10 @@
 - Android 16 x86_64 (google_apis), отладочный приёмник `app/src/debug` (`am broadcast ... lavray.debug.API`) вызывает API ядра; в релиз он не входит.
 - Исправлено: SIGSYS на x86_64 (libc), tun0 после отключения, физическая сеть при поднятом VPN, подписка через удалённый mixed-in.
 - Открыто для владельца: публичный IP и самопроверка «через туннель» не работают без mixed-in (см. docs/ARCHITECTURE.md).
+
+## Остальные экраны и «через туннель» без слушателя (2026-11-10)
+- Ядро: `core-overlay/patches/0001-tunnel-in-process-dial.patch` + `core-overlay/inject/api/tunnel_inproc*.go`. `tunnelClient` ходит через `inst.Manager.DialProxy` внутри процесса, локального порта нет; патч применяет `scripts/build-core.sh` к `build/go`, при неудаче сборка падает. Тесты Go: `TestTunnelClient*`, `TestDialError*`, `TestAndroidTunnel*` (запускаются в `STAGE=test`).
+- Экраны: Проверки, Соединения (поток только пока экран виден), Журнал, Статистика, Настройки (туннель, «по приложениям», Always-on, батарея, дополнительные), Резервная копия (SAF), Обновления (только страница выпусков), «О программе» и «Лицензии». Что не перенесено: `docs/NOT-PORTED.md`.
+- Служба: AIDL `getAppSelection/setAppSelection`, `VpnPrefs.appSelection`, `AppSelection.applyTo` в `TunEstablisher`. Список приложений: `<queries>` MAIN+LAUNCHER (без QUERY_ALL_PACKAGES).
+- Клиент API: `ApiException.reason` (ErrorInfo.reason ядра), `CoreResult.Fail.reason`; `LavTextField(visualTransformation)`.
+- На устройстве не проверено: всё перечисленное (эмулятор запрещён до сквозной проверки): выбор файла SAF, список приложений, Always-on/батарея, живые потоки.

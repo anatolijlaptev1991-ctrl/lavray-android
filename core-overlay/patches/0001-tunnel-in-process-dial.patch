@@ -1,0 +1,93 @@
+--- a/internal/api/tunnel_http.go
++++ b/internal/api/tunnel_http.go
+@@ -72,25 +72,18 @@
+ 	return nil, false
+ }
+ 
+-// tunnelClient — http.Client, идущий через mixed-in работающего инстанса.
++// tunnelClient — http.Client «через туннель». LAVRay Android: без mixed-in,
++// соединения открывает работающий инстанс в этом же процессе (inst.Manager.DialProxy),
++// локального порта нет (tunnel_inproc.go).
+ func (s *Server) tunnelClient() (*http.Client, bool) {
+-	u, ok := s.tunnelProxyURL()
+-	if !ok {
+-		return nil, false
+-	}
+-	return &http.Client{
+-		Timeout:   s.http.Timeout,
+-		Transport: &http.Transport{Proxy: http.ProxyURL(u), DisableKeepAlives: true},
+-	}, true
++	return s.tunnelInProcessClient()
+ }
+ 
+-// tunnelIsTUN — инстанс запущен в режиме TUN. Тогда маршрут по умолчанию у
+-// процесса — сам туннель, а сокеты ядра не привязаны к физическому
+-// интерфейсу: «прямой» замер из ядра недостоверен и не выполняется.
+-func (s *Server) tunnelIsTUN() bool {
+-	st := s.inst.Status()
+-	return st.State == inst.StateReady && st.Run != nil && st.Run.Mode == "tun"
+-}
++// tunnelIsTUN — режим подключения TUN. LAVRay Android запускает ядро только с
++// tun-inbound, поэтому ответ всегда «да», в том числе до подключения: проверка
++// маршрута строится по тому же конфигу, который получит инстанс. Годен ли
++// «прямой» замер из ядра, решает directIsTunneled (tunnel_inproc.go).
++func (s *Server) tunnelIsTUN() bool { return true }
+ 
+ // httpForSubscriptions — клиент для подписок: через туннель, если он поднят
+ // и use_proxy включён (настройка sub.use_proxy, по умолчанию true; разовое
+@@ -120,7 +113,7 @@
+ 		}
+ 		return tunnel, nil
+ 	case lavrayv1.GetPublicIpRequest_VIA_DIRECT:
+-		if s.tunnelIsTUN() {
++		if s.directIsTunneled() {
+ 			return nil, failedPrecondition("в режиме TUN весь трафик ядра идёт в туннель: прямой адрес измерить нельзя")
+ 		}
+ 		return s.http, nil
+--- a/internal/api/selfcheck.go
++++ b/internal/api/selfcheck.go
+@@ -94,12 +94,11 @@
+ }
+ 
+ func (s *Server) probeTunnel(ctx context.Context) tunnelProbe {
+-	u, ok := s.tunnelProxyURL()
+-	c, _ := s.tunnelClient()
++	c, ok := s.tunnelClient()
+ 	if !ok || c == nil {
+ 		return tunnelProbe{}
+ 	}
+-	p := tunnelProbe{up: true, listenHostPort: u.Host}
++	p := tunnelProbe{up: true}
+ 	var wg sync.WaitGroup
+ 	wg.Add(2)
+ 	go func() { defer wg.Done(); p.trafficErr = s.headOK(ctx, c, s.ipProbeURL) }()
+@@ -268,6 +267,9 @@
+ // checkPort: запущенный инстанс должен слушать свой порт, остановленный —
+ // порт обязан быть свободен для следующего запуска.
+ func (s *Server) checkPort(ctx context.Context) *checkResult {
++	if !s.hasLocalListener() {
++		return notChecked("not_applicable") // LAVRay Android: локального порта нет
++	}
+ 	hostPort := ""
+ 	if u, ok := s.tunnelProxyURL(); ok {
+ 		hostPort = u.Host
+--- a/internal/api/observability_service.go
++++ b/internal/api/observability_service.go
+@@ -170,7 +170,7 @@
+ 	if out.TunnelIp == nil {
+ 		out.Unchecked = append(out.Unchecked, "tunnel_ip")
+ 	}
+-	if s.tunnelIsTUN() {
++	if s.directIsTunneled() {
+ 		out.Unchecked = append(out.Unchecked, "direct_ip", "ipv6")
+ 		return connect.NewResponse(out), nil
+ 	}
+@@ -179,7 +179,7 @@
+ 	} else {
+ 		out.Unchecked = append(out.Unchecked, "direct_ip")
+ 	}
+-	if up {
++	if up && s.ipv6Measurable() {
+ 		out.Ipv6DirectAvailable = s.ipv6DirectAvailable(ctx)
+ 	} else {
+ 		out.Unchecked = append(out.Unchecked, "ipv6")

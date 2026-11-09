@@ -110,7 +110,9 @@ class GeneratedStringsTest {
         for ((lang, res) in all) {
             val texts = res.strings.values + res.plurals.values.flatMap { it.values }
             assertFalse("Happ in $lang", texts.any { happ.containsMatchIn(it) })
-            assertFalse("core name in $lang", texts.any { core.containsMatchIn(it) })
+            // The licenses screen is the one place where the engine's origin is named (desktop key lic.core).
+            val named = res.strings.filter { core.containsMatchIn(it.value) }.keys + res.plurals.filter { e -> e.value.values.any { core.containsMatchIn(it) } }.keys
+            assertTrue("core name outside the licenses screen in $lang: $named", named.all { it == "lic_core" })
         }
     }
 

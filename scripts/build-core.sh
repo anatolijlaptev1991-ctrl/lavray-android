@@ -67,6 +67,26 @@ patch_libc() {
   (cd "$COPY" && GOFLAGS=-mod=mod go mod edit -replace "modernc.org/libc=$(native_path "$LIBC")")
 }
 
+# Патчи ядра: core-overlay/patches/*.patch применяются к копии (build/go/core), субмодуль
+# не меняется. Целевые файлы приводятся к LF (на Windows подмодуль может быть с CRLF).
+# Нулевой допуск: если патч не ложится (ядро обновилось), сборка падает, а не молчит.
+apply_patches() {
+  local p files f
+  for p in "$ROOT"/core-overlay/patches/*.patch; do
+    [ -f "$p" ] || continue
+    files="$(sed -n "s|^+++ b/||p" "$p")"
+    for f in $files; do
+      [ -f "$COPY/$f" ] || { echo "патч $(basename "$p"): нет файла $f" >&2; exit 1; }
+      sed -i "s/$//" "$COPY/$f"
+    done
+    if ! (cd "$COPY" && patch -p1 -N -F0 --no-backup-if-mismatch < "$p" >/dev/null); then
+      echo "ПАТЧ НЕ ПРИМЕНИЛСЯ: $(basename "$p"); ядро в third_party/lavray изменилось, обновите патч" >&2
+      exit 1
+    fi
+    echo "==> патч применён: $(basename "$p")"
+  done
+}
+
 prepare() {
   [ -f "$SRC/go.mod" ] || { echo "нет $SRC (git submodule update --init)" >&2; exit 1; }
   echo "==> копия ядра в $COPY"
@@ -76,6 +96,7 @@ prepare() {
   mkdir -p "$COPY/mobile"
   cp "$ROOT"/core-overlay/*.go "$COPY/mobile/"
   cp "$ROOT"/core-overlay/inject/api/*.go "$COPY/internal/api/"
+  apply_patches
   (
     cd "$COPY"
     export GOFLAGS=-mod=mod
@@ -101,7 +122,7 @@ run_tests() {
     export GOFLAGS=-mod=mod
     go vet -tags "$(tags)" ./mobile/
     go test -count=1 -tags "$(tags)" ./mobile/
-    go test -count=1 -tags "$(tags)" -run TestSetTestInstanceFactory ./internal/api/
+    go test -count=1 -tags "$(tags)" -run "TestSetTestInstanceFactory|TestTunnelClient|TestDialError|TestAndroidTunnel" ./internal/api/
   )
   (cd "$LIBC" && GOFLAGS=-mod=mod go test -count=1 ./androidcompat/)
 }

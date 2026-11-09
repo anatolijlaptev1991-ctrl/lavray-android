@@ -15,6 +15,7 @@ internal interface VpnBinderHost {
     fun disconnect()
     fun currentStatus(): VpnStatus
     var autoConnect: Boolean
+    var appSelection: AppSelection
 }
 
 internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
@@ -50,6 +51,12 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
 
     override fun setAutoConnectEnabled(enabled: Boolean) {
         host.autoConnect = enabled
+    }
+
+    override fun getAppSelection(): String = host.appSelection.toJson()
+
+    override fun setAppSelection(json: String) {
+        host.appSelection = AppSelection.parse(json)
     }
 
     fun broadcast(status: VpnStatus) {

@@ -11,6 +11,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnObserver
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnService
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
+import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.StartIntent
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.VpnBinder
 import kotlinx.coroutines.CompletableDeferred
@@ -100,6 +101,12 @@ class VpnController(context: Context) {
     }
 
     suspend fun isAutoConnectEnabled(): Boolean = withContext(Dispatchers.IO) { ready.await().isAutoConnectEnabled() }
+
+    /** The per-app choice kept by the :vpn process. */
+    suspend fun appSelection(): AppSelection = withContext(Dispatchers.IO) { AppSelection.parse(ready.await().getAppSelection()) }
+
+    /** Saves the choice; it applies the next time the tunnel is built. */
+    suspend fun setAppSelection(selection: AppSelection) = withContext(Dispatchers.IO) { ready.await().setAppSelection(selection.toJson()) }
 
     fun setAutoConnectEnabled(enabled: Boolean) {
         scope.launch { runCatching { ready.await().setAutoConnectEnabled(enabled) } }

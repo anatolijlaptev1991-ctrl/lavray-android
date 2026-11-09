@@ -19,7 +19,8 @@ enum class ErrorKind { CoreUnavailable, NotImplemented, Precondition, InvalidInp
 /** Outcome of one core call. Never carries a raw exception text to the screen. */
 sealed interface CoreResult<out T> {
     data class Ok<T>(val value: T) : CoreResult<T>
-    data class Fail(val kind: ErrorKind) : CoreResult<Nothing>
+    /** [reason] is the core's ErrorInfo.reason when it sent one, for screens that word errors by reason (backup). */
+    data class Fail(val kind: ErrorKind, val reason: String? = null) : CoreResult<Nothing>
 }
 
 fun Throwable.errorKind(): ErrorKind = when {
@@ -75,7 +76,7 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
         throw e
     } catch (e: Exception) {
         drop(e)
-        CoreResult.Fail(e.errorKind())
+        CoreResult.Fail(e.errorKind(), (e as? ApiException)?.reason)
     }
 
     /** A server stream. It lives exactly as long as it is collected: cancelling the collector aborts the socket. */

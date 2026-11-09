@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
@@ -48,6 +49,7 @@ fun LavTextField(
     error: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val c = Lav.colors
@@ -87,6 +89,7 @@ fun LavTextField(
                     cursorBrush = SolidColor(c.accent),
                     keyboardOptions = keyboardOptions,
                     keyboardActions = keyboardActions,
+                    visualTransformation = visualTransformation,
                     interactionSource = source,
                 )
             }

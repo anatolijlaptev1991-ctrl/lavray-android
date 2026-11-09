@@ -1,10 +1,152 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.anatolijlaptev1991_ctrl.lavray.R
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.StubScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.LocalEnv
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavColors
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavChip
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavEmptyState
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavTextField
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
+import java.text.DateFormat
+import java.util.Date
 
-/** Stub: replace the body, keep the signature. Registered in ui/nav/Registry.kt. */
+/**
+ * Log (desktop screen_log.tsx): the last lines and the live stream of the core log, level filter, search, pause,
+ * auto-scroll, Copy and Share. The core redacts secrets before it sends a line and the lines are shown unchanged.
+ * The stream runs only while this screen is composed and the app is started; the buffer holds [LogBuffer.CAPACITY] lines.
+ */
 @Composable
-fun LogScreen() = StubScreen(R.string.nav_log)
+fun LogScreen() {
+    val env = LocalEnv.current
+    val context = LocalContext.current
+    val model = remember { LogModel(env.session) }
+    val lines by model.lines.collectAsStateWithLifecycle()
+    val error by model.streamError.collectAsStateWithLifecycle()
+    val owner = LocalLifecycleOwner.current
+    var min by remember { mutableStateOf(LogSeverity.Info) }
+    var query by remember { mutableStateOf("") }
+    var frozen by remember { mutableStateOf<List<LogEntry>?>(null) }
+    var autoscroll by remember { mutableStateOf(true) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(model) { owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.stream() } }
+    DisposableEffect(model) { onDispose { model.clear() } }
+
+    val source = frozen ?: lines
+    val shown by remember(source, min, query) { derivedStateOf { LogFilter.apply(source, min, query) } }
+    val lastSeq = shown.lastOrNull()?.seq
+    LaunchedEffect(lastSeq, autoscroll) {
+        if (autoscroll && shown.isNotEmpty()) listState.scrollToItem(shown.lastIndex)
+    }
+    val copied = stringResource(R.string.toast_logCopied)
+    val failed = stringResource(R.string.conns_copyFailed)
+
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LavTextField(
+                query, { query = it }, Modifier.fillMaxWidth(), placeholder = stringResource(R.string.log_searchPh), leading = LavIcon.Search,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LogSeverity.entries.forEach { s -> LavChip(s.label, min == s, { min = s }) }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LavButton(
+                    stringResource(if (frozen == null) R.string.log_pause else R.string.log_resume),
+                    { frozen = if (frozen == null) lines else null },
+                    icon = if (frozen == null) LavIcon.Stop else LavIcon.Refresh,
+                )
+                LavButton(stringResource(R.string.log_copy), {
+                    val ok = copyToClipboard(context, LogFilter.export(shown))
+                    env.toast.show(if (ok) copied else failed)
+                }, icon = LavIcon.Copy)
+                LavButton(stringResource(R.string.srv_share), { shareText(context, LogFilter.export(shown)) }, icon = LavIcon.Share)
+            }
+            LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it })
+            LavText(stringResource(R.string.log_exportD), style = Lav.type.caption, color = Lav.colors.textTertiary)
+        }
+        error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes()), Modifier.padding(horizontal = 16.dp), text = stringResource(R.string.conns_retrying)) }
+        if (shown.isEmpty()) {
+            LavEmptyState(stringResource(R.string.nav_log), text = stringResource(if (source.isEmpty()) R.string.log_none else R.string.log_noMatch), icon = LavIcon.List)
+        } else {
+            LogList(shown, listState)
+        }
+    }
+}
+
+@Composable
+private fun LogList(shown: List<LogEntry>, state: androidx.compose.foundation.lazy.LazyListState) {
+    val time = remember { DateFormat.getTimeInstance(DateFormat.MEDIUM) }
+    val colors = Lav.colors
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), state = state) {
+        items(shown, key = { it.seq }, contentType = { "line" }) { e ->
+            BasicText(lineText(e, time, colors), Modifier.fillMaxWidth().padding(vertical = 2.dp), style = Lav.type.mono.copy(fontSize = Lav.type.caption.fontSize))
+        }
+    }
+}
+
+private fun lineText(e: LogEntry, time: DateFormat, c: LavColors): AnnotatedString = buildAnnotatedString {
+    withStyle(SpanStyle(color = c.textTertiary)) { append(time.format(Date(e.tsMs)) + " ") }
+    withStyle(SpanStyle(color = severityColor(e.severity, c))) { append(e.severity.label + " ") }
+    if (e.source.isNotEmpty()) withStyle(SpanStyle(color = c.textTertiary)) { append(e.source + " ") }
+    withStyle(SpanStyle(color = c.textPrimary)) { append(e.message) }
+}
+
+private fun severityColor(s: LogSeverity, c: LavColors): Color = when (s) {
+    LogSeverity.Error -> c.errorText
+    LogSeverity.Warn -> c.connectingText
+    LogSeverity.Info -> c.textSecondary
+    LogSeverity.Debug, LogSeverity.Trace -> c.textTertiary
+}
+
+private fun shareText(context: android.content.Context, text: String) {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    try {
+        context.startActivity(Intent.createChooser(send, null))
+    } catch (_: ActivityNotFoundException) {
+        // No app takes plain text: Copy is still there.
+    }
+}

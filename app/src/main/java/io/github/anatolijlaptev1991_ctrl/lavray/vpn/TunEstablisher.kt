@@ -13,6 +13,7 @@ internal class TunEstablisher(
     private val service: VpnService,
     private val sessionName: String,
     private val configureIntent: PendingIntent?,
+    private val appSelection: () -> AppSelection = { AppSelection() },
 ) {
     /**
      * Opens the interface. The caller keeps the descriptor open for as long as the tunnel
@@ -27,7 +28,7 @@ internal class TunEstablisher(
         if (options.inet4.isNotEmpty()) builder.addRoute("0.0.0.0", 0)
         if (options.inet6.isNotEmpty()) builder.addRoute("::", 0)
         for (server in options.dns) builder.addDnsServer(server)
-        applyAppRules(builder, AppRules.from(options, service.packageName))
+        applyAppRules(builder, AppRules.from(appSelection().applyTo(options), service.packageName))
         // The platform derives "metered" from the underlying networks we keep in sync with
         // setUnderlyingNetworks; the default (always metered) would throttle apps on Wi-Fi.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)

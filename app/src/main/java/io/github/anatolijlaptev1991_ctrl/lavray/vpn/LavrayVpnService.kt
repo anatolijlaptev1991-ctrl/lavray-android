@@ -96,7 +96,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         prefs = VpnPrefs(this)
         val cm = getSystemService(ConnectivityManager::class.java)
         val openApp = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        platform = VpnPlatform(this, cm, TunEstablisher(this, getString(R.string.app_name), openApp))
+        platform = VpnPlatform(this, cm, TunEstablisher(this, getString(R.string.app_name), openApp) { prefs.appSelection })
         core = CoreHost(this, platform)
         watcher = NetworkWatcher(
             cm,
@@ -178,6 +178,12 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         get() = prefs.autoConnect
         set(value) {
             prefs.autoConnect = value
+        }
+
+    override var appSelection: AppSelection
+        get() = prefs.appSelection
+        set(value) {
+            prefs.appSelection = value
         }
 
     // ---- event loop

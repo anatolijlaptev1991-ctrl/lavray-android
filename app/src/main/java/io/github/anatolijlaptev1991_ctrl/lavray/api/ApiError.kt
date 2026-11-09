@@ -44,10 +44,16 @@ class ApiException(
     message: String,
     val httpStatus: Int = 0,
     cause: Throwable? = null,
+    /** ErrorInfo.reason from the core (for example backup_wrong_password), when it sent one; screens choose their text by it. */
+    val reason: String? = null,
 ) : IOException(message, cause)
 
 @Serializable
-internal data class ConnectErrorBody(val code: String = "", val message: String = "")
+internal data class ConnectErrorBody(val code: String = "", val message: String = "", val details: List<ErrorDetailBody> = emptyList())
+
+/** One entry of the Connect error details: a type name and the base64 of the protobuf message. */
+@Serializable
+internal data class ErrorDetailBody(val type: String = "", val value: String = "")
 
 @Serializable
 internal data class EndStreamBody(val error: ConnectErrorBody? = null)
@@ -55,7 +61,7 @@ internal data class EndStreamBody(val error: ConnectErrorBody? = null)
 internal fun errorFromBody(bytes: ByteArray, httpStatus: Int): ApiException {
     val parsed = runCatching { ProtoJson.decodeFromString(ConnectErrorBody.serializer(), String(bytes, Charsets.UTF_8)) }.getOrNull()
     return if (parsed != null && parsed.code.isNotEmpty()) {
-        ApiException(ConnectCode.fromWire(parsed.code), parsed.message, httpStatus)
+        ApiException(ConnectCode.fromWire(parsed.code), parsed.message, httpStatus, reason = ErrorInfoReader.reason(parsed.details))
     } else {
         ApiException(ConnectCode.fromHttpStatus(httpStatus), "HTTP $httpStatus", httpStatus)
     }
@@ -67,5 +73,5 @@ internal fun errorFromEndStream(payload: ByteArray): ApiException? {
     val body = runCatching { ProtoJson.decodeFromString(EndStreamBody.serializer(), String(payload, Charsets.UTF_8)) }
         .getOrElse { throw ApiException(ConnectCode.INTERNAL, "malformed end-of-stream frame", cause = it) }
     val err = body.error ?: return null
-    return ApiException(ConnectCode.fromWire(err.code), err.message)
+    return ApiException(ConnectCode.fromWire(err.code), err.message, reason = ErrorInfoReader.reason(err.details))
 }

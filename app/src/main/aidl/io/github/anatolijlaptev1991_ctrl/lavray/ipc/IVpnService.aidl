@@ -25,4 +25,9 @@ interface IVpnService {
     boolean isAutoConnectEnabled();
 
     void setAutoConnectEnabled(boolean enabled);
+
+    /** Per-app choice as JSON {"mode":"all|only|except","packages":[...]}; applies the next time the tunnel is built. */
+    String getAppSelection();
+
+    void setAppSelection(String json);
 }

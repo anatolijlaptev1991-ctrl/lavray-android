@@ -14,6 +14,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.ImportModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ConnectionModel
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,7 @@ class AppEnv(
     val connection: ConnectionModel by lazy { ConnectionModel(session, scope) }
     val servers: ServersModel by lazy { ServersModel(session, scope, vpn) }
     val importer: ImportModel by lazy { ImportModel(session, scope, servers) }
+    val restart: RestartHub by lazy { RestartHub(session, scope) }
 
     /** Replaces the settings and saves them; the UI recomposes from the new immutable value. */
     fun update(change: (UiSettings) -> UiSettings) {

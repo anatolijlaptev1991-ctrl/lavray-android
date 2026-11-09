@@ -16,6 +16,9 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.StatisticsScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.DnsScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RoutingScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AboutScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppPickerScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.LicensesScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingsScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.UpdatesScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsScreen
@@ -87,6 +90,9 @@ object AppRegistry {
     val pushed: List<ScreenSpec> = listOf(
         ScreenSpec("stats", R.string.stats_title, null) { StatisticsScreen() },
         ScreenSpec("backup", R.string.bk_title, null) { BackupScreen() },
+        ScreenSpec("about", R.string.sec_about, null) { AboutScreen() },
+        ScreenSpec("licenses", R.string.lic_title, null) { LicensesScreen() },
+        ScreenSpec("apps", R.string.apps_title, null) { AppPickerScreen() },
         ScreenSpec("scan", R.string.imp_tab_qr, null) { ScanScreen() },
     )
 

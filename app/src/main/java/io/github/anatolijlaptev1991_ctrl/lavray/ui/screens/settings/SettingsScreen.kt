@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -37,27 +43,46 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.AppLocale
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
 
 /**
- * Settings. Owned by another agent from here on: this file starts with the parts the app shell needs to be usable
- * (look, language, start with the phone). Add further sections as `LavSectionLabel` + `LavCard` blocks below
- * [AppearanceSection]; keep each section in its own file next to this one.
+ * Settings of the phone: what has a meaning here, in sections: connection, tunnel (per-app mode, stack, MTU), system
+ * (Always-on, battery), appearance, backup, about. What the desktop has and a phone cannot use (system proxy,
+ * shortcuts, tray, elevated TUN, update channels, the local proxy port) is not shown; docs/NOT-PORTED.md says why.
  */
 @Composable
 fun SettingsScreen() {
+    val env = LocalEnv.current
     val nav = LocalNavigator.current
+    val model = remember { SettingsModel(env.session, env.scope) }
+    val settings by model.state.collectAsStateWithLifecycle()
+    LaunchedEffect(model) { model.load() }
     LavScreenColumn {
-        LavSectionLabel(stringResource(R.string.sec_appearance))
-        LavCard(Modifier.fillMaxWidth()) { AppearanceSection() }
+        settings.error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes()), actions = { LavButton(stringResource(R.string.err_retry), { model.dismissError(); model.load() }) }) }
         LavSectionLabel(stringResource(R.string.sec_startup))
         LavCard(Modifier.fillMaxWidth()) { StartupSection() }
+        TunnelSection(settings, model)
+        SystemSection()
+        AdvancedSection(settings, model)
+        LavSectionLabel(stringResource(R.string.sec_appearance))
+        LavCard(Modifier.fillMaxWidth()) { AppearanceSection() }
+        LavSectionLabel(stringResource(R.string.sec_backup))
+        LavCard(Modifier.fillMaxWidth()) { LinkRow(R.string.bk_title, LavIcon.Download) { nav.push("backup") } }
+        LavSectionLabel(stringResource(R.string.sec_about))
         LavCard(Modifier.fillMaxWidth()) {
-            LavListRow(
-                title = stringResource(R.string.bk_title),
-                leading = { LavIconView(LavIcon.Download, Lav.colors.textSecondary, size = 20.dp) },
-                trailing = { LavIconView(LavIcon.ChevronRight, Lav.colors.textTertiary, size = 18.dp) },
-                onClick = { nav.push("backup") },
-            )
+            Column {
+                LinkRow(R.string.sec_about, LavIcon.Info) { nav.push("about") }
+                LinkRow(R.string.lic_title, LavIcon.File) { nav.push("licenses") }
+            }
         }
     }
+}
+
+@Composable
+private fun LinkRow(title: Int, icon: LavIcon, onClick: () -> Unit) {
+    LavListRow(
+        title = stringResource(title),
+        leading = { LavIconView(icon, Lav.colors.textSecondary, size = 20.dp) },
+        trailing = { LavIconView(LavIcon.ChevronRight, Lav.colors.textTertiary, size = 18.dp) },
+        onClick = onClick,
+    )
 }
 
 /** Theme, accent and language, applied at once and remembered. */
