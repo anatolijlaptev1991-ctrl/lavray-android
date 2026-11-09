@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-only
+.gradle/
+local.properties
+*.jks
+*.keystore
+*.p12
+/app/build/
+/app/.cxx/
+/app/libs/*.aar
+/build/
+.idea/
+*.iml
+.kotlin/
+/app/libs/*.jar

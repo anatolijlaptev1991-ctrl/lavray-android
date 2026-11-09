@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<resources>
+    <string name="app_name">LAVRay</string>
+    <string name="channel_status">Connection status</string>
+    <string name="channel_alerts">Alerts</string>
+    <string name="notif_idle">Not connected</string>
+    <string name="notif_connecting">Connecting…</string>
+    <string name="notif_connected">Connected</string>
+    <string name="notif_disconnecting">Disconnecting…</string>
+    <string name="notif_waiting_network">Waiting for network</string>
+    <string name="notif_error">Connection failed</string>
+    <string name="notif_action_disconnect">Disconnect</string>
+    <string name="notif_permission_title">VPN permission needed</string>
+    <string name="notif_permission_text">Open the app to allow the VPN again.</string>
+    <string name="notif_failure_title">Could not connect</string>
+    <string name="main_status">Status: %1$s</string>
+    <string name="main_connect">Connect</string>
+    <string name="main_disconnect">Disconnect</string>
+    <string name="main_auto_connect">Connect when the phone starts</string>
+    <string name="state_idle">Not connected</string>
+    <string name="state_connecting">Connecting…</string>
+    <string name="state_connected">Connected</string>
+    <string name="state_disconnecting">Disconnecting…</string>
+    <string name="state_waiting_network">Waiting for network</string>
+    <string name="state_needs_permission">VPN permission needed</string>
+    <string name="state_error">Error</string>
+</resources>
