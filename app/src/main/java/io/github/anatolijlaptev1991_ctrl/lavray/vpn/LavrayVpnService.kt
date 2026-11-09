@@ -222,11 +222,15 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
             }
         }
         coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE)
+        platform.releaseTun()
     }
 
     private fun onCoreStatus(next: CoreStatus) {
+        val wasActive = isCoreActive()
         val wasConnected = coreStatus?.state == CoreState.CORE_STATE_CONNECTED
         coreStatus = next
+        // The core has let go of the tunnel: close our descriptor or the interface outlives it.
+        if (wasActive && !isCoreActive()) platform.releaseTun()
         val dropped = next.state == CoreState.CORE_STATE_ERROR || next.state == CoreState.CORE_STATE_IDLE
         if (wasConnected && dropped) apply(machine.handle(AutoEvent.ConnectionLost))
     }
@@ -284,6 +288,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
                 throw e
             } catch (e: Exception) {
                 val failure = ConnectAttempt.classify(e)
+                platform.releaseTun()
                 post(Event.Auto(AutoEvent.AttemptFailed(failure.permanent, failure.message)))
             }
         }

@@ -6,6 +6,7 @@ import android.net.InetAddresses
 import android.net.Network
 import android.net.VpnService
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import lavray.core.mobile.NetworkListener
 import lavray.core.mobile.Platform
 import java.io.IOException
@@ -23,12 +24,20 @@ internal class VpnPlatform(
     private var monitor: DefaultNetworkMonitor? = null
     private var listener: NetworkListener? = null
 
+    private val tun = TunHolder<ParcelFileDescriptor>()
+
     override fun openTun(optionsJSON: String): Int {
-        val fd = establisher.establish(TunOptions.parse(optionsJSON))
+        val pfd = establisher.establish(TunOptions.parse(optionsJSON))
+        // The core duplicates the descriptor; this one stays open (and so does the interface)
+        // until the tunnel ends. A reconnect replaces and closes the previous one.
+        tun.replace(pfd)
         // The new interface follows the default network until the monitor says otherwise.
         syncUnderlying(currentUnderlying)
-        return fd
+        return pfd.fd
     }
+
+    /** Ends the interface once the core has stopped using it. Safe to call at any time. */
+    fun releaseTun() = tun.release()
 
     override fun protect(fd: Int) {
         if (!service.protect(fd)) throw IOException("VpnService.protect failed")
@@ -82,5 +91,8 @@ internal class VpnPlatform(
         service.setUnderlyingNetworks(network?.let { arrayOf(it) })
     }
 
-    fun close() = closeNetworkMonitor()
+    fun close() {
+        closeNetworkMonitor()
+        releaseTun()
+    }
 }
