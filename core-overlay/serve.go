@@ -121,9 +121,7 @@ func listenUnix(path string) (net.Listener, error) {
 func assemble(o *Options, p Platform, st *store.Store, ln net.Listener, mux *logs.Mux) (*instance, error) {
 	h := newHost(p)
 	server := api.NewServer(api.Deps{Store: st, Logs: mux, Runner: newRunner(h)})
-	if err := installTestFactory(server, h.testFactory()); err != nil {
-		return nil, err
-	}
+	installTestFactory(server, h.testFactory())
 	stopSched := server.StartSubscriptionScheduler(context.Background())
 
 	root := http.NewServeMux()

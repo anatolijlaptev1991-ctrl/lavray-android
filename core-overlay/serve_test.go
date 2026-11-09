@@ -27,9 +27,7 @@ func TestInstallTestFactory(t *testing.T) {
 	defer st.Close()
 	srv := api.NewServer(api.Deps{Store: st})
 	h := newHost(fakePlatform{})
-	if err := installTestFactory(srv, h.testFactory()); err != nil {
-		t.Fatalf("поле newTestInst не найдено: %v", err)
-	}
+	installTestFactory(srv, h.testFactory()) // не компилируется, если ядро убрало api.SetTestInstanceFactory
 }
 
 // Каждый экземпляр sing-box получает СВОЙ реестр служб, но платформа и

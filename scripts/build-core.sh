@@ -53,6 +53,7 @@ prepare() {
   cp -r "$SRC" "$COPY"
   mkdir -p "$COPY/mobile"
   cp "$ROOT"/core-overlay/*.go "$COPY/mobile/"
+  cp "$ROOT"/core-overlay/inject/api/*.go "$COPY/internal/api/"
   (
     cd "$COPY"
     export GOFLAGS=-mod=mod
@@ -77,6 +78,7 @@ run_tests() {
     export GOFLAGS=-mod=mod
     go vet -tags "$(tags)" ./mobile/
     go test -count=1 -tags "$(tags)" ./mobile/
+    go test -count=1 -tags "$(tags)" -run TestSetTestInstanceFactory ./internal/api/
   )
 }
 
