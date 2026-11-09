@@ -5,7 +5,10 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.system.Os
 
 /** The network the core should bind to, as the core wants to see it. */
@@ -16,10 +19,36 @@ data class DefaultNetwork(
     val metered: Boolean,
 )
 
+/** How the physical default network is observed; chosen by API level. */
+enum class NetworkRegistration {
+    /** API 31+: the best network that is not a VPN, with no side effects. */
+    BEST_MATCHING,
+
+    /** API 28 to 30: a request for the best non-VPN network. */
+    REQUEST,
+
+    /** API 26 and 27: the plain default-network callback. */
+    DEFAULT,
+    ;
+
+    companion object {
+        fun forSdk(sdk: Int): NetworkRegistration = when {
+            sdk >= Build.VERSION_CODES.S -> BEST_MATCHING
+            sdk >= Build.VERSION_CODES.P -> REQUEST
+            else -> DEFAULT
+        }
+    }
+}
+
 /**
- * Follows the default network through ConnectivityManager callbacks (event driven,
- * delivered on the system's connectivity thread). Reports null when there is none.
- * A VPN network is ignored: the tunnel itself must never become "the network".
+ * Follows the physical default network through ConnectivityManager callbacks (event
+ * driven, delivered on a private handler thread that lives only while it is watching).
+ * Reports null when there is none.
+ *
+ * registerDefaultNetworkCallback is not enough: once our tunnel is up the system
+ * reports the tunnel itself as the default, the physical changes stop arriving, and
+ * the core keeps binding to a dead Wi-Fi. The request therefore asks for a non-VPN
+ * network explicitly.
  *
  * Android 11+ hides interface enumeration from apps, so names come from
  * LinkProperties and the index from if_nametoindex.
@@ -33,6 +62,7 @@ class DefaultNetworkMonitor(
     private var caps: NetworkCapabilities? = null
     private var registered = false
     private var lastEmitted: DefaultNetwork? = null
+    private var worker: HandlerThread? = null
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
@@ -72,8 +102,29 @@ class DefaultNetworkMonitor(
     @Synchronized
     fun start() {
         if (registered) return
-        cm.registerDefaultNetworkCallback(callback)
+        val thread = HandlerThread("lavray-net").also { it.start() }
+        val handler = Handler(thread.looper)
+        try {
+            register(handler)
+        } catch (e: RuntimeException) {
+            thread.quitSafely()
+            throw e
+        }
+        worker = thread
         registered = true
+    }
+
+    private fun register(handler: Handler) {
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        when (NetworkRegistration.forSdk(Build.VERSION.SDK_INT)) {
+            NetworkRegistration.BEST_MATCHING -> cm.registerBestMatchingNetworkCallback(request, callback, handler)
+            NetworkRegistration.REQUEST -> cm.requestNetwork(request, callback, handler)
+            NetworkRegistration.DEFAULT -> cm.registerDefaultNetworkCallback(callback, handler)
+        }
     }
 
     @Synchronized
@@ -81,6 +132,8 @@ class DefaultNetworkMonitor(
         if (!registered) return
         runCatching { cm.unregisterNetworkCallback(callback) }
         registered = false
+        worker?.quitSafely()
+        worker = null
         current = null
         link = null
         caps = null
