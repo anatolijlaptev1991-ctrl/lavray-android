@@ -15,10 +15,10 @@ internal class TunEstablisher(
     private val configureIntent: PendingIntent?,
 ) {
     /**
-     * Opens the interface and returns its file descriptor, detached: from here on the
-     * core owns the descriptor and closes it, which removes the interface.
+     * Opens the interface. The caller keeps the descriptor open for as long as the tunnel
+     * should exist (the core only duplicates it) and closes it to remove the interface.
      */
-    fun establish(options: TunOptions): Int {
+    fun establish(options: TunOptions): ParcelFileDescriptor {
         require(options.inet4.isNotEmpty() || options.inet6.isNotEmpty()) { "TUN options carry no address" }
         val builder = service.Builder().setSession(sessionName)
         if (options.mtu > 0) builder.setMtu(options.mtu)
@@ -32,8 +32,7 @@ internal class TunEstablisher(
         // setUnderlyingNetworks; the default (always metered) would throttle apps on Wi-Fi.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
         configureIntent?.let { builder.setConfigureIntent(it) }
-        val pfd: ParcelFileDescriptor = builder.establish() ?: throw IOException("VPN permission is not granted")
-        return pfd.detachFd()
+        return builder.establish() ?: throw IOException("VPN permission is not granted")
     }
 
     private fun applyAppRules(builder: VpnService.Builder, rules: AppRules) {

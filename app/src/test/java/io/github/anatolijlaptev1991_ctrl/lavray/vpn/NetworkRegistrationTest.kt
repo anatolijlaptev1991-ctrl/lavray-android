@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-3.0-only
+package io.github.anatolijlaptev1991_ctrl.lavray.vpn
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class NetworkRegistrationTest {
+    // Regression: the plain default-network callback reports our own tunnel as the default
+    // once it is up, so physical network changes were never delivered to the core.
+    @Test
+    fun modernApisAskForTheBestNonVpnNetwork() {
+        assertEquals(NetworkRegistration.BEST_MATCHING, NetworkRegistration.forSdk(31))
+        assertEquals(NetworkRegistration.BEST_MATCHING, NetworkRegistration.forSdk(36))
+    }
+
+    @Test
+    fun androidNineToElevenUseARequest() {
+        assertEquals(NetworkRegistration.REQUEST, NetworkRegistration.forSdk(28))
+        assertEquals(NetworkRegistration.REQUEST, NetworkRegistration.forSdk(30))
+    }
+
+    @Test
+    fun oldestSupportedApisUseTheDefaultCallback() {
+        assertEquals(NetworkRegistration.DEFAULT, NetworkRegistration.forSdk(26))
+        assertEquals(NetworkRegistration.DEFAULT, NetworkRegistration.forSdk(27))
+    }
+}

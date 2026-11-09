@@ -23,6 +23,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/third_party/lavray/core"
 BUILD="$ROOT/build/go"
 COPY="$BUILD/core"
+LIBC="$BUILD/libc"
 BIN="$BUILD/bin"
 
 ABIS="${ABIS:-android/arm64,android/arm,android/amd64}"
@@ -45,6 +46,27 @@ find_ndk() {
   printf '%s' "$sdk/ndk/$NDK_VERSION"
 }
 
+# modernc.org/libc (SQLite) issues legacy x86-64 system calls (open, stat, lstat, ...) that
+# Android's seccomp filter kills with SIGSYS. The module is copied to build/go/libc, every
+# raw system call in its musl glue goes through core-overlay/libc-android (which rewrites
+# them into the *at calls), and the core module is pointed at the copy. Only the build
+# copy changes; arm64 and arm never issued these calls, so the rewrite is a no-op there.
+patch_libc() {
+  local src
+  src="$(cd "$COPY" && GOFLAGS=-mod=mod go list -m -f '{{.Dir}}' modernc.org/libc)"
+  [ -f "$src/syscall_musl.go" ] || { echo "нет syscall_musl.go в $src (libc обновлён?)" >&2; exit 1; }
+  rm -rf "$LIBC"
+  cp -r "$src" "$LIBC"
+  chmod -R u+w "$LIBC"
+  cp -r "$ROOT/core-overlay/libc-android/androidcompat" "$LIBC/"
+  cp "$ROOT"/core-overlay/libc-android/rawsys_*.go "$LIBC/"
+  sed -i -e 's/unix.Syscall6(/rawSyscall6(/g' -e 's/unix.Syscall(/rawSyscall(/g' "$LIBC/syscall_musl.go"
+  if grep -q 'unix.Syscall' "$LIBC/syscall_musl.go"; then
+    echo "syscall_musl.go: остались прямые unix.Syscall" >&2; exit 1
+  fi
+  (cd "$COPY" && GOFLAGS=-mod=mod go mod edit -replace "modernc.org/libc=$(native_path "$LIBC")")
+}
+
 prepare() {
   [ -f "$SRC/go.mod" ] || { echo "нет $SRC (git submodule update --init)" >&2; exit 1; }
   echo "==> копия ядра в $COPY"
@@ -53,6 +75,7 @@ prepare() {
   cp -r "$SRC" "$COPY"
   mkdir -p "$COPY/mobile"
   cp "$ROOT"/core-overlay/*.go "$COPY/mobile/"
+  cp "$ROOT"/core-overlay/inject/api/*.go "$COPY/internal/api/"
   (
     cd "$COPY"
     export GOFLAGS=-mod=mod
@@ -61,6 +84,7 @@ prepare() {
     go build -o "$BIN/gomobile$(go env GOEXE)" github.com/sagernet/gomobile/cmd/gomobile
     go build -o "$BIN/gobind$(go env GOEXE)" github.com/sagernet/gomobile/cmd/gobind
   )
+  patch_libc
 }
 
 tags() {
@@ -77,7 +101,9 @@ run_tests() {
     export GOFLAGS=-mod=mod
     go vet -tags "$(tags)" ./mobile/
     go test -count=1 -tags "$(tags)" ./mobile/
+    go test -count=1 -tags "$(tags)" -run TestSetTestInstanceFactory ./internal/api/
   )
+  (cd "$LIBC" && GOFLAGS=-mod=mod go test -count=1 ./androidcompat/)
 }
 
 bind() {
