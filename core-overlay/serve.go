@@ -80,6 +80,7 @@ func startInstance(o *Options, p Platform) (*instance, error) {
 	if err := applyTimeZone(o.TimeZone); err != nil {
 		mux.Logf(logs.LevelWarn, "core", "%v (время в журнале по UTC)", err)
 	}
+	mux.Logf(logs.LevelInfo, "core", "часовой пояс ядра: %s (UTC%s)", time.Local, time.Now().Format("-07:00"))
 	mux.Logf(logs.LevelInfo, "core", "lavray-core (android) запускается: data=%s", o.DataDir)
 	if err := presets.EnsureGeo(o.DataDir); err != nil {
 		mux.Logf(logs.LevelWarn, "core", "geo-базы: %v (правила geosite/geoip могут не работать)", err)
@@ -87,6 +88,10 @@ func startInstance(o *Options, p Platform) (*instance, error) {
 	st, err := store.Open(o.DataDir)
 	if err != nil {
 		return nil, fmt.Errorf("mobile: хранилище: %w", err)
+	}
+	if err := applyAndroidDefaults(st); err != nil {
+		_ = st.Close()
+		return nil, err
 	}
 	ln, err := listenUnix(o.SocketPath)
 	if err != nil {
