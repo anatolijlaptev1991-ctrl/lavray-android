@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- The "Reflection" mark (docs/DESIGN-SYSTEM.md section 1) centred in the 66 dp safe zone of the 108 dp adaptive canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="1.15" android:scaleY="1.15" android:translateX="16.6" android:translateY="17.4">
+        <group android:translateX="-4.5" android:translateY="1.5">
+            <path
+                android:pathData="M23,13 L23,43 L45,43"
+                android:strokeWidth="8"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="bevel">
+                <aapt:attr name="android:strokeColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="23" android:startY="9"
+                        android:endX="49" android:endY="43">
+                        <item android:offset="0" android:color="#4DF2B94B" />
+                        <item android:offset="0.5" android:color="#FFF2B94B" />
+                        <item android:offset="1" android:color="#FFE0813A" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+            <path
+                android:pathData="M14.5,43 L23,51.5"
+                android:strokeColor="#EBEDEDEF"
+                android:strokeWidth="2.6"
+                android:strokeLineCap="round" />
+            <path
+                android:fillColor="#FFE0813A"
+                android:pathData="M51.9,43 a3.6,3.6 0 1,0 7.2,0 a3.6,3.6 0 1,0 -7.2,0" />
+        </group>
+    </group>
+</vector>

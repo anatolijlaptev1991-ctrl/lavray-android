@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<resources>
+    <!-- Window background before the first Compose frame: bg.base of the light theme (docs/DESIGN-SYSTEM.md). -->
+    <color name="window_bg">#FFF5F2EC</color>
+    <!-- Launcher icon background: bg.base of the dark theme. -->
+    <color name="ic_background">#FF131316</color>
+</resources>

@@ -1,110 +1,85 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.net.VpnService
-import android.os.Build
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import io.github.anatolijlaptev1991_ctrl.lavray.R
-import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavTheme
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.MotionPrefs
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.resolveDark
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.AppLocale
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.IncomingIntent
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.AppShell
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.rememberNavigator
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
 
 /**
- * Placeholder screen to exercise the VPN layer before the real UI exists: consent,
- * connect, disconnect, status, and the auto-connect switch. It binds to the :vpn
- * process in onStart (asynchronously) and unbinds in onStop, so closing the screen
- * lets an idle :vpn process exit.
+ * The only activity. onCreate does what the first frame needs and nothing more: read the small UI preferences
+ * (theme and language), create the environment (models are lazy) and set the content. The :vpn process is
+ * bound in onStart, asynchronously, and unbound in onStop so an idle :vpn can exit.
  */
 class MainActivity : ComponentActivity() {
-    private lateinit var controller: VpnController
+    private lateinit var env: AppEnv
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase, UiPrefs(newBase).load().language))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        controller = VpnController(this)
-        setContent { MainScreen(controller, onPrepare = { VpnService.prepare(this) }) }
+        env = AppEnv(applicationContext, VpnController(this), UiPrefs(this))
+        setContent { Root() }
+        if (savedInstanceState == null) offerIncoming(intent)
     }
 
     override fun onStart() {
         super.onStart()
-        controller.bind()
+        env.controller.bind()
     }
 
     override fun onStop() {
-        controller.unbind()
+        env.controller.unbind()
         super.onStop()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        offerIncoming(intent)
+    }
+
     override fun onDestroy() {
-        controller.close()
+        env.close()
+        env.controller.close()
         super.onDestroy()
     }
-}
 
-@Composable
-private fun MainScreen(controller: VpnController, onPrepare: () -> android.content.Intent?) {
-    val status by controller.status.collectAsState()
-    var autoConnect by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { runCatching { autoConnect = controller.isAutoConnectEnabled() } }
-
-    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) controller.connect()
-    }
-    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
-    fun requestConnect() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        val intent = onPrepare()
-        if (intent == null) controller.connect() else consent.launch(intent)
+    private fun offerIncoming(intent: Intent?) {
+        val text = IncomingIntent.extract(intent?.action, intent?.dataString, intent?.getCharSequenceExtra(Intent.EXTRA_TEXT))
+        if (text != null) env.importer.open(text)
     }
 
-    Column(
-        modifier = Modifier.safeDrawingPadding().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        BasicText(stringResource(R.string.main_status, stateLabel(status.state)))
-        if (status.error != null) BasicText(status.error.orEmpty())
-        BasicText(stringResource(R.string.main_connect), Modifier.clickable { requestConnect() }.padding(8.dp))
-        BasicText(stringResource(R.string.main_disconnect), Modifier.clickable { controller.disconnect() }.padding(8.dp))
-        Row(Modifier.fillMaxWidth().clickable {
-            autoConnect = !autoConnect
-            controller.setAutoConnectEnabled(autoConnect)
-        }.padding(8.dp)) {
-            BasicText((if (autoConnect) "[x] " else "[ ] ") + stringResource(R.string.main_auto_connect))
+    @androidx.compose.runtime.Composable
+    private fun Root() {
+        val settings = env.settings
+        val motion = remember { MotionPrefs.read(this) }
+        val language = AppLocale.effective(this, settings.language)
+        LavTheme(settings.theme, settings.accent, language.isCjk, motion) {
+            val dark = resolveDark(settings.theme)
+            SideEffect {
+                val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+            }
+            CompositionLocalProvider(LocalEnv provides env, LocalNavigator provides rememberNavigator()) { AppShell() }
         }
     }
 }
-
-@Composable
-private fun stateLabel(state: VpnState): String = stringResource(
-    when (state) {
-        VpnState.IDLE -> R.string.state_idle
-        VpnState.CONNECTING -> R.string.state_connecting
-        VpnState.CONNECTED -> R.string.state_connected
-        VpnState.DISCONNECTING -> R.string.state_disconnecting
-        VpnState.WAITING_NETWORK -> R.string.state_waiting_network
-        VpnState.NEEDS_PERMISSION -> R.string.state_needs_permission
-        VpnState.ERROR -> R.string.state_error
-    },
-)

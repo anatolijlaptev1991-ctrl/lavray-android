@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: GPL-3.0-only
+package io.github.anatolijlaptev1991_ctrl.lavray.ui.importer
+
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import io.github.anatolijlaptev1991_ctrl.lavray.R
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.LocalEnv
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ButtonVariant
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavChip
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSheet
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavTextField
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Hosts the import sheet and turns import results into toasts. Placed once, in the app shell. */
+@Composable
+fun ImportHost() {
+    val env = LocalEnv.current
+    val model = env.importer
+    val ui by model.ui.collectAsStateWithLifecycle()
+    val owner = LocalLifecycleOwner.current
+    LaunchedEffect(model) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            model.events.collect { e ->
+                val ctx = env.appContext
+                when (e) {
+                    is ImportEvent.Imported -> env.toast.show(
+                        if (e.count > 0) ctx.getString(R.string.toast_imported, e.count.toString()) else ctx.getString(R.string.toast_saved),
+                    )
+                }
+            }
+        }
+    }
+    if (ui.open) ImportSheet(ui, model)
+}
+
+@Composable
+private fun ImportSheet(ui: ImportUi, model: ImportModel) {
+    LavSheet(stringResource(R.string.imp_title), onDismiss = model::close) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LavChip(stringResource(R.string.imp_tab_link), ui.tab == ImportTab.Link, { model.selectTab(ImportTab.Link) }, icon = LavIcon.Link)
+            LavChip(stringResource(R.string.imp_tab_qr), ui.tab == ImportTab.Qr, { model.selectTab(ImportTab.Qr) }, icon = LavIcon.Qr)
+            LavChip(stringResource(R.string.imp_tab_file), ui.tab == ImportTab.File, { model.selectTab(ImportTab.File) }, icon = LavIcon.File)
+        }
+        when (ui.tab) {
+            ImportTab.Link -> LinkTab(ui, model)
+            ImportTab.Qr -> QrTab(model)
+            ImportTab.File -> FileTab(model)
+        }
+        ui.note?.let { NoteBanner(it) }
+        Preview(ui)
+        ui.error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes())) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End)) {
+            LavButton(stringResource(R.string.common_cancel), model::close, variant = ButtonVariant.Ghost)
+            LavButton(
+                stringResource(R.string.imp_do), { model.submit(null) },
+                variant = ButtonVariant.Primary, loading = ui.busy, enabled = ui.canSubmit,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LinkTab(ui: ImportUi, model: ImportModel) {
+    val context = LocalContext.current
+    var clip by remember { mutableStateOf<String?>(null) }
+    // The clipboard is read once, when this tab opens with an empty field (note imp.clipNote says so).
+    LaunchedEffect(ui.open) { clip = if (ui.payload.isEmpty()) readClipboardLink(context) else null }
+    val offer = clip
+    if (offer != null && ui.payload.isEmpty()) {
+        LavBanner(
+            StatusTone.Direct, stringResource(R.string.imp_clip, LinkClassifier.mask(offer)), text = stringResource(R.string.imp_clipNote),
+            actions = {
+                LavButton(stringResource(R.string.imp_clipPaste), { model.setPayload(offer); clip = null }, variant = ButtonVariant.Primary, icon = LavIcon.Clipboard)
+                LavButton(stringResource(R.string.imp_clipHide), { clip = null }, variant = ButtonVariant.Ghost)
+            },
+        )
+    }
+    if (ui.payloadLarge) {
+        LavText(stringResource(R.string.imp_prev_doc), style = Lav.type.body)
+    } else {
+        var text by remember(ui.payload) { mutableStateOf(ui.payload) }
+        LavTextField(
+            text, { text = it; model.setPayload(it) },
+            modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.imp_link),
+            placeholder = "vless://…", mono = true, singleLine = false, minLines = 3, leading = LavIcon.Link,
+        )
+        LavText(stringResource(R.string.imp_hint), style = Lav.type.small, color = Lav.colors.textTertiary)
+        LavButton(
+            stringResource(R.string.imp_clipPaste),
+            { readClipboardText(context)?.let { model.setPayload(it) } },
+            icon = LavIcon.Clipboard,
+        )
+    }
+}
+
+@Composable
+private fun QrTab(model: ImportModel) {
+    val context = LocalContext.current
+    val nav = LocalNavigator.current
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            when (val r = QrImageReader.read(context.contentResolver, uri)) {
+                is QrImageResult.Found -> model.offerScanned(r.text)
+                QrImageResult.NotFound -> model.setNote(ImportNote.QrNotFound)
+                QrImageResult.Unreadable -> model.setNote(ImportNote.QrUnreadable)
+            }
+        }
+    }
+    LavText(stringResource(R.string.imp_qr_hint), style = Lav.type.small, color = Lav.colors.textSecondary)
+    LavButton(
+        stringResource(R.string.imp_qr_scan), { model.close(); nav.push("scan") },
+        variant = ButtonVariant.Primary, icon = LavIcon.Camera, modifier = Modifier.fillMaxWidth(),
+    )
+    LavButton(stringResource(R.string.imp_qrFile), { picker.launch("image/*") }, icon = LavIcon.Image, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun FileTab(model: ImportModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            when (val r = readTextFile(context.contentResolver, uri)) {
+                is FileRead.Text -> model.setPayload(r.text)
+                FileRead.TooLarge -> model.setNote(ImportNote.FileTooLarge)
+                FileRead.Unreadable -> model.setNote(ImportNote.FileUnreadable)
+            }
+        }
+    }
+    LavText(stringResource(R.string.imp_fileHint_phone), style = Lav.type.small, color = Lav.colors.textSecondary)
+    LavButton(stringResource(R.string.imp_file_choose), { picker.launch("*/*") }, icon = LavIcon.File, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun NoteBanner(note: ImportNote) {
+    val text = when (note) {
+        ImportNote.QrNotFound -> stringResource(R.string.imp_qrNotFound)
+        ImportNote.QrUnreadable -> stringResource(R.string.imp_qrBadImage)
+        ImportNote.FileUnreadable -> stringResource(R.string.imp_file_unreadable)
+        ImportNote.FileTooLarge -> stringResource(R.string.imp_fileTooLarge, (LinkClassifier.MAX_TEXT_CHARS / (1024 * 1024)).toString())
+        ImportNote.NothingRecognised -> stringResource(R.string.imp_unrecognized)
+    }
+    LavBanner(StatusTone.Connecting, text)
+}
+
+@Composable
+private fun Preview(ui: ImportUi) {
+    when (val input = ui.input) {
+        ImportInput.Empty -> Unit
+        ImportInput.Unrecognized -> if (ui.payload.isNotBlank()) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_unrecognized))
+        is ImportInput.Links -> LavText(
+            pluralStringResource(R.plurals.pl_srv, input.links.size, input.links.size) +
+                " · " + input.schemes.joinToString(", ") { it.uppercase() },
+            style = Lav.type.bodyStrong,
+        )
+        is ImportInput.SubscriptionUrl -> {
+            LavText(stringResource(R.string.imp_prev_subUrl), style = Lav.type.bodyStrong)
+            if (input.insecure) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_httpWarn))
+        }
+        is ImportInput.EncryptedLink -> LavText(stringResource(R.string.onb_src_happ_d), style = Lav.type.bodyStrong)
+        is ImportInput.Document -> LavText(stringResource(R.string.imp_prev_doc), style = Lav.type.bodyStrong)
+    }
+}
+
+// ---- clipboard and file helpers (main-thread clipboard, IO-thread file)
+
+internal fun readClipboardText(context: Context): String? {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
+    val item = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return null
+    return item.coerceToText(context)?.toString()?.takeIf { it.length <= CLIPBOARD_LIMIT }
+}
+
+internal fun readClipboardLink(context: Context): String? = readClipboardText(context)?.trim()?.takeIf(LinkClassifier::isImportable)
+
+private const val CLIPBOARD_LIMIT = 100_000
+private const val BUFFER = 16 * 1024
+
+sealed interface FileRead {
+    data class Text(val text: String) : FileRead
+    data object TooLarge : FileRead
+    data object Unreadable : FileRead
+}
+
+/** Reads a text file the person picked. Larger than the core accepts is refused before it is read into memory. */
+internal suspend fun readTextFile(resolver: ContentResolver, uri: Uri): FileRead = withContext(Dispatchers.IO) {
+    try {
+        val size = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else -1L
+        } ?: -1L
+        if (size > LinkClassifier.MAX_TEXT_CHARS) return@withContext FileRead.TooLarge
+        val input = resolver.openInputStream(uri) ?: return@withContext FileRead.Unreadable
+        val out = java.io.ByteArrayOutputStream()
+        input.use { stream ->
+            val buffer = ByteArray(BUFFER)
+            while (true) {
+                val n = stream.read(buffer)
+                if (n < 0) break
+                if (out.size() + n > LinkClassifier.MAX_TEXT_CHARS) return@withContext FileRead.TooLarge
+                out.write(buffer, 0, n)
+            }
+        }
+        FileRead.Text(out.toByteArray().toString(Charsets.UTF_8))
+    } catch (_: java.io.IOException) {
+        FileRead.Unreadable
+    } catch (_: SecurityException) {
+        FileRead.Unreadable
+    }
+}
