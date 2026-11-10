@@ -51,6 +51,7 @@ class CoreHealthSource(private val session: CoreSession) : HealthSource {
 }
 
 /** What the Connection screen may say about traffic through the server. */
+@Immutable
 sealed interface LinkHealth {
     /** No tunnel, or no word from the core yet: nothing is claimed. */
     data object Unknown : LinkHealth
@@ -68,12 +69,35 @@ sealed interface LinkHealth {
     data class NoTraffic(val reason: String) : LinkHealth
 }
 
+/**
+ * What is known about THIS tunnel's health check, taken when the tunnel was first seen connected: whether the setting
+ * was on then (the core reads it when it connects), and when. [trusted] is false when the tunnel was first seen long
+ * after it started, so the setting may have changed since and nothing can be said about it.
+ */
+@Immutable
+data class HealthBasis(val startedAtMs: Long, val checkEnabled: Boolean, val readyAtMs: Long, val trusted: Boolean) {
+    companion object {
+        /** [signal] is the first frame of a connected tunnel; [checkEnabled] is the setting read right then. */
+        fun firstSight(signal: HealthSignal, checkEnabled: Boolean, nowMs: Long) = HealthBasis(
+            startedAtMs = signal.startedAtMs,
+            checkEnabled = checkEnabled,
+            readyAtMs = nowMs,
+            trusted = signal.startedAtMs > 0 && nowMs - signal.startedAtMs in 0..HealthRules.TRUST_MS,
+        )
+    }
+}
+
 object HealthRules {
     /**
-     * The core tests the address twice at most (8 s each, 1 s apart); a verdict that has not come within this window
-     * after the start is not coming, so a quiet core means the check passed. Success sends no event, only failure does.
+     * How long after the tunnel became ready a failure can still arrive: the core tests the address twice at most
+     * (8 s each, 1 s apart), so 17 s, plus a margin. Success sends no event, only failure does, so "verified" is a verdict
+     * after this window. It is counted from when the tunnel was first seen ready, never from the start of the run (the
+     * core starts the check only after it is ready, which can be much later than the start).
      */
-    const val CHECK_WINDOW_MS = 20_000L
+    const val CHECK_WINDOW_MS = 25_000L
+
+    /** A tunnel first seen connected within this time of its start was watched from near its beginning. */
+    const val TRUST_MS = 45_000L
 
     /** Reason codes of connect_health.go and their dictionary text; any other reason is shown as the core wrote it. */
     @StringRes
@@ -85,15 +109,20 @@ object HealthRules {
         else -> null
     }
 
-    fun of(signal: HealthSignal, checkEnabled: Boolean, nowMs: Long): LinkHealth = when {
+    /**
+     * "Verified" needs a basis for this very tunnel (same start), a setting that was on when it connected, trust in that
+     * reading, and the whole window without a failure. In every doubtful case the answer is [LinkHealth.NotChecked]: the
+     * core's own failure reason is shown whatever else is unknown, a verification never is.
+     */
+    fun of(signal: HealthSignal, basis: HealthBasis?, nowMs: Long): LinkHealth = when {
         !signal.connected -> LinkHealth.Unknown
         signal.healthError != null -> LinkHealth.NoTraffic(signal.healthError)
-        !checkEnabled -> LinkHealth.NotChecked
-        signal.startedAtMs > 0 && nowMs - signal.startedAtMs < CHECK_WINDOW_MS -> LinkHealth.Checking
+        basis == null || basis.startedAtMs != signal.startedAtMs || !basis.trusted || !basis.checkEnabled -> LinkHealth.NotChecked
+        nowMs - basis.readyAtMs < CHECK_WINDOW_MS -> LinkHealth.Checking
         else -> LinkHealth.Verified
     }
 
-    /** Milliseconds until a [LinkHealth.Checking] verdict turns into [LinkHealth.Verified]; 0 when it already has. */
-    fun msUntilVerdict(signal: HealthSignal, nowMs: Long): Long =
-        if (signal.startedAtMs > 0) (signal.startedAtMs + CHECK_WINDOW_MS - nowMs).coerceAtLeast(0L) else 0L
+    /** Milliseconds until a [LinkHealth.Checking] verdict turns into [LinkHealth.Verified]; 0 when nothing is waiting. */
+    fun msUntilVerdict(signal: HealthSignal, basis: HealthBasis?, nowMs: Long): Long =
+        if (of(signal, basis, nowMs) == LinkHealth.Checking && basis != null) (basis.readyAtMs + CHECK_WINDOW_MS - nowMs).coerceAtLeast(0L) else 0L
 }

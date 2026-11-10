@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,14 +105,17 @@ fun ConnectionScreen() {
     // The core's own word on traffic through the server: its status frames, read only while this screen is started
     // and the tunnel is up (the stream closes with the screen).
     val healthSignal by model.health.collectAsStateWithLifecycle()
+    val healthBasis by model.healthBasis.collectAsStateWithLifecycle()
     LaunchedEffect(phase.isLive) {
-        if (phase.isLive) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.watchHealth() }
+        if (phase.isLive) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.watchHealth() } else model.resetHealth()
     }
-    val link = rememberLinkHealth(healthSignal, info.healthCheck)
-    val shown = Shown(
-        link = link, errorDetail = if (phase == Phase.Error) ErrorDetail.clean(status.error) else null,
-        onChooseServer = { nav.openSection("servers", "profiles") },
-    )
+    val link = rememberLinkHealth(healthSignal, healthBasis)
+    // The service reports no failure code yet; when it does, it goes into FailureInfo.kind and the card words it.
+    val failure = remember(status.error) { FailureInfo(kind = null, raw = status.error) }
+    // Remembered: a new object on every pass would make the state card recompose with each tick of the traffic card.
+    val shown = remember(link, failure, nav) {
+        Shown(link, failure, ErrorDetail.clean(failure.raw), onChooseServer = { nav.openSection("servers", "profiles") })
+    }
 
     LightField(markFor(phase, link), Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -151,7 +155,7 @@ private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo,
     val noServer = info.loaded && info.server == null
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // A saved change the running tunnel does not have yet: here it is shown whether or not "later" was tapped.
-        RestartBanner(showWhenSnoozed = true)
+        RestartBanner(showWhenSnoozed = true, padded = false)
         if (phase == Phase.On && shown.link is LinkHealth.NoTraffic) NoTrafficBanner(shown.link.reason, shown.onChooseServer)
         if (info.error != null) {
             LavBanner(
@@ -171,9 +175,9 @@ private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo,
                     stateText, Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     style = Lav.type.h1, textAlign = TextAlign.Center,
                 )
-                LavText(stringResource(stateSubRes(phase, shown.link)), style = Lav.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
-                // The reason the service reported, when it reported one (a plain short line, nothing from the core is trusted as markup).
-                shown.errorDetail?.let { LavText(it, style = Lav.type.mono, color = c.textTertiary, textAlign = TextAlign.Center) }
+                LavText(stringResource(stateSubRes(phase, shown.link, shown.failure)), style = Lav.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
+                // The service's own text, cleaned (no addresses), only as a secondary line under the worded reason.
+                shown.errorDetail?.takeIf { phase == Phase.Error }?.let { LavText(it, style = Lav.type.mono, color = c.textTertiary, textAlign = TextAlign.Center) }
                 if (phase == Phase.Error || phase == Phase.NeedsPermission) {
                     LavText(stringResource(R.string.conn_try_again), style = Lav.type.small, color = c.textTertiary, textAlign = TextAlign.Center)
                 }
@@ -398,7 +402,8 @@ private fun stateLabel(phase: Phase): String = stringResource(
 )
 
 /** What the state card needs beyond the phase: the core's word on traffic, the service's reason for a failure, the way out. */
-private class Shown(val link: LinkHealth, val errorDetail: String?, val onChooseServer: () -> Unit)
+@Immutable
+private class Shown(val link: LinkHealth, val failure: FailureInfo, val errorDetail: String?, val onChooseServer: () -> Unit)
 
 /** Route preset name as on the desktop: brand names are not translated, built-in generic ones come from the dictionary. */
 @Composable

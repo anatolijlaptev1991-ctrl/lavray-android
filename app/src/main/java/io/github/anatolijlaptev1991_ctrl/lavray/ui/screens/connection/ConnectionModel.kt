@@ -57,8 +57,6 @@ data class ConnectionInfo(
     val hasServers: Boolean = false,
     val subscriptions: Int = 0,
     val error: ErrorKind? = null,
-    /** Settings "check the link after connecting"; the core's default is on, so it stays on when it cannot be read. */
-    val healthCheck: Boolean = true,
 )
 
 /** Speed and session totals from the stats stream (desktop lib/traffic.ts), bytes and bytes per second. */
@@ -91,6 +89,9 @@ class ConnectionModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
     private val healthSource: HealthSource = CoreHealthSource(session),
+    /** The "check the link after connecting" setting as it is now; null when it cannot be read. */
+    private val healthCheckReader: suspend () -> Boolean? = { readHealthSetting(session) },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val mutable = MutableStateFlow(ConnectionInfo())
     val info: StateFlow<ConnectionInfo> = mutable.asStateFlow()
@@ -99,6 +100,11 @@ class ConnectionModel(
 
     /** The last status frame of the core's event stream; [HealthSignal.None] while the stream is closed or broken. */
     val health: StateFlow<HealthSignal> = mutableHealth.asStateFlow()
+
+    private val mutableBasis = MutableStateFlow<HealthBasis?>(null)
+
+    /** What is known about the health check of the tunnel that [health] describes; null until a tunnel was seen connected. */
+    val healthBasis: StateFlow<HealthBasis?> = mutableBasis.asStateFlow()
 
     private var refreshJob: Job? = null
 
@@ -126,30 +132,40 @@ class ConnectionModel(
             mutable.value = ConnectionInfo(
                 loaded = true, server = server, preset = preset,
                 startedAtMs = if (live) st.startedAtMs ?: 0L else 0L, hasServers = hasServers, subscriptions = subscriptions,
-                healthCheck = if (live) healthCheckEnabled() else true,
             )
         }
-    }
-
-    private suspend fun healthCheckEnabled(): Boolean {
-        val r = session.call { settingsGetSettings(GetSettingsRequest(listOf(SettingKeys.HEALTH_CHECK))) }
-        return (r as? CoreResult.Ok)?.value?.values?.get(SettingKeys.HEALTH_CHECK)?.boolValue ?: true
     }
 
     /**
      * Follows the core's status frames and keeps the latest in [health]. It suspends for as long as it is collected
-     * (the screen runs it only while visible and the tunnel is up) and reopens the stream after a break.
+     * (the screen runs it only while visible and the tunnel is up) and reopens the stream after a break. The frame
+     * that first shows a tunnel connected also fixes its [healthBasis]: the setting is read right then, because the core
+     * reads it when it connects. The last frame is kept when the screen is left (the next visit starts from it and gets
+     * a fresh one at once); [resetHealth] clears it when the tunnel is gone.
      */
     suspend fun watchHealth() {
-        try {
-            StreamBackoff.run(
-                open = { healthSource.frames() },
-                onError = { mutableHealth.value = HealthSignal.None },
-                onFrame = { frame -> mutableHealth.value = frame },
-            )
-        } finally {
-            mutableHealth.value = HealthSignal.None
-        }
+        StreamBackoff.run(
+            open = { healthSource.frames() },
+            onError = { mutableHealth.value = HealthSignal.None },
+            onFrame = { frame ->
+                mutableHealth.value = frame
+                if (frame.connected && frame.startedAtMs > 0 && mutableBasis.value?.startedAtMs != frame.startedAtMs) {
+                    mutableBasis.value = basisFor(frame)
+                }
+            },
+        )
+    }
+
+    private suspend fun basisFor(frame: HealthSignal): HealthBasis {
+        val enabled = healthCheckReader()
+        val seen = HealthBasis.firstSight(frame, enabled ?: false, clock())
+        // A setting that could not be read is no reading: nothing is claimed about the check.
+        return if (enabled == null) seen.copy(trusted = false) else seen
+    }
+
+    /** The tunnel is gone: what the last frame said no longer describes anything. */
+    fun resetHealth() {
+        mutableHealth.value = HealthSignal.None
     }
 
     private suspend fun loadServer(id: Long): ServerSummary? {
@@ -174,5 +190,11 @@ class ConnectionModel(
 
     private companion object {
         const val STATS_INTERVAL_MS = 1000
+
+        suspend fun readHealthSetting(session: CoreSession): Boolean? {
+            val r = session.call { settingsGetSettings(GetSettingsRequest(listOf(SettingKeys.HEALTH_CHECK))) }
+            val value = (r as? CoreResult.Ok)?.value?.values?.get(SettingKeys.HEALTH_CHECK) ?: return null
+            return value.boolValue
+        }
     }
 }
