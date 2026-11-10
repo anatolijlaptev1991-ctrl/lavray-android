@@ -23,6 +23,11 @@ val hasReleaseSigning = signingEnv.size == 4
 val coreAar = layout.projectDirectory.file("libs/lavray-core.aar").asFile
 val useCoreStub = !coreAar.exists()
 
+// Opt-in for device measurements (docs/MEASUREMENTS.md): -Plavray.measure=true adds the debug-only
+// shell driver (guarded by android.permission.DUMP) to the minified release build, so release
+// code can be driven by adb. Off by default and never used for published builds.
+val measureBuild = providers.gradleProperty("lavray.measure").map { it.toBoolean() }.getOrElse(false)
+
 android {
     namespace = "io.github.anatolijlaptev1991_ctrl.lavray"
     compileSdk = 36
@@ -77,8 +82,11 @@ android {
 
     packaging {
         jniLibs {
-            // Stored uncompressed and page-aligned; the loader maps them straight from the APK.
-            useLegacyPackaging = false
+            // Compressed in the APK and extracted at install: the APK that every update downloads is 61% smaller
+            // (arm64-v8a 52.96 -> 20.65 MB) for +19 MB installed; first launch unchanged, :vpn PSS 2.4 MB lower
+            // (docs/MEASUREMENTS.md). -Plavray.legacyJni=false builds the old layout (stored, page-aligned,
+            // mapped from the APK) for comparison.
+            useLegacyPackaging = providers.gradleProperty("lavray.legacyJni").map { it.toBoolean() }.getOrElse(true)
         }
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin", "kotlin-tooling-metadata.json")
     }
@@ -90,6 +98,11 @@ android {
     sourceSets.getByName("main").java.srcDir("src/main/java")
     if (useCoreStub) {
         sourceSets.getByName("main").java.srcDir("src/coreStub/java")
+    }
+    if (measureBuild) {
+        sourceSets.getByName("release").java.srcDir("src/debug/java")
+        sourceSets.getByName("release").kotlin.directories.add("src/debug/java")
+        sourceSets.getByName("release").manifest.srcFile("src/debug/AndroidManifest.xml")
     }
 }
 
