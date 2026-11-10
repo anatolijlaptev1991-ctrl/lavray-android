@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,14 +80,25 @@ internal fun EntryRow(entry: String, editable: Boolean, onDelete: () -> Unit) {
     }
 }
 
-/** Field and button that add an entry; Done on the keyboard adds too. The field is cleared after each add. */
+/**
+ * Field and button that add an entry; Done on the keyboard adds too. The field is cleared when the entry shows up in
+ * [entries] (the core took it), not when the button is pressed: a refusal leaves the text to be corrected.
+ */
 @Composable
-internal fun AddEntry(kind: ListKind, onAdd: (String) -> Unit) {
+internal fun AddEntry(kind: ListKind, entries: List<String>, onAdd: (String) -> Unit) {
     var text by remember(kind) { mutableStateOf("") }
+    var submitted by remember(kind) { mutableStateOf<String?>(null) }
+    LaunchedEffect(entries, submitted) {
+        val sent = submitted
+        if (sent != null && PresetDraft.contains(entries, sent)) {
+            text = ""
+            submitted = null
+        }
+    }
     val hint = if (kind.ip) "10.0.0.0/8" else "domain.example"
-    val submit = { onAdd(text); text = "" }
+    val submit = { submitted = text; onAdd(text) }
     LavTextField(
-        text, { text = it }, Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp), placeholder = hint, mono = true,
+        text, { text = it; submitted = null }, Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp), placeholder = hint, mono = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) submit() }),
         trailing = { LavIconButton(LavIcon.Plus, stringResource(R.string.rt_addRule), { if (text.isNotBlank()) submit() }, tint = Lav.colors.accent) },

@@ -178,5 +178,6 @@ private fun presetEventText(ctx: Context, e: PresetsEvent, pending: Boolean): St
     PresetsEvent.Unreadable -> ctx.getString(R.string.rt_importFailed)
     PresetsEvent.Conflict -> ctx.getString(R.string.toast_presetConflict)
     PresetsEvent.RuleExists -> ctx.getString(R.string.rt_ruleExists)
+    PresetsEvent.EditRejected -> ctx.getString(R.string.rt_editRejected)
     is PresetsEvent.Failed -> ctx.getString(e.kind.textRes())
 }
