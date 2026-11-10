@@ -46,9 +46,9 @@ internal class VpnPlatform(
             // A rebuild that needs the very interface that is still held (a server switch, a reconnect, a core restart
             // for routing or DNS) keeps it: replacing an interface lets connections out through the physical network
             // for a moment, keeping it does not. Only a change of the interface itself (MTU, addresses, DNS, the app
-            // list) builds a new one.
+            // list, or which of the listed apps are installed) builds a new one.
             handoff.handHeld(spec) { generation -> onTunReady(generation, emptyList()) }?.let { return it }
-            establisher.establish(options)
+            establisher.establish(spec)
         } catch (e: NoAllowedAppsException) {
             events.onTunFailed(TunFailure(FailureKind.APPS_NONE, e.message))
             throw e

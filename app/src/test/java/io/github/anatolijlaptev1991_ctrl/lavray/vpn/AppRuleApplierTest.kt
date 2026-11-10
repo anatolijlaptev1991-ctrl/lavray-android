@@ -38,6 +38,43 @@ class AppRuleApplierTest {
         assertEquals(listOf("com.gone"), r.skipped)
     }
 
+    // V-04: the Builder takes any name, so the question "is it installed" is asked before anything is built.
+    @Test
+    fun anAllowListWithNothingInstalledIsRefusedBeforeAnythingIsBuilt() {
+        assertThrows(NoAllowedAppsException::class.java) {
+            AppRuleApplier.resolve(AppRules(listOf("com.gone", "com.gone2"), emptyList())) { it in installed }
+        }
+    }
+
+    @Test
+    fun whatIsMissingIsReportedInBothModes() {
+        val only = AppRuleApplier.resolve(AppRules(listOf("com.a", "com.gone"), emptyList())) { it in installed }
+        assertEquals(listOf("com.a"), only.applied)
+        assertEquals(listOf("com.gone"), only.skipped)
+        val except = AppRuleApplier.resolve(AppRules(emptyList(), listOf("com.gone", "com.b"))) { it in installed }
+        assertEquals(listOf("com.b"), except.applied)
+        assertEquals(listOf("com.gone"), except.skipped)
+    }
+
+    @Test
+    fun anExcludeListWithNothingInstalledIsNotAnError() {
+        val r = AppRuleApplier.resolve(AppRules(emptyList(), listOf("com.gone"))) { it in installed }
+        assertTrue(r.applied.isEmpty())
+        assertEquals(listOf("com.gone"), r.skipped)
+    }
+
+    // The held interface serves the next run only while the same apps are installed: a spec made after one of them
+    // was removed is another spec, so a new interface is built (or the run is refused when none is left).
+    @Test
+    fun aSpecMadeAfterASelectedAppWasRemovedIsAnotherSpec() {
+        val rules = AppRules(listOf("com.a", "com.b"), emptyList())
+        val before = TunSpec(9000, listOf("172.19.0.1/30"), emptyList(), listOf("172.19.0.2"), rules)
+        val after = before.copy(missing = AppRuleApplier.resolve(rules) { it == "com.a" }.skipped)
+        assertEquals(listOf("com.b"), after.missing)
+        assertTrue(before != after)
+        assertEquals(before, before.copy(missing = AppRuleApplier.resolve(rules) { it in installed }.skipped))
+    }
+
     @Test
     fun modeIsPassedToTheBuilder() {
         val seen = ArrayList<Boolean>()
