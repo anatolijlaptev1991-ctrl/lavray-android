@@ -2,11 +2,17 @@
 
 Обновлено: 2026-11-10.
 
-## Состояние
-- Локальный git в `D:\ZCode\nekobox\lavray-android`, субмодуль `third_party/lavray` на `v0.9.3` (9899ae9).
-- Создание публичного репозитория `anatolijlaptev1991-ctrl/lavray-android` **заблокировано** проверкой прав (Create Public Surface). Нужно подтверждение владельца. Обходить запрет другими командами нельзя.
+## Состояние (сводка оркестратора)
+- Локальный git в `D:\ZCode\nekobox\lavray-android`, ветка `main`, субмодуль `third_party/lavray` на `v0.9.3` (9899ae9). Всё закоммичено автором noreply, удалённого репозитория нет.
+- Создание публичного репозитория `anatolijlaptev1991-ctrl/lavray-android` **заблокировано** проверкой прав (Create Public Surface). Пересказ из родительской сессии запрет не снимает: нужно прямое подтверждение владельца в этой сессии или пустой репозиторий, созданный владельцем. Обходить запрет другими командами нельзя.
+- Готово: мост Go (AAR, 3 ABI, 16 КБ), служба VPN и автоподключение (9 сценариев на эмуляторе пройдены), все экраны, обход интерфейса на эмуляторе, паритет экрана «Подключение», CI и релиз (`.github/`, `docs/SIGNING.md`, actionlint чист).
+- Готово: замеры и оптимизация (`docs/MEASUREMENTS.md`, коммиты fd10095, f114849, d3975cc, b734617): APK 20,65 / 21,24 / 21,97 МБ, холодный старт −10,5%, gVisor + MTU 9000.
+- Готово: стек туннеля на Android всегда gVisor, выбор убран из настроек (a7eede1). System/mixed не передают данные, пока приложение исключено из своего VPN. Сделать их рабочими — опция для владельца (MEASUREMENTS, раздел 5).
+- `app/libs/lavray-core.aar` локально собран до a7eede1: для проверки на эмуляторе пересобрать `scripts/build-core.sh`; CI собирает сам.
+- Идёт: README на 5 языках, `docs/PHONE-CHECKLIST.md`, `docs/release-notes/v0.9.3.md` (агент Sonnet).
+- Дальше, после разрешения владельца: push, первый прогон CI, секреты подписи, тег `v0.9.3`, релиз с SHA256SUMS.
 - Решение по стеку: `docs/STACK.md`. Контракт: `docs/ARCHITECTURE.md`.
-- SDK: `%LOCALAPPDATA%\Android\Sdk`, cmdline-tools поставлены, ставятся NDK 28.2.13676358 и образ android-36 google_apis x86_64.
+- SDK: `%LOCALAPPDATA%\Android\Sdk`, NDK 28.2.13676358, образ android-36 google_apis x86_64, AVD `lvtest`.
 
 ## Заметки по среде
 - Java на этом ПК падает с `Unable to establish loopback connection`, если TEMP длинный. Лечится `-Djdk.net.unixdomain.tmpdir=D:/ZCode/.t` и `TEMP=D:\ZCode\.t` (sdkmanager, Gradle).
