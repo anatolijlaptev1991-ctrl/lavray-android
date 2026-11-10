@@ -711,4 +711,5 @@
     <string name="upd_manual_t">Updates selbst installieren</string>
     <string name="upd_no_browser">Kein Browser gefunden. Öffnen Sie die Adresse auf einem anderen Gerät.</string>
     <string name="upd_open_releases">Release-Seite öffnen</string>
+    <string name="vpn_unreachable">Der Tunneldienst hat nicht geantwortet. Versuche es erneut.</string>
 </resources>

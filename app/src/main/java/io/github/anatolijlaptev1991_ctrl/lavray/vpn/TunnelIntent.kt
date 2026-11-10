@@ -149,10 +149,15 @@ class TunnelIntent(
     }
 
     private inline fun update(change: (PersistedTunnel) -> PersistedTunnel) = synchronized(LOCK) {
-        val next = change(current())
         val stored = store.load()
-        // The uptime stamp alone is no reason to write: it rides along with a real change.
-        if (next.copy(uptimeMs = stored.uptimeMs) != stored) store.save(next.copy(uptimeMs = uptime()))
+        val base = current()
+        val next = change(base)
+        // The uptime stamp alone is no reason to write: it rides along with a real change. A reboot that only the stamp
+        // shows is one, even when the change reproduces the stored values (the boot's connect request after a tunnel that
+        // was up): left unwritten, the old stamp would make the next write read "rebooted" again and clear the wish this
+        // one has just set.
+        val rebootSeen = base.uptimeMs != stored.uptimeMs
+        if (rebootSeen || next.copy(uptimeMs = stored.uptimeMs) != stored) store.save(next.copy(uptimeMs = uptime()))
     }
 
     companion object {

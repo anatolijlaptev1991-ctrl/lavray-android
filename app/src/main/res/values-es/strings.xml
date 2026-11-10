@@ -711,4 +711,5 @@
     <string name="upd_manual_t">Instala las actualizaciones tú mismo</string>
     <string name="upd_no_browser">No se encontró ningún navegador. Abre la dirección en otro dispositivo.</string>
     <string name="upd_open_releases">Abrir la página de versiones</string>
+    <string name="vpn_unreachable">El servicio del túnel no respondió. Inténtalo de nuevo.</string>
 </resources>

@@ -37,6 +37,24 @@ class SerialCallsTest {
         calls.close()
     }
 
+    // R7 P7: a call that never reached its target is reported, once per call, and the queue goes on.
+    @Test
+    fun aLostCallIsReportedAndACallThatRanIsNot() = runBlocking {
+        val dropped = java.util.concurrent.atomic.AtomicInteger()
+        val done = CompletableDeferred<Unit>()
+        var reachable = false
+        val calls = SerialCalls<Unit>(this, { check(reachable) { "not bound" } }, onDropped = { dropped.incrementAndGet() })
+        calls.submit { error("must not run: the target was never reached") }
+        calls.submit { reachable = true }
+        // The second call was lost too (the target failed before it could run), so both are reported.
+        withTimeout(2_000) { while (dropped.get() < 2) kotlinx.coroutines.delay(5) }
+        reachable = true
+        calls.submit { done.complete(Unit) }
+        withTimeout(2_000) { done.await() }
+        assertEquals(2, dropped.get())
+        calls.close()
+    }
+
     @Test
     fun manyCallsFromManyThreadsKeepTheirSubmissionOrder() = runBlocking {
         val seen = CopyOnWriteArrayList<Int>()

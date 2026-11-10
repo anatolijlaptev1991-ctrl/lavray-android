@@ -19,6 +19,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.CoreProbeB
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ExitProbe
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.BackupModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ResolverBackupFiles
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.RestoreNews
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ServiceHold
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelMemory
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.buildsIn
@@ -38,6 +39,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +65,10 @@ class AppEnv(
     init {
         // The service cut the Go core loose and started it anew: the endpoint (and its token) is not the one the client holds.
         scope.launch { controller.status.map { it.coreEpoch }.distinctUntilChanged().collect(session::onCoreEpoch) }
+        // A restore that ended while no screen existed: its outcome is told now.
+        RestoreNews.process.take()?.let { toast.show(appContext.getString(it)) }
+        // A tap that never reached the service must not look like a tap that did nothing.
+        scope.launch { controller.droppedCommands.collect { toast.show(appContext.getString(R.string.vpn_unreachable)) } }
     }
 
     val connection: ConnectionModel by lazy { ConnectionModel(session, scope, vpn.status, memory = TunnelMemory.process) }
@@ -107,8 +113,10 @@ class AppEnv(
                 // One signal for "the data changed": the servers list and the Connection screen both reload on it.
                 serversChanged()
                 // The result is also told here: the person may be on another screen by now.
-                toast.show(appContext.getString(R.string.bk_done))
+                tellRestore(R.string.bk_done)
             },
+            // With a screen the backup screen itself shows the reason; without one the next screen tells it.
+            onRestoreFailed = { reason -> if (!scope.isActive) RestoreNews.process.leave(reason) },
             hold = object : ServiceHold {
                 // False means the service could not keep itself alive: the same as a failed call, the restore must not run.
                 override suspend fun begin(token: String, timeoutMs: Long) =
@@ -116,6 +124,11 @@ class AppEnv(
                 override suspend fun end(token: String) = controller.endBusy(token)
             },
         )
+    }
+
+    /** The Activity may be gone by the time a restore ends (Back from the root screen): then the next one tells its outcome. */
+    private fun tellRestore(text: Int) {
+        if (scope.isActive) toast.show(appContext.getString(text)) else RestoreNews.process.leave(text)
     }
 
     /** Replaces the settings and saves them; the UI recomposes from the new immutable value. May be called from any thread. */

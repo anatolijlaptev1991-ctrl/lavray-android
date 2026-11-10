@@ -11,7 +11,12 @@ import kotlinx.coroutines.launch
  * call waits for [target] (the bound service), then runs, one after the other. Launching each call on its own coroutine
  * would let a quick tap and a Disconnect arrive in reverse order, and the last tap would lose.
  */
-class SerialCalls<T>(scope: CoroutineScope, private val target: suspend () -> T) {
+class SerialCalls<T>(
+    scope: CoroutineScope,
+    private val target: suspend () -> T,
+    /** Called for every call that was lost, so the person who tapped is not left with a screen that does nothing. */
+    private val onDropped: () -> Unit = {},
+) {
     private val queue = Channel<(T) -> Unit>(Channel.UNLIMITED)
 
     init {
@@ -23,6 +28,7 @@ class SerialCalls<T>(scope: CoroutineScope, private val target: suspend () -> T)
                     throw e
                 } catch (_: Exception) {
                     // A dead or unbound service: the call is lost, the next one is tried (the UI rebinds on its own).
+                    runCatching { onDropped() }
                 }
             }
         }

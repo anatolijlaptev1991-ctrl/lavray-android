@@ -247,5 +247,6 @@
   "upd_manual_d": "LAVRay sucht nicht nach Updates und aktualisiert sich nie selbst. Für eine neue Version öffnen Sie die Release-Seite, laden die Datei für Ihr Telefon herunter und installieren sie über die aktuelle. Ihre Daten bleiben erhalten.",
   "upd_manual_t": "Updates selbst installieren",
   "upd_no_browser": "Kein Browser gefunden. Öffnen Sie die Adresse auf einem anderen Gerät.",
-  "upd_open_releases": "Release-Seite öffnen"
+  "upd_open_releases": "Release-Seite öffnen",
+  "vpn_unreachable": "Der Tunneldienst hat nicht geantwortet. Versuche es erneut."
 }

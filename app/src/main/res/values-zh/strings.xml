@@ -707,4 +707,5 @@
     <string name="upd_manual_t">自行安装更新</string>
     <string name="upd_no_browser">未找到浏览器。请在其他设备上打开该地址。</string>
     <string name="upd_open_releases">打开发布页面</string>
+    <string name="vpn_unreachable">隧道服务没有响应，请重试。</string>
 </resources>

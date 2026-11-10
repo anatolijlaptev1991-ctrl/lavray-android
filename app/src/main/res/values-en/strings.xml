@@ -711,4 +711,5 @@
     <string name="upd_manual_t">Install updates yourself</string>
     <string name="upd_no_browser">No browser found. Open the address on another device.</string>
     <string name="upd_open_releases">Open the releases page</string>
+    <string name="vpn_unreachable">The tunnel service did not respond. Try again.</string>
 </resources>

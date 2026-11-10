@@ -11,6 +11,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.FailureInf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.LinkHealth
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ServiceNotices
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelMemory
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.WarningNote
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.stateSubRes
@@ -70,6 +71,48 @@ class ServiceNoticesTest {
         val after = gone.after(VpnStatus(VpnState.CONNECTED))
         assertFalse(after.stop)
         assertNotNull(notices(stopped, after).stop)
+    }
+
+    // R7 P3: the person closes the notice, taps Connect and leaves before CONNECTED; the next stop must be shown.
+    @Test fun aTunnelOnItsWayUpEndsAClosedStopSoTheNextOneIsShown() {
+        val gone = Dismissed().withStop()
+        // The connect request cleared the flag in the service: CONNECTING without it is the proof.
+        val after = gone.after(VpnStatus(VpnState.CONNECTING))
+        assertFalse(after.stop)
+        assertNotNull(notices(stopped, after).stop)
+        assertFalse(gone.after(VpnStatus(VpnState.WAITING_NETWORK)).stop)
+        // A status that is coming up but still carries the stop proves nothing.
+        assertTrue(gone.after(stopped.copy(state = VpnState.CONNECTING)).stop)
+    }
+
+    @Test fun aFailureClosedWhileTheTunnelIsStillComingUpStaysClosed() {
+        val gone = Dismissed().withFailure(FailureKind.PROTECTION_OFF)
+        // "Protection is off" is reported in CONNECTING: the next status of the same failure must not bring it back.
+        val same = VpnStatus(VpnState.CONNECTING, failureKind = FailureKind.PROTECTION_OFF)
+        assertEquals(FailureKind.PROTECTION_OFF, gone.after(same).failureKind)
+        // A new connect request cleared it: over, the next one is shown.
+        assertNull(gone.after(VpnStatus(VpnState.CONNECTING)).failureKind)
+        assertNull(gone.after(VpnStatus(VpnState.WAITING_NETWORK)).failureKind)
+    }
+
+    @Test fun closedNoticesSurviveAShortAbsenceAndAreForgottenAfterALongOne() {
+        val memory = TunnelMemory()
+        memory.update { it.withStop().withFailure(FailureKind.PROTECTION_OFF).withWarnings(3) }
+        // A recreated Activity, Back and reopen: nothing can have happened unseen.
+        memory.screenLeft(1_000)
+        memory.screenBack(1_000 + TunnelMemory.UNSEEN_MS - 1)
+        assertTrue(memory.dismissed.value.stop)
+        assertEquals(FailureKind.PROTECTION_OFF, memory.dismissed.value.failureKind)
+        // Away long enough for a tunnel to come up and die unseen: a stop reported now is shown.
+        memory.screenLeft(100_000)
+        memory.screenBack(100_000 + TunnelMemory.UNSEEN_MS)
+        assertFalse(memory.dismissed.value.stop)
+        assertNull(memory.dismissed.value.failureKind)
+        assertEquals("the closed core notes belong to a tunnel, not to the absence", 3, memory.dismissed.value.warningsOfTunnel)
+        // A second return without a departure changes nothing.
+        memory.update { it.withStop() }
+        memory.screenBack(900_000)
+        assertTrue(memory.dismissed.value.stop)
     }
 
     @Test fun whileTheServiceBringsTheTunnelBackNothingIsSaidAboutAStop() {

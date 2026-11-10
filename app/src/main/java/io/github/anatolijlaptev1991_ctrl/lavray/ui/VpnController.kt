@@ -18,7 +18,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,13 +40,18 @@ class VpnController(context: Context) {
     // Replaced on the main thread at unbind, disconnect and rebind, awaited from IO coroutines: a connection completes the
     // deferred captured when it arrived, and replacing the gate fails everyone still waiting on the old binding.
     private val ready = ServiceGate<IVpnService>()
-    private var bound = false
+    @Volatile private var bound = false
     @Volatile private var connected: IVpnService? = null
 
     val status: StateFlow<VpnStatus> = mutableStatus
 
+    // A Connect, Reconnect or Disconnect that never reached the service (it did not bind in time, or died): the person
+    // tapped and nothing will happen, so the app says so. Not while unbound: the person has left, there is nobody to tell.
+    private val mutableDropped = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val droppedCommands: SharedFlow<Unit> = mutableDropped
+
     // connect, reconnect and disconnect reach the service in the order they were called.
-    private val commands = SerialCalls<IVpnService>(scope) { service() }
+    private val commands = SerialCalls<IVpnService>(scope, target = { service() }, onDropped = { if (bound) mutableDropped.tryEmit(Unit) })
     private val holds = HoldRegistry<IVpnService>()
 
     private val observer = object : IVpnObserver.Stub() {

@@ -247,5 +247,6 @@
   "upd_manual_d": "LAVRay 不会检查更新，也不会自动更新。需要新版本时，请打开发布页面，下载适合您手机的文件并覆盖安装。您的数据会保留。",
   "upd_manual_t": "自行安装更新",
   "upd_no_browser": "未找到浏览器。请在其他设备上打开该地址。",
-  "upd_open_releases": "打开发布页面"
+  "upd_open_releases": "打开发布页面",
+  "vpn_unreachable": "隧道服务没有响应，请重试。"
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -22,6 +23,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.AppShell
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.rememberNavigator
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelMemory
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppIcons
 
 /**
@@ -49,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         started = true
+        TunnelMemory.process.screenBack(SystemClock.elapsedRealtime())
         bindAfterFirstFrame()
     }
 
@@ -56,6 +59,7 @@ class MainActivity : ComponentActivity() {
         started = false
         window.decorView.removeCallbacks(bindVpn)
         env.controller.unbind()
+        TunnelMemory.process.screenLeft(SystemClock.elapsedRealtime())
         super.onStop()
     }
 

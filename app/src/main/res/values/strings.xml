@@ -719,4 +719,5 @@
     <string name="upd_manual_t">Обновления ставите вы сами</string>
     <string name="upd_no_browser">Браузер не найден. Откройте адрес на другом устройстве.</string>
     <string name="upd_open_releases">Открыть страницу выпусков</string>
+    <string name="vpn_unreachable">Служба туннеля не ответила. Попробуйте ещё раз.</string>
 </resources>

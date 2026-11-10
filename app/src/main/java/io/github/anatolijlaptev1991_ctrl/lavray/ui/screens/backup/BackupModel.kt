@@ -149,6 +149,8 @@ class BackupModel(
     private val onBeforeReplace: () -> Unit = {},
     /** Called once after the core replaced all data. */
     private val onRestored: () -> Unit = {},
+    /** Called with the reason when the core refused or failed the replacement (the data is as it was). */
+    private val onRestoreFailed: (Int) -> Unit = {},
     /** Held for the duration of a restore: the core must not be stopped halfway through replacing all data. */
     private val hold: ServiceHold = ServiceHold.None,
 ) {
@@ -269,13 +271,22 @@ class BackupModel(
                 return
             }
             onBeforeReplace()
-            when (val r = session.call { backupImportBackup(ImportBackupRequest(data, password, confirmReplace = true)) }) {
-                is CoreResult.Ok -> {
-                    picked = null
-                    mutable.update { it.copy(restored = true, needsRestart = r.value.needsAppRestart, summary = null, pickedName = null) }
-                    onRestored()
+            // From here on the core replaces all data. Leaving the app with Back ends the Activity and cancels this scope;
+            // an aborted request would leave nobody knowing whether the data was replaced. So the request and what follows
+            // it run to the end whatever happens to the screen, and the outcome is handed on either way.
+            withContext(NonCancellable) {
+                when (val r = session.call { backupImportBackup(ImportBackupRequest(data, password, confirmReplace = true)) }) {
+                    is CoreResult.Ok -> {
+                        picked = null
+                        mutable.update { it.copy(restored = true, needsRestart = r.value.needsAppRestart, summary = null, pickedName = null) }
+                        onRestored()
+                    }
+                    is CoreResult.Fail -> {
+                        val text = BackupErrors.text(r.reason, r.kind)
+                        mutable.update { it.copy(error = text) }
+                        onRestoreFailed(text)
+                    }
                 }
-                is CoreResult.Fail -> mutable.update { it.copy(error = BackupErrors.text(r.reason, r.kind)) }
             }
         } finally {
             // A hold that cannot be released ends on its own at the timeout.

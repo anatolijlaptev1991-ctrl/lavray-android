@@ -247,5 +247,6 @@
   "upd_manual_d": "LAVRay no busca actualizaciones ni se actualiza sola. Cuando quieras una versión nueva, abre la página de versiones, descarga el archivo para tu teléfono e instálalo sobre esta. Tus datos se conservan.",
   "upd_manual_t": "Instala las actualizaciones tú mismo",
   "upd_no_browser": "No se encontró ningún navegador. Abre la dirección en otro dispositivo.",
-  "upd_open_releases": "Abrir la página de versiones"
+  "upd_open_releases": "Abrir la página de versiones",
+  "vpn_unreachable": "El servicio del túnel no respondió. Inténtalo de nuevo."
 }

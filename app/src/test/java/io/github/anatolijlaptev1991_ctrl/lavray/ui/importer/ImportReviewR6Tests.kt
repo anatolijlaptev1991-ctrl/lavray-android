@@ -114,6 +114,13 @@ class ImportReviewR6Tests {
         assertFalse("a broken escape in the path makes the address unreadable", sub("https://h.example/%zz"))
         assertTrue(sub("https://[2001:db8::1]:8443/sub"))
         assertFalse(sub("https://[2001:db8::1]:8443"))
+        // R7 P6: the value and the port are read as Go reads them.
+        assertFalse("a broken escape in the value drops the pair", sub("https://h.example:8443?token=%zz"))
+        assertTrue("another pair still counts", sub("https://h.example:8443?token=%zz&id=1"))
+        assertFalse("a port that is not a number is no address", sub("https://h.example:abc/sub"))
+        assertTrue("an empty port is allowed", sub("https://h.example:/sub"))
+        assertFalse("an unclosed bracket is no address", sub("https://[2001:db8::1/sub"))
+        assertFalse("text after the bracket that is not a port", sub("https://[2001:db8::1]x/sub"))
     }
 
     // ---- L9: two different subscriptions are never one

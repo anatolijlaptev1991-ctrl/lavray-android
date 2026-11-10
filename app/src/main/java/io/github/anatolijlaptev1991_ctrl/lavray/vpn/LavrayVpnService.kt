@@ -269,6 +269,9 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     // ---- VpnBinderHost
 
     override fun endpoint(): CoreEndpoint {
+        // A core whose stop hangs holds its lock until the process leaves: the caller fails now (the UI shows "core
+        // unavailable") instead of blocking, with every screen's core call behind it, for as long as a busy hold lasts.
+        check(!engine.coreUnusable) { "the core is being restarted" }
         runBlocking { ensureCore() }
         return checkNotNull(endpoint)
     }

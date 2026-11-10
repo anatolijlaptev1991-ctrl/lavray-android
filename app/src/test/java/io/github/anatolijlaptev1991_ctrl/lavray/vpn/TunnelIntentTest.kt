@@ -276,6 +276,23 @@ class TunnelIntentTest {
         assertEquals(saves + 1, store.saves)
     }
 
+    // R7 P1: the stamp is the only sign of the reboot, and the boot's connect request reproduces the stored record.
+    @Test
+    fun aRebootSeenOnlyByTheStampKeepsTheWishOfTheBootConnect() {
+        var up = 5L * 24 * 3600 * 1000
+        val i = TunnelIntent(store, { -1 }, { null }, { up })
+        i.onConnectRequested()
+        assertTrue(store.value.wantConnected)
+        // Reboot: the uptime starts again. The receiver writes the wish, then the service's process start reads it.
+        up = 40_000
+        i.onConnectRequested()
+        assertEquals("the reboot is written down with the request", 40_000L, store.value.uptimeMs)
+        up = 41_000
+        i.onProcessStarted { null }
+        assertTrue("the wish of the boot connect survives the process start", i.snapshot.wantConnected)
+        assertTrue(store.value.wantConnected)
+    }
+
     @Test
     fun anUnknownUptimeDisablesTheClockCheck() {
         val i = TunnelIntent(store, { -1 }, { null }, { -1 })

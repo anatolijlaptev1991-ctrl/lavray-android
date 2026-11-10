@@ -503,6 +503,33 @@ internal class SessionEngineTest {
         assertEquals("user_requested", effects.status().stopReason)
     }
 
+    // ---- R7 P2: a boot or update start is not a death of the service
+
+    @Test
+    fun aBootStartThatFailsDoesNotAlsoClaimTheServiceDied() {
+        // The receiver wrote the wish in this fresh process, then the service was created and read it as a leftover.
+        wish.onConnectRequested()
+        engine.onCreated { null }
+        assertTrue("the process start cannot tell the receiver's wish from a dead process's", store.value.unexpectedStop)
+        val start = engine.onConnect(StartSource.BOOT, null, 0).started().single()
+        assertFalse(store.value.unexpectedStop)
+        val status = engine.onAttemptDone(start.generation, fail(permanent = true, kind = FailureKind.NO_SERVER)).status()
+        assertFalse(status.unexpectedStop)
+        assertNull(status.stopReason)
+        assertEquals(FailureKind.NO_SERVER, status.failureKind)
+    }
+
+    @Test
+    fun anUpdateStartDoesNotKeepTheReasonOfTheUpdateKill() {
+        store.value = PersistedTunnel(wantConnected = true)
+        wish.onConnectRequested()
+        engine.onCreated { "user_requested" }
+        val effects = engine.onConnect(StartSource.BOOT, null, 0)
+        assertFalse(effects.status().unexpectedStop)
+        assertNull(effects.status().stopReason)
+        assertTrue(store.value.wantConnected)
+    }
+
     // ---- L5: a stale unexpectedStop never sits next to a later outcome
 
     @Test
@@ -602,6 +629,55 @@ internal class SessionEngineTest {
         val done = engine.onPoke()
         assertEquals(SessionEffect.KillProcess, done.last())
         assertTrue("only once", engine.onPoke().none { it == SessionEffect.KillProcess })
+    }
+
+    // R7 P4: while the kill waits for the hold, a Connect must not hang on the dead core's lock.
+    @Test
+    fun aConnectWhileTheKillIsDeferredStartsNothingKeepsTheWishAndSaysWhy() {
+        established()
+        env.seq = 2
+        wish.onUserDisconnect()
+        engine.onDisconnect(2)
+        env.busy = true
+        engine.onCoreCutLoose(timedOut = true)
+        assertTrue(engine.coreUnusable)
+        // The person taps Connect: the binder writes the wish (which clears the old complaint), then the command arrives.
+        val seq = userConnects()
+        val effects = engine.onConnect(StartSource.USER, 5, seq)
+        assertTrue("no attempt on a core that cannot start", effects.started().isEmpty())
+        assertTrue(effects.none { it == SessionEffect.KillProcess })
+        assertEquals(FailureKind.CORE_STOP_TIMEOUT, effects.status().failureKind)
+        assertTrue("the next process resumes it", store.value.wantConnected)
+        // The hold ends with no screen bound: the process leaves without stopping the service (a stop would clear the wish
+        // and nothing would restart it), and the fresh process connects.
+        env.busy = false
+        val left = engine.onPoke()
+        assertEquals(SessionEffect.KillProcess, left.last())
+        assertFalse("the service stays started for the system's restart", left.stops())
+        assertTrue(store.value.wantConnected)
+        assertFalse(engine.coreUnusable)
+        val next = SessionEngine(FakeEnv(), TunnelIntent(store))
+        next.onCreated { "signaled" }
+        assertEquals(1, next.onResume().started().size)
+    }
+
+    @Test
+    fun aDisconnectAfterTheDeferredConnectTakesItBack() {
+        established()
+        env.seq = 2
+        wish.onUserDisconnect()
+        engine.onDisconnect(2)
+        env.busy = true
+        engine.onCoreCutLoose(timedOut = true)
+        engine.onConnect(StartSource.USER, 5, userConnects())
+        // The person changes their mind before the process leaves.
+        engine.onDisconnect(userDisconnects())
+        engine.onCoreCutLoose(timedOut = true)
+        env.busy = false
+        val left = engine.onPoke()
+        assertFalse(store.value.wantConnected)
+        assertTrue("nothing is left to do: the service stops as before", left.stops())
+        assertEquals(SessionEffect.KillProcess, left.last())
     }
 
     // A Connect written during the stuck Disconnect, then the kill, then the new process resumes it.

@@ -30,7 +30,27 @@ class TunnelMemory {
     @Volatile var warningsClosedFor: Long? = null
         private set
 
+    @Volatile private var leftAtMs: Long? = null
+
     fun update(change: (Dismissed) -> Dismissed) = mutableDismissed.update(change)
+
+    /** The screen went away at [nowMs] (a monotonic clock): the controller is unbound, nothing the service does is seen. */
+    fun screenLeft(nowMs: Long) {
+        leftAtMs = nowMs
+    }
+
+    /**
+     * The screen is back. A closed notice is kept over a recreated Activity or a short trip away, where nothing can have
+     * happened behind the screen's back. After [UNSEEN_MS] or more without watching, a tunnel may have come up and died
+     * again unseen: the closed stop and failure notices are forgotten, so a stop that is reported now is shown. If it is
+     * the old one, the notice is still true (the tunnel is still down); hiding a new one would leave the person without
+     * the only signal a process death has.
+     */
+    fun screenBack(nowMs: Long) {
+        val left = leftAtMs ?: return
+        leftAtMs = null
+        if (nowMs - left >= UNSEEN_MS) mutableDismissed.update { it.forgotten() }
+    }
 
     fun remember(basis: HealthBasis) {
         this.basis = basis
@@ -47,5 +67,8 @@ class TunnelMemory {
     companion object {
         /** The one instance of the app process. */
         val process = TunnelMemory()
+
+        /** Shorter than any connect-and-die of a tunnel, longer than a rotation or Back-and-reopen. */
+        const val UNSEEN_MS = 30_000L
     }
 }

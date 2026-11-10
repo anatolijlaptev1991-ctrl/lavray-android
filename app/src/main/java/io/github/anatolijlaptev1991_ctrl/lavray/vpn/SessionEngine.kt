@@ -40,7 +40,9 @@ internal class SessionEngine(
     private var warnings: List<String> = emptyList()
     private var coreEpoch = 0
     private var tunnelSeq = 0
-    private var killPending = false
+    @Volatile private var killPending = false
+    /** A Connect arrived while the kill was deferred: the next process carries it out, so this one must not stop itself and clear the wish. */
+    private var resumeInNextProcess = false
     /** The newest command number of the person this engine has looked at; a larger [SessionEnv.latestUserSeq] means one is still queued. */
     private var handledSeq = 0L
     private var lastFailureReasonFromAttempt: String? = null
@@ -50,6 +52,12 @@ internal class SessionEngine(
     /** What the machine last believed about the network, for the service to reconcile with the real one. */
     val believesNetworkUp: Boolean get() = machine.state.networkAvailable
     val established: Boolean get() = watch.established
+
+    /**
+     * The Go core of this process cannot be used again: its stop never returned and holds the core lock, and the process
+     * leaves as soon as the busy hold ends. Read by Binder threads, so a call that needs the core fails at once.
+     */
+    val coreUnusable: Boolean get() = killPending
 
     /** The process starts: a wish left over from a dead process of this boot becomes an unexpected stop. */
     fun onCreated(exitReason: () -> String?) {
@@ -81,10 +89,23 @@ internal class SessionEngine(
     private fun connect(source: StartSource, profile: Long?, reconnecting: Boolean, reassertWish: Boolean = false): List<SessionEffect> {
         val out = Out()
         val consent = env.consentGranted()
+        // The core of this process is gone for good and the process only waits for a busy hold to end: an attempt would hang
+        // on the core lock and show "connecting" for as long as the hold lasts. The wish is kept (the next process resumes
+        // it, which is what the person asked for) and the reason stays on the screen.
+        if (killPending) {
+            if (consent && (source != StartSource.USER || reassertWish)) wish.onConnectRequested()
+            wish.onFailureNoted(FailureKind.CORE_STOP_TIMEOUT, STOP_TIMEOUT_MESSAGE)
+            // The service stays started, so the system restarts it after the kill and the fresh process resumes the wish.
+            resumeInNextProcess = true
+            return finish(out)
+        }
         // Only entry points that carry intent write the wish: the person's tap did (binder), boot did (receiver).
-        // The system's Always-on carries it here. A USER start executes a request that was already written, and
-        // re-asserts it only when it is the newest command of the person (see [reassertWish]).
-        if (consent && (source == StartSource.SYSTEM || reassertWish)) wish.onConnectRequested()
+        // The system's Always-on carries it here, and so does a boot or update start: its receiver wrote the wish in this
+        // same fresh process BEFORE the service was created, so the process start read that wish as a death nobody
+        // decided; asserting it again here takes the false "stopped unexpectedly" back before anything is published.
+        // A USER start executes a request that was already written, and re-asserts it only when it is the newest command
+        // of the person (see [reassertWish]).
+        if (consent && (source != StartSource.USER || reassertWish)) wish.onConnectRequested()
         if (profile != null) requestedProfile = profile
         // A rebuild asks the core to stop first; harmless when it is idle, and it never skips the switch.
         disconnectFirst = reconnecting && consent
@@ -115,6 +136,7 @@ internal class SessionEngine(
 
     private fun stop(reason: AutoEvent): List<SessionEffect> {
         val out = Out()
+        resumeInNextProcess = false
         apply(machine.handle(reason), out)
         attemptGeneration++
         cancelAttempt(out)
@@ -345,7 +367,8 @@ internal class SessionEngine(
         trackStability(out)
         out += SessionEffect.SetForeground(ShutdownPolicy.shouldBeForeground(active, pending, transition, busy))
         out += SessionEffect.Publish(computeStatus())
-        val stop = ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)
+        // A Connect handed to the next process is work still to do: stopping here would clear the wish it relies on.
+        val stop = !resumeInNextProcess && ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)
         if (stop) {
             // Whenever the service stops on its own the wish is cleared, so a fresh process never reads a stale one.
             // Nothing went wrong, so no failure is recorded.

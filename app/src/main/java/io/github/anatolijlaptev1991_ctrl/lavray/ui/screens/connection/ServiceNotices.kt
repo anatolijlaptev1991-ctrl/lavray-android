@@ -24,15 +24,25 @@ data class WarningNote(@StringRes val text: Int, val code: String? = null)
 @Immutable
 data class Dismissed(val stop: Boolean = false, val failureKind: String? = null, val warningsOfTunnel: Int = 0) {
     /**
-     * Forgets a dismissal whose cause has ended, so the next unexpected stop is shown again. The proof that it ended is a
-     * connected tunnel (the service clears both on a successful connect) or another failure kind. A default IDLE status,
-     * which is all a freshly bound controller knows for a moment, proves nothing and must not bring a closed notice back.
+     * Forgets a dismissal whose cause has ended, so the next unexpected stop is shown again. The proof that it ended:
+     * a connected tunnel (the service clears both on a successful connect); a tunnel on its way up whose status no longer
+     * carries the complaint (the service clears both on every connect request, so the person who closed the notice and
+     * tapped Connect is told about the next one even if they never see CONNECTED); or another failure kind.
+     * A tunnel on its way up that STILL carries the failure proves nothing: "protection is off" is reported while the
+     * state is CONNECTING, and closing it there must hold. Neither does a default IDLE status, which is all a freshly
+     * bound controller knows for a moment: it must not bring a closed notice back.
      */
-    fun after(status: VpnStatus): Dismissed = when {
-        status.state == VpnState.CONNECTED -> copy(stop = false, failureKind = null)
-        status.failureKind != null && status.failureKind != failureKind -> copy(failureKind = null)
-        else -> this
+    fun after(status: VpnStatus): Dismissed {
+        val up = status.state == VpnState.CONNECTED
+        val comingUp = status.state == VpnState.CONNECTING || status.state == VpnState.WAITING_NETWORK
+        val stopOver = up || (comingUp && !status.unexpectedStop)
+        val failureOver = up || (comingUp && status.failureKind == null) ||
+            (status.failureKind != null && status.failureKind != failureKind)
+        return copy(stop = stop && !stopOver, failureKind = failureKind.takeUnless { failureOver })
     }
+
+    /** Everything the person closed about a stop or a failure is forgotten: what comes next is news to them. */
+    fun forgotten() = copy(stop = false, failureKind = null)
 
     fun withStop() = copy(stop = true)
     fun withFailure(kind: String) = copy(failureKind = kind)

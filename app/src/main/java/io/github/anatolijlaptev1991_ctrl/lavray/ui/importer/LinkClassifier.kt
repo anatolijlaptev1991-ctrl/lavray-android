@@ -94,20 +94,36 @@ object LinkClassifier {
     /**
      * The core's reading of a single http(s) address (import_kind.go, Go net/url): it is a subscription when it has a host
      * and a path that is more than slashes once percent-decoded, or a query with any key other than security and sni. Pairs
-     * that Go drops are dropped here too: empty ones, ones with a semicolon, ones with a broken percent escape. An empty key
+     * that Go drops are dropped here too: empty ones, ones with a semicolon, ones with a broken percent escape in the key or in
+     * the value. An address whose port is not digits is no address for the core. An empty key
      * ("?=x") counts. An address without a host, or with a broken escape in the path, is no address for the core at all.
      * What looks like host:port with security and sni only is an HTTP proxy link and stays a server.
      */
     internal fun isSubscriptionPage(url: String): Boolean {
         val m = addressParts.find(url) ?: return false
         val hostPort = m.groupValues[1].substringAfterLast('@')
-        val host = if (hostPort.startsWith("[")) hostPort.substringBefore(']').removePrefix("[") else hostPort.substringBefore(':')
+        // Go splits the port off at the closing bracket of an IPv6 literal, else at the LAST colon, and refuses a port that
+        // is not digits (an empty one after the colon is fine).
+        val (host, port) = when {
+            hostPort.startsWith("[") -> {
+                if (']' !in hostPort) return false
+                hostPort.substringBefore(']').removePrefix("[") to hostPort.substringAfter(']')
+            }
+            ':' in hostPort -> hostPort.substringBeforeLast(':') to hostPort.substring(hostPort.lastIndexOf(':'))
+            else -> hostPort to ""
+        }
         if (host.isEmpty()) return false
+        if (port.isNotEmpty() && !(port[0] == ':' && port.drop(1).all { it in '0'..'9' })) return false
         val path = percentDecode(m.groupValues[2], plusIsSpace = false) ?: return false
         if (path.trim('/').isNotEmpty()) return true
         return m.groupValues[3].split('&')
             .filter { it.isNotEmpty() && ';' !in it }
-            .mapNotNull { percentDecode(it.substringBefore('='), plusIsSpace = true) }
+            .mapNotNull { pair ->
+                // A broken escape in the key or in the value drops the whole pair, as url.ParseQuery does.
+                val key = percentDecode(pair.substringBefore('='), plusIsSpace = true) ?: return@mapNotNull null
+                if ('=' in pair && percentDecode(pair.substringAfter('='), plusIsSpace = true) == null) return@mapNotNull null
+                key
+            }
             .any { it != "security" && it != "sni" }
     }
 
