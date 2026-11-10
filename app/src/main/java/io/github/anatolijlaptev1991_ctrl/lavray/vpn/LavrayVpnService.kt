@@ -95,6 +95,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     private lateinit var bootSetting: AutoConnectSetting
     private lateinit var userCommands: UserCommands
     private val foregroundConfirm = ForegroundConfirm()
+    private val selfBinding = SelfBinding(this)
     private val busyLock = Any()
 
     @Volatile private var client: LavrayClient? = null
@@ -127,6 +128,8 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     override fun onCreate() {
         super.onCreate()
         live.incrementAndGet()
+        // Without this the system does not restart the service after its process dies with a tunnel up (see SelfBinding).
+        selfBinding.bind()
         VpnNotifications.ensureChannels(this)
         prefs = VpnPrefs(this)
         wish = TunnelIntent(prefs, { BootCount.read(this) }, { BootId.current }, { SystemClock.elapsedRealtime() })
@@ -236,6 +239,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     }
 
     override fun onDestroy() {
+        selfBinding.unbind()
         fg.unregisterScreenReceiver()
         watcher.stop()
         platform.close()
