@@ -22,6 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
@@ -83,7 +85,8 @@ fun LavTextField(
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(),
+                    // The visible placeholder is not exposed to TalkBack by itself: without a name the field is just "edit box".
+                    modifier = Modifier.fillMaxWidth().semantics { (label ?: placeholder)?.let { contentDescription = it } },
                     textStyle = textStyle,
                     singleLine = singleLine,
                     minLines = minLines,
