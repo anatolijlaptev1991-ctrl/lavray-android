@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,8 @@ fun AppPickerScreen() {
     var query by remember { mutableStateOf("") }
     var showSystem by remember { mutableStateOf(false) }
 
+    // The icon cache is only worth its memory while the list is on screen.
+    DisposableEffect(Unit) { onDispose { AppIcons.clear() } }
     LaunchedEffect(Unit) {
         // A failed read leaves the saved choice alone: nothing is written until it was read.
         runCatching { env.controller.appSelection() }.getOrNull()?.let { selection = it; ready = true }

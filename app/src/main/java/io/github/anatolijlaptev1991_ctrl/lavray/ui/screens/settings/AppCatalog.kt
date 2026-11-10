@@ -8,7 +8,6 @@ import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Build
-import android.util.LruCache
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -70,12 +69,19 @@ object AppCatalog {
     private const val CHUNK = 32
 }
 
-/** App icons, drawn to a small bitmap off the main thread and kept in a small LRU cache (about 6 MB at most). */
+/**
+ * App icons, drawn to a small bitmap off the main thread and kept in a small LRU cache (about 3.5 MB at most). The
+ * cache is emptied when the picker leaves the screen ([clear]), so the UI process does not keep the bitmaps while the
+ * person is on another screen. 96 px stays: the row icon is 40 dp, which is 96 px at xhdpi+ and a smaller size would blur.
+ */
 object AppIcons {
     private const val SIZE_PX = 96
-    private val cache = object : LruCache<String, ImageBitmap>(MAX_ENTRIES) {}
+    private val cache = BoundedCache<String, ImageBitmap>(MAX_ENTRIES)
 
     fun cached(packageName: String): ImageBitmap? = cache.get(packageName)
+
+    /** Drops every cached icon; called when the picker is left. */
+    fun clear() = cache.evictAll()
 
     suspend fun load(pm: PackageManager, packageName: String): ImageBitmap? = withContext(Dispatchers.Default) {
         cache.get(packageName)?.let { return@withContext it }
@@ -92,5 +98,5 @@ object AppIcons {
         bitmap
     }
 
-    private const val MAX_ENTRIES = 160
+    private const val MAX_ENTRIES = 100
 }
