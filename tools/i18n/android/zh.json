@@ -84,6 +84,7 @@
   "mux_concurrencyErr": "请输入 -1 或 1 到 1024 之间的数字",
   "mux_concurrency_d": "-1 表示由核心决定。",
   "notif_action_disconnect": "断开",
+  "notif_busy": "正在处理…",
   "notif_connected": "已连接",
   "notif_connecting": "正在连接…",
   "notif_disconnecting": "正在断开…",

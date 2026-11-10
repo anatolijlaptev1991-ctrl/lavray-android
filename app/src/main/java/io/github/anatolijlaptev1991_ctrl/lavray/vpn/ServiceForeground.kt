@@ -20,6 +20,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 internal class ServiceForeground(private val service: Service) {
     private val gate = NotificationGate()
 
+    // Read and written from the main thread (onStartCommand) and the event loop.
+    @Volatile
     var isForeground = false
         private set
 
@@ -46,9 +48,9 @@ internal class ServiceForeground(private val service: Service) {
      * Promotes the service. A false result means the system refused (restricted background start); the caller decides
      * whether that is fatal. A start that was promised to become foreground must do so within seconds.
      */
-    fun enter(state: VpnState = VpnState.CONNECTING): Boolean {
+    fun enter(first: NotificationModel = NotificationModel(VpnState.CONNECTING)): Boolean {
         if (isForeground) return true
-        val model = gate.forcePost(NotificationModel(state))
+        val model = gate.forcePost(first)
         val notification = VpnNotifications.status(service, model)
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

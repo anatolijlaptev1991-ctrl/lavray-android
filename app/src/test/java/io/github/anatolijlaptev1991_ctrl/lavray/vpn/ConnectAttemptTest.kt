@@ -19,75 +19,107 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ConnectAttemptTest {
-    private fun st(state: CoreState, error: String? = null) = CoreStatus(state = state, lastError = error)
-
-    private class FakeApi(
-        var status: CoreStatus,
-        var onConnect: suspend (FakeApi) -> CoreStatus? = { null },
-        private val last: Long? = 7,
-    ) : CoreApi {
-        val bus = MutableSharedFlow<CoreStatus>(extraBufferCapacity = 64)
-        var connects = 0
-        var connectedWith: Long? = null
-        override suspend fun status() = status
-        override suspend fun connect(profileId: Long): CoreStatus? {
-            connects++
-            connectedWith = profileId
-            return onConnect(this)
-        }
-        override suspend fun lastProfileId() = last
-        override fun events(): Flow<CoreStatus> = bus
+internal class FakeCoreApi(
+    var status: CoreStatus,
+    var onConnect: suspend (FakeCoreApi) -> ConnectReply = { ConnectReply(null) },
+    private val last: Long? = 7,
+) : CoreApi {
+    val bus = MutableSharedFlow<CoreStatus>(extraBufferCapacity = 64)
+    var connects = 0
+    var connectedWith: Long? = null
+    var statusCalls = 0
+    override suspend fun status(): CoreStatus {
+        statusCalls++
+        return status
     }
+    override suspend fun connect(profileId: Long): ConnectReply {
+        connects++
+        connectedWith = profileId
+        return onConnect(this)
+    }
+    override suspend fun lastProfileId() = last
+    override fun events(): Flow<CoreStatus> = bus
+}
+
+class ConnectAttemptTest {
+    private fun st(state: CoreState, error: String? = null, profile: Long? = null) =
+        CoreStatus(state = state, lastError = error, activeProfileId = profile)
+
+    private fun connected(profile: Long? = null) = ConnectReply(st(CoreState.CORE_STATE_CONNECTED, profile = profile))
 
     @Test
-    fun connectsAndReturnsTheConnectedStatus() = runBlocking {
-        val api = FakeApi(st(CoreState.CORE_STATE_IDLE), onConnect = { st(CoreState.CORE_STATE_CONNECTED) })
+    fun connectsAndReturnsTheConnectedStatusAndWarnings() = runBlocking {
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_IDLE), onConnect = { ConnectReply(st(CoreState.CORE_STATE_CONNECTED), listOf("w")) })
         val result = ConnectAttempt.run(api, 5)
-        assertEquals(CoreState.CORE_STATE_CONNECTED, result.state)
+        assertEquals(CoreState.CORE_STATE_CONNECTED, result.status.state)
+        assertEquals(listOf("w"), result.warnings)
         assertEquals(5L, api.connectedWith)
     }
 
     @Test
     fun usesTheLastServerWhenNoneIsGiven() = runBlocking {
-        val api = FakeApi(st(CoreState.CORE_STATE_IDLE), onConnect = { st(CoreState.CORE_STATE_CONNECTED) })
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_IDLE), onConnect = { connected() })
         ConnectAttempt.run(api, null)
         assertEquals(7L, api.connectedWith)
     }
 
     @Test
     fun noServerIsReported() {
-        val api = FakeApi(st(CoreState.CORE_STATE_IDLE), last = null)
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_IDLE), last = null)
         assertThrows(NoServerException::class.java) { runBlocking { ConnectAttempt.run(api, null) } }
     }
 
     @Test
+    fun aCoreAlreadyConnectedToTheRequestedServerIsSuccessWithoutAnotherConnect() = runBlocking {
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_CONNECTED, profile = 5))
+        assertEquals(CoreState.CORE_STATE_CONNECTED, ConnectAttempt.run(api, 5).status.state)
+        assertEquals(0, api.connects)
+    }
+
+    // L2: connected to A, asked for B: success for A would leave the server the person chose unconnected.
+    @Test
+    fun aCoreConnectedToAnotherServerIsAskedToConnectTheRequestedOne() = runBlocking {
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_CONNECTED, profile = 1), onConnect = { connected(profile = 2) })
+        val result = ConnectAttempt.run(api, 2)
+        assertEquals(1, api.connects)
+        assertEquals(2L, api.connectedWith)
+        assertEquals(2L, result.status.activeProfileId)
+    }
+
+    @Test
+    fun noServerGivenAndTheCoreAlreadyConnectedKeepsWhatItHas() = runBlocking {
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_CONNECTED, profile = 1))
+        ConnectAttempt.run(api, null)
+        assertEquals(0, api.connects)
+    }
+
+    @Test
     fun aCoreThatIsStillConnectingIsWaitedForNotTrusted() = runBlocking {
-        val api = FakeApi(st(CoreState.CORE_STATE_CONNECTING))
-        val done = CompletableDeferred<CoreStatus>()
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_CONNECTING, profile = 5))
+        val done = CompletableDeferred<ConnectResult>()
         val job = launch { done.complete(ConnectAttempt.run(api, 5)) }
         // Not finished while the core is merely connecting.
         assertNull(withTimeoutOrNull(150) { done.await() })
         assertFalse(done.isCompleted)
         api.bus.emit(st(CoreState.CORE_STATE_CONNECTED))
-        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().state)
+        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().status.state)
         assertEquals(0, api.connects)
         job.join()
     }
 
     @Test
     fun connectingResponseWaitsForTheStream() = runBlocking {
-        val api = FakeApi(st(CoreState.CORE_STATE_IDLE), onConnect = { st(CoreState.CORE_STATE_CONNECTING) })
-        val done = CompletableDeferred<CoreStatus>()
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_IDLE), onConnect = { ConnectReply(st(CoreState.CORE_STATE_CONNECTING)) })
+        val done = CompletableDeferred<ConnectResult>()
         launch { done.complete(ConnectAttempt.run(api, 5)) }
         assertNull(withTimeoutOrNull(150) { done.await() })
         api.bus.emit(st(CoreState.CORE_STATE_CONNECTED))
-        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().state)
+        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().status.state)
     }
 
     @Test
     fun coreErrorBeforeTheFirstConnectedFailsTheAttempt() {
-        val api = FakeApi(st(CoreState.CORE_STATE_CONNECTING))
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_CONNECTING))
         val e = assertThrows(CoreConnectException::class.java) {
             runBlocking {
                 launch {
@@ -103,22 +135,22 @@ class ConnectAttemptTest {
 
     @Test
     fun errorResponseFromConnectFails() {
-        val api = FakeApi(st(CoreState.CORE_STATE_IDLE), onConnect = { st(CoreState.CORE_STATE_ERROR, "boom") })
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_IDLE), onConnect = { ConnectReply(st(CoreState.CORE_STATE_ERROR, "boom")) })
         assertThrows(CoreConnectException::class.java) { runBlocking { ConnectAttempt.run(api, 5) } }
     }
 
     @Test
     fun staleErrorFromThePreviousRunIsNotTheOutcome() = runBlocking {
-        val api = FakeApi(st(CoreState.CORE_STATE_ERROR, "old"))
+        val api = FakeCoreApi(st(CoreState.CORE_STATE_ERROR, "old"))
         api.onConnect = { a ->
             a.bus.emit(st(CoreState.CORE_STATE_CONNECTING))
-            st(CoreState.CORE_STATE_CONNECTING)
+            ConnectReply(st(CoreState.CORE_STATE_CONNECTING))
         }
-        val done = CompletableDeferred<CoreStatus>()
+        val done = CompletableDeferred<ConnectResult>()
         launch { done.complete(ConnectAttempt.run(api, 5)) }
         kotlinx.coroutines.delay(50)
         api.bus.emit(st(CoreState.CORE_STATE_CONNECTED))
-        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().state)
+        assertEquals(CoreState.CORE_STATE_CONNECTED, done.await().status.state)
     }
 
     @Test
@@ -130,6 +162,13 @@ class ConnectAttemptTest {
         assertEquals(FailureKind.NO_SERVER, ConnectAttempt.classify(NoServerException()).kind)
         assertEquals(FailureKind.CORE_START, ConnectAttempt.classify(CoreStartException("x")).kind)
         assertFalse(ConnectAttempt.classify(ApiException(ConnectCode.UNAVAILABLE, "x")).permanent)
+    }
+
+    @Test
+    fun theCoresReasonTravelsWithTheFailure() {
+        val f = ConnectAttempt.classify(ApiException(ConnectCode.FAILED_PRECONDITION, "no profile", reason = "no_server"))
+        assertTrue(f.permanent)
+        assertEquals("no_server", f.reason)
     }
 }
 

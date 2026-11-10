@@ -35,7 +35,7 @@ internal object VpnNotifications {
         return Notification.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_stat_vpn)
             .setContentTitle(context.getString(R.string.app_name))
-            .setContentText(model.detail ?: context.getString(textFor(model.state)))
+            .setContentText(model.detail ?: context.getString(if (model.busy && model.state == VpnState.IDLE) R.string.notif_busy else textFor(model.state)))
             .setContentIntent(openApp(context))
             .setOngoing(true)
             .setOnlyAlertOnce(true)

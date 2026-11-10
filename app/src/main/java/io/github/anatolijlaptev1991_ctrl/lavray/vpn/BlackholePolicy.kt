@@ -23,13 +23,16 @@ data class HoldInput(
     val established: Boolean,
     val inGrace: Boolean,
     val phase: AutoPhase,
+    /** A newer interface than the one held when the hold began has been established: the core reads one again. */
+    val newInterface: Boolean = false,
 )
 
 /**
  * The exact rule of the transition blackhole (docs/ARCHITECTURE.md, "Мост без дыры"). Closing the
  * interface while an established tunnel is only being rebuilt would send every app straight to the
  * physical network. So the interface is kept, unread, for as long as all of these hold:
- *  - the interface is held and the core is not using it;
+ *  - the interface is held and nobody reads it: the core is not running, or it is running but has not yet replaced the
+ *    interface (it sits in CONNECTING before it calls OpenTun; the hold is not released by "core active" alone);
  *  - the tunnel had been established and was not stopped on purpose;
  *  - the app itself is causing the gap: a grace period after a core drop or restart, or an attempt
  *    (reconnect, server switch, retry right after a loss) is running;
@@ -41,11 +44,18 @@ class BlackholePolicy(private val capMs: Long = DEFAULT_CAP_MS) {
     private var since: Long? = null
 
     fun evaluate(nowMs: Long, input: HoldInput): HoldDecision {
-        if (!input.tunHeld || input.coreActive) {
+        if (!input.tunHeld) {
             since = null
             return HoldDecision.None
         }
-        val causedByUs = input.inGrace || input.phase == AutoPhase.ATTEMPTING
+        val begun = since != null
+        // The core runs on a (new) interface: no blackhole. A core that is only "active" with no new interface is
+        // still not reading the held one, so a hold that has begun keeps counting.
+        if (input.coreActive && (!begun || input.newInterface)) {
+            since = null
+            return HoldDecision.None
+        }
+        val causedByUs = input.inGrace || input.phase == AutoPhase.ATTEMPTING || (begun && input.phase == AutoPhase.CONNECTED)
         if (!input.established || !causedByUs) {
             since = null
             return HoldDecision.Release(capExpired = false)

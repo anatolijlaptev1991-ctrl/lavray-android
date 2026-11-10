@@ -26,12 +26,24 @@ class NoServerException : Exception("no server selected")
 /** The core reported ERROR before the tunnel was ever up. Retryable: the next attempt may well work. */
 class CoreConnectException(message: String?) : Exception(message ?: "core reported an error while connecting")
 
-data class AttemptFailure(val permanent: Boolean, val message: String?, val kind: String = FailureKind.CONNECT_FAILED)
+data class AttemptFailure(
+    val permanent: Boolean,
+    val message: String?,
+    val kind: String = FailureKind.CONNECT_FAILED,
+    /** ErrorInfo.reason of the core, when it sent one. */
+    val reason: String? = null,
+)
+
+/** What a successful attempt leaves: the CONNECTED status and the warnings of ConnectResponse. */
+data class ConnectResult(val status: CoreStatus, val warnings: List<String> = emptyList())
+
+/** The core's own answer to Connect, before the wait for CONNECTED. */
+data class ConnectReply(val status: CoreStatus?, val warnings: List<String> = emptyList())
 
 /** The few core calls an attempt needs, so the waiting logic runs on the JVM against a fake. */
 internal interface CoreApi {
     suspend fun status(): CoreStatus
-    suspend fun connect(profileId: Long): CoreStatus?
+    suspend fun connect(profileId: Long): ConnectReply
     suspend fun lastProfileId(): Long?
     fun events(): Flow<CoreStatus>
 }
@@ -39,8 +51,9 @@ internal interface CoreApi {
 internal class ClientCoreApi(private val client: LavrayClient) : CoreApi {
     override suspend fun status(): CoreStatus = client.coreGetStatus()
 
-    override suspend fun connect(profileId: Long): CoreStatus? =
-        client.coreConnect(ConnectRequest(profileId = profileId, mode = ConnectMode.CONNECT_MODE_TUN)).status
+    override suspend fun connect(profileId: Long): ConnectReply =
+        client.coreConnect(ConnectRequest(profileId = profileId, mode = ConnectMode.CONNECT_MODE_TUN))
+            .let { ConnectReply(it.status, it.warnings) }
 
     override suspend fun lastProfileId(): Long? {
         val reply = client.settingsGetSettings(GetSettingsRequest(keys = listOf(SETTING_REMEMBER_ID)))
@@ -58,12 +71,13 @@ internal class ClientCoreApi(private val client: LavrayClient) : CoreApi {
 /** One connection attempt against a running core, as the desktop's ConnectLast does it. */
 internal object ConnectAttempt {
     /**
-     * Connects [profileId], or the last connected server when null, and returns only once the core is
-     * CONNECTED. A core that is already connecting (another attempt's work) is waited for, not trusted;
-     * a core that reports ERROR before it was ever up fails the attempt, so it is retried or reported
-     * instead of being shown as connected. The caller bounds the time.
+     * Connects [profileId], or the last connected server when null, and returns only once the core
+     * is CONNECTED. A core that is already connecting (another attempt's work) is waited for, not trusted;
+     * a core that is connected to ANOTHER profile is asked to connect the requested one; a core that
+     * reports ERROR before it was ever up fails the attempt, so it is retried or reported instead of
+     * being shown as connected. The caller bounds the time.
      */
-    suspend fun run(api: CoreApi, profileId: Long?): CoreStatus = coroutineScope {
+    suspend fun run(api: CoreApi, profileId: Long?): ConnectResult = coroutineScope {
         // Subscribe before the first call: a state change in between must not be missed.
         val updates = Channel<CoreStatus>(Channel.UNLIMITED)
         val collector = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -77,17 +91,30 @@ internal object ConnectAttempt {
         }
         try {
             var current = api.status()
-            if (!inProgress(current.state)) {
-                val id = profileId ?: api.lastProfileId() ?: throw NoServerException()
+            var warnings = emptyList<String>()
+            if (!servesRequested(current, profileId)) {
+                val target = profileId ?: api.lastProfileId() ?: throw NoServerException()
                 // Whatever was queued before this call describes the previous run.
                 while (updates.tryReceive().isSuccess) { /* drained */ }
-                current = api.connect(id) ?: current
+                val reply = api.connect(target)
+                current = reply.status ?: current
+                warnings = reply.warnings
             }
-            awaitConnected(current, updates)
+            ConnectResult(awaitConnected(current, updates), warnings)
         } finally {
             collector.cancel()
             updates.close()
         }
+    }
+
+    /**
+     * The core already connects or is connected to what was asked. A core connected to ANOTHER profile does not:
+     * reporting success for it would leave the server the person just chose unconnected.
+     */
+    private fun servesRequested(current: CoreStatus, wanted: Long?): Boolean {
+        if (!inProgress(current.state)) return false
+        val active = current.activeProfileId
+        return wanted == null || active == null || active == wanted
     }
 
     private fun inProgress(state: CoreState) =
@@ -110,7 +137,7 @@ internal object ConnectAttempt {
         tunFailure != null -> AttemptFailure(permanent = true, message = tunFailure.message, kind = tunFailure.kind)
         error is NoServerException -> AttemptFailure(permanent = true, message = error.message, kind = FailureKind.NO_SERVER)
         error is CoreStartException -> AttemptFailure(permanent = true, message = error.message, kind = FailureKind.CORE_START)
-        error is ApiException -> AttemptFailure(CoreStatusMapper.isPermanent(error.code), error.message)
+        error is ApiException -> AttemptFailure(CoreStatusMapper.isPermanent(error.code), error.message, reason = error.reason)
         else -> AttemptFailure(permanent = false, message = error.message)
     }
 }

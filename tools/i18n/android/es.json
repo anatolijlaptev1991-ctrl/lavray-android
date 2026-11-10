@@ -84,6 +84,7 @@
   "mux_concurrencyErr": "Introduce -1 o un número de 1 a 1024",
   "mux_concurrency_d": "-1 deja que decida el núcleo.",
   "notif_action_disconnect": "Desconectar",
+  "notif_busy": "Trabajando…",
   "notif_connected": "Conectado",
   "notif_connecting": "Conectando…",
   "notif_disconnecting": "Desconectando…",

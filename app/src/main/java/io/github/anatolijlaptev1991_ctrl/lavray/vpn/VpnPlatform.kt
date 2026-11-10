@@ -35,7 +35,8 @@ internal class VpnPlatform(
     private var monitor: DefaultNetworkMonitor? = null
     private var listener: NetworkListener? = null
 
-    private val tun = TunHolder<ParcelFileDescriptor>()
+    private val tun = TunHolder<PfdFd>()
+    private val handoff = TunHandoff(tun)
 
     override fun openTun(optionsJSON: String): Int {
         val built = try {
@@ -47,17 +48,11 @@ internal class VpnPlatform(
         // The core gets an independent descriptor (dup + detach) and owns it; this one stays open, and so does
         // the interface, until the tunnel ends. A late release from an older run cannot close a descriptor the
         // core is using, and the core closing its own never ends the interface.
-        val forCore = try {
-            built.descriptor.dup().detachFd()
-        } catch (e: IOException) {
-            runCatching { built.descriptor.close() }
-            throw e
+        return handoff.hand(PfdFd(built.descriptor)) { generation ->
+            events.onTunEstablished(generation, built.skippedPackages)
+            // The new interface follows the default network until the monitor says otherwise; a refusal is not fatal.
+            runCatching { syncUnderlying(currentUnderlying) }
         }
-        val generation = tun.replace(built.descriptor)
-        events.onTunEstablished(generation, built.skippedPackages)
-        // The new interface follows the default network until the monitor says otherwise.
-        syncUnderlying(currentUnderlying)
-        return forCore
     }
 
     /** Ends the interface once the core has stopped using it. Safe to call at any time. */

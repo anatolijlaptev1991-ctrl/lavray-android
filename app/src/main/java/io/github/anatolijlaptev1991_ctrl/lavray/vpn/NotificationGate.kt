@@ -3,7 +3,7 @@ package io.github.anatolijlaptev1991_ctrl.lavray.vpn
 
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 
-data class NotificationModel(val state: VpnState, val detail: String? = null)
+data class NotificationModel(val state: VpnState, val detail: String? = null, val busy: Boolean = false)
 
 /**
  * Decides when the ongoing notification may be re-posted. While the screen is off

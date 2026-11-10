@@ -15,13 +15,20 @@ internal interface VpnBinderHost {
     fun connect(profileId: Long)
     fun reconnect(profileId: Long)
     fun disconnect()
-    fun currentStatus(): VpnStatus
-    var autoConnect: Boolean
+    val autoConnect: Boolean
+
+    /** Writes the setting and aligns the boot receiver; false when it is not in force afterwards. */
+    fun setAutoConnect(enabled: Boolean): Boolean
     var appSelection: AppSelection
+    fun beginBusy(token: String, timeoutMs: Long)
+    fun endBusy(token: String)
 }
 
 internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
     private val observers = RemoteCallbackList<IVpnObserver>()
+
+    /** The newest status ever broadcast; a new observer gets it under the same lock, so it can never overtake a newer one. */
+    private var latest: VpnStatus = VpnStatus.IDLE
 
     override fun endpoint(): Bundle {
         val endpoint = try {
@@ -41,10 +48,10 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
 
     override fun disconnect() = host.disconnect()
 
+    @Synchronized
     override fun registerObserver(observer: IVpnObserver) {
         observers.register(observer)
-        val status = host.currentStatus()
-        runCatching { deliver(observer, status) }
+        runCatching { deliver(observer, latest) }
     }
 
     override fun unregisterObserver(observer: IVpnObserver) {
@@ -53,9 +60,7 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
 
     override fun isAutoConnectEnabled(): Boolean = host.autoConnect
 
-    override fun setAutoConnectEnabled(enabled: Boolean) {
-        host.autoConnect = enabled
-    }
+    override fun setAutoConnectEnabled(enabled: Boolean): Boolean = host.setAutoConnect(enabled)
 
     override fun getAppSelection(): String = host.appSelection.toJson()
 
@@ -63,12 +68,17 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
         host.appSelection = AppSelection.parse(json)
     }
 
+    override fun beginBusy(token: String, timeoutMs: Long) = host.beginBusy(token, timeoutMs)
+
+    override fun endBusy(token: String) = host.endBusy(token)
+
     /**
      * Synchronized: the event loop and binder threads both publish, and RemoteCallbackList allows one broadcast at a time
      * (a second beginBroadcast throws).
      */
     @Synchronized
     fun broadcast(status: VpnStatus) {
+        latest = status
         val n = observers.beginBroadcast()
         try {
             for (i in 0 until n) {

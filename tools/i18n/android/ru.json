@@ -84,6 +84,7 @@
   "mux_concurrencyErr": "Введите -1 или число от 1 до 1024",
   "mux_concurrency_d": "-1: выбор за ядром.",
   "notif_action_disconnect": "Отключить",
+  "notif_busy": "Выполняется операция…",
   "notif_connected": "Подключено",
   "notif_connecting": "Подключение…",
   "notif_disconnecting": "Отключение…",

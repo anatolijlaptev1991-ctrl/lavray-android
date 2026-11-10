@@ -9,6 +9,9 @@ sealed interface StartCommand {
     /** Switch server or rebuild the tunnel: the interface stays blocked, not open, until the new one replaces it. */
     data class Reconnect(val profileId: Long?) : StartCommand
 
+    /** The UI asked to keep the process alive for a long operation (see BusyHold); nothing to connect or stop. */
+    data object KeepAlive : StartCommand
+
     /** The system restarted the service after the process died (START_STICKY, null intent): resume only if it was wanted. */
     data object Resume : StartCommand
 }
@@ -16,11 +19,15 @@ sealed interface StartCommand {
 object StartIntent {
     const val ACTION_DISCONNECT = "io.github.anatolijlaptev1991_ctrl.lavray.action.DISCONNECT"
     const val ACTION_RECONNECT = "io.github.anatolijlaptev1991_ctrl.lavray.action.RECONNECT"
+    const val ACTION_KEEP_ALIVE = "io.github.anatolijlaptev1991_ctrl.lavray.action.KEEP_ALIVE"
 
     /** By name, so the UI process can address the service without loading its class. */
     const val SERVICE_CLASS = "io.github.anatolijlaptev1991_ctrl.lavray.vpn.LavrayVpnService"
     const val EXTRA_SOURCE = "source"
     const val EXTRA_PROFILE_ID = "profile_id"
+
+    /** Number of the person's command (see SessionEngine): a newer one supersedes older ones still in the queue. */
+    const val EXTRA_SEQ = "seq"
 
     /**
      * Disconnect and reconnect actions win. A null intent is the system restarting a killed service
@@ -30,6 +37,7 @@ object StartIntent {
     fun parse(action: String?, source: String?, profileId: Long, hasIntent: Boolean = true): StartCommand = when {
         !hasIntent -> StartCommand.Resume
         action == ACTION_DISCONNECT -> StartCommand.Disconnect
+        action == ACTION_KEEP_ALIVE -> StartCommand.KeepAlive
         action == ACTION_RECONNECT -> StartCommand.Reconnect(profileId.takeIf { it > 0 })
         else -> StartCommand.Connect(StartSource.fromWire(source), profileId.takeIf { it > 0 })
     }

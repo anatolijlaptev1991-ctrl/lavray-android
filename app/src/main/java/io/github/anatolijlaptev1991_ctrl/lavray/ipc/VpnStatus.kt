@@ -33,6 +33,12 @@ object FailureKind {
 
     /** A deliberate traffic block during a transition ran into its hard cap; apps now go direct. */
     const val PROTECTION_OFF = "protection_off"
+
+    /** The Go core did not stop in time when it was asked to (hung); it was cut loose and must be restarted. */
+    const val CORE_STOP_TIMEOUT = "core_stop_timeout"
+
+    /** The process died again and again before the tunnel ever came up; automatic restarts stopped. */
+    const val REPEATED_CRASH = "repeated_crash"
 }
 
 /**
@@ -56,6 +62,12 @@ data class VpnStatus(
     val lastFailure: String? = null,
     /** [FailureKind] of [lastFailure]. */
     val failureKind: String? = null,
+    /** ErrorInfo.reason of the core for the failed connect (for example "no_server"), when it sent one. */
+    val failureReason: String? = null,
+    /** ConnectResponse.warnings of the last successful connect; empty otherwise. */
+    val warnings: List<String> = emptyList(),
+    /** Counts the times the Go core was cut loose and will be started anew: a change means "fetch the endpoint again". */
+    val coreEpoch: Int = 0,
     /** Selected packages that are not installed and were skipped when the tunnel was built. */
     val skippedPackages: List<String> = emptyList(),
     /** Epoch millis until which traffic is deliberately blocked during a transition; 0 when nothing is blocked. */
@@ -78,6 +90,9 @@ internal data class StatusDetail(
     val needsPermission: Boolean = false,
     val lastFailure: String? = null,
     val failureKind: String? = null,
+    val failureReason: String? = null,
+    val warnings: List<String> = emptyList(),
+    val coreEpoch: Int = 0,
     val skippedPackages: List<String> = emptyList(),
     val blackholeUntilMs: Long = 0L,
 )
@@ -89,7 +104,8 @@ object VpnStatusWire {
         StatusDetail.serializer(),
         StatusDetail(
             status.healthError, status.unexpectedStop, status.stopReason, status.needsPermission,
-            status.lastFailure, status.failureKind, status.skippedPackages, status.blackholeUntilMs,
+            status.lastFailure, status.failureKind, status.failureReason, status.warnings, status.coreEpoch,
+            status.skippedPackages, status.blackholeUntilMs,
         ),
     )
 
@@ -102,7 +118,7 @@ object VpnStatusWire {
         }
         return VpnStatus(
             VpnState.fromCode(state), error, d.healthError, d.unexpectedStop, d.stopReason, d.needsPermission,
-            d.lastFailure, d.failureKind, d.skippedPackages, d.blackholeUntilMs,
+            d.lastFailure, d.failureKind, d.failureReason, d.warnings, d.coreEpoch, d.skippedPackages, d.blackholeUntilMs,
         )
     }
 }

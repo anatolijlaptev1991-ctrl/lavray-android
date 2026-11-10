@@ -13,7 +13,8 @@ class BlackholePolicyTest {
         established: Boolean = true,
         grace: Boolean = false,
         phase: AutoPhase = AutoPhase.CONNECTED,
-    ) = HoldInput(held, active, established, grace, phase)
+        newInterface: Boolean = false,
+    ) = HoldInput(held, active, established, grace, phase, newInterface)
 
     @Test
     fun nothingHeldMeansNothingToDecide() {
@@ -67,7 +68,34 @@ class BlackholePolicyTest {
     @Test
     fun capCountsFromTheBeginningOfEachHold() {
         policy.evaluate(0, input(grace = true))
-        policy.evaluate(10_000, input(active = true))
+        policy.evaluate(10_000, input(active = true, newInterface = true))
         assertEquals(HoldDecision.Hold(70_000), policy.evaluate(40_000, input(grace = true)))
+    }
+
+    // M6: the core went CONNECTING but has not called OpenTun yet; the held interface still has nobody reading it.
+    @Test
+    fun activeCoreWithoutANewInterfaceKeepsTheHoldAndTheCap() {
+        policy.evaluate(0, input(grace = true))
+        assertEquals(HoldDecision.Hold(30_000), policy.evaluate(5_000, input(active = true, phase = AutoPhase.CONNECTED)))
+        assertEquals(HoldDecision.Release(capExpired = true), policy.evaluate(30_000, input(active = true, phase = AutoPhase.CONNECTED)))
+    }
+
+    @Test
+    fun newInterfaceEndsTheHold() {
+        policy.evaluate(0, input(grace = true))
+        assertEquals(HoldDecision.None, policy.evaluate(5_000, input(active = true, newInterface = true, phase = AutoPhase.CONNECTED)))
+        // A later restart begins a fresh hold with a fresh cap.
+        assertEquals(HoldDecision.Hold(65_000), policy.evaluate(35_000, input(grace = true)))
+    }
+
+    @Test
+    fun anActiveCoreOnItsOwnInterfaceNeverStartsAHold() {
+        assertEquals(HoldDecision.None, policy.evaluate(0, input(active = true, phase = AutoPhase.CONNECTED)))
+    }
+
+    @Test
+    fun aHoldThatBeganEndsWhenTheMachineStopsRetrying() {
+        policy.evaluate(0, input(grace = true))
+        assertEquals(HoldDecision.Release(false), policy.evaluate(1_000, input(active = true, phase = AutoPhase.BACKING_OFF)))
     }
 }

@@ -323,6 +323,7 @@
     <string name="nav_subscriptions">Подписки</string>
     <string name="nav_updates">Обновления</string>
     <string name="notif_action_disconnect">Отключить</string>
+    <string name="notif_busy">Выполняется операция…</string>
     <string name="notif_connected">Подключено</string>
     <string name="notif_connecting">Подключение…</string>
     <string name="notif_disconnecting">Отключение…</string>

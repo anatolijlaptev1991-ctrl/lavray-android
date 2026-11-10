@@ -323,6 +323,7 @@
     <string name="nav_subscriptions">订阅</string>
     <string name="nav_updates">更新</string>
     <string name="notif_action_disconnect">断开</string>
+    <string name="notif_busy">正在处理…</string>
     <string name="notif_connected">已连接</string>
     <string name="notif_connecting">正在连接…</string>
     <string name="notif_disconnecting">正在断开…</string>

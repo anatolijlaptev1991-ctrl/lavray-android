@@ -91,7 +91,9 @@ class StatusModelTest {
     @Test
     fun wireRoundTripKeepsEveryField() {
         val status = VpnStatus(
-            VpnState.CONNECTED, null, "no_traffic", true, "low_memory", false, "msg", "tunnel_lost", listOf("p.q", "r.s"), 1234L,
+            VpnState.CONNECTED, null, healthError = "no_traffic", unexpectedStop = true, stopReason = "low_memory",
+            needsPermission = false, lastFailure = "msg", failureKind = "tunnel_lost", failureReason = "no_server",
+            warnings = listOf("w"), coreEpoch = 3, skippedPackages = listOf("p.q", "r.s"), blackholeUntilMs = 1234L,
         )
         val back = VpnStatusWire.decode(status.state.code, status.error, VpnStatusWire.detailOf(status))
         assertEquals(status, back)
