@@ -28,6 +28,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.RouteMapper
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ButtonVariant
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavCard
@@ -90,7 +91,8 @@ private fun Answer(answer: RouteAnswer?) {
 
 @Composable
 private fun foundText(r: CheckRouteResponse): String {
-    val outbound = stringResource(PresetCatalog.outboundLabel(r.outbound))
+    // The core answers "unspecified" for a tag it does not name (a custom rule's own tag): that is not "direct".
+    val outbound = RouteMapper.outboundName(r.outbound)?.let { stringResource(it) } ?: "—"
     val rule = r.matchedRule?.takeIf { it.isNotBlank() }
     return if (rule != null) "$outbound · $rule" else outbound
 }
