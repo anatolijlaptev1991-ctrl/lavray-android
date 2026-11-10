@@ -135,6 +135,7 @@ class BackupModel(
     @Volatile private var exported: ByteArray? = null
     @Volatile private var picked: ByteArray? = null
     @Volatile private var attached = true
+    private val lifeLock = Any()
 
     /** Marks the first operation of a screen visit; false when another one is still running. */
     private fun claim(reset: (BackupState) -> BackupState): Boolean {
@@ -151,10 +152,7 @@ class BackupModel(
             body()
         } finally {
             // Also when cancelled: busy must never outlive the operation.
-            withContext(NonCancellable) {
-                mutable.update { it.copy(busy = false) }
-                if (!attached) dropFiles()
-            }
+            withContext(NonCancellable) { finishOp() }
         }
     }
 
@@ -240,8 +238,23 @@ class BackupModel(
     /** A new password means the earlier check no longer applies. */
     fun invalidateCheck() = mutable.update { it.copy(summary = null, error = null) }
 
+    /**
+     * Ends an operation. Clearing `busy` and dropping the file state of a screen that was left are ONE state change
+     * under the same lock as [release]: otherwise an observer sees "idle" with the old file still shown, and a
+     * [release] that lands between the two steps leaves the file contents in memory until the next visit.
+     */
+    private fun finishOp() = synchronized(lifeLock) {
+        if (attached) {
+            mutable.update { it.copy(busy = false) }
+        } else {
+            exported = null
+            picked = null
+            mutable.update { it.copy(busy = false).withoutFileState() }
+        }
+    }
+
     /** The backup screen is on show again. */
-    fun attach() {
+    fun attach() = synchronized(lifeLock) {
         attached = true
     }
 
@@ -250,7 +263,7 @@ class BackupModel(
      * otherwise as soon as the running operation ends (it keeps going on the app's scope). A finished restore is kept:
      * that is the answer the person is waiting for.
      */
-    fun release() {
+    fun release() = synchronized(lifeLock) {
         attached = false
         if (!mutable.value.busy) dropFiles()
     }
