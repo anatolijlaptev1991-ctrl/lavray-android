@@ -11,6 +11,18 @@ import java.io.IOException
 /** An established interface and the selected packages the Builder could not find. */
 internal data class TunBuilt(val descriptor: ParcelFileDescriptor, val skippedPackages: List<String>)
 
+/**
+ * Everything [TunEstablisher.establish] builds an interface from. Two equal specs give two interchangeable interfaces, so
+ * the one that is already up can serve the next run of the core.
+ */
+internal data class TunSpec(
+    val mtu: Int,
+    val inet4: List<String>,
+    val inet6: List<String>,
+    val dns: List<String>,
+    val rules: AppRules,
+)
+
 /** Turns the core's TUN options into an established VpnService interface. */
 internal class TunEstablisher(
     private val service: VpnService,
@@ -39,6 +51,9 @@ internal class TunEstablisher(
         val pfd = builder.establish() ?: throw IOException("VPN permission is not granted")
         return TunBuilt(pfd, applied.skipped)
     }
+
+    /** What [establish] would build for [options] right now (the per-app choice is read at this moment). */
+    fun specOf(options: TunOptions): TunSpec = TunSpec(options.mtu, options.inet4, options.inet6, options.dns, rulesFor(options))
 
     private fun rulesFor(options: TunOptions): AppRules = try {
         AppRules.from(appSelection().applyTo(options), service.packageName)

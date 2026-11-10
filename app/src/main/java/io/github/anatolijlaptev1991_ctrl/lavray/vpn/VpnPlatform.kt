@@ -39,8 +39,16 @@ internal class VpnPlatform(
     private val handoff = TunHandoff(tun)
 
     override fun openTun(optionsJSON: String): Int {
+        val options = TunOptions.parse(optionsJSON)
+        val spec: TunSpec
         val built = try {
-            establisher.establish(TunOptions.parse(optionsJSON))
+            spec = establisher.specOf(options)
+            // A rebuild that needs the very interface that is still held (a server switch, a reconnect, a core restart
+            // for routing or DNS) keeps it: replacing an interface lets connections out through the physical network
+            // for a moment, keeping it does not. Only a change of the interface itself (MTU, addresses, DNS, the app
+            // list) builds a new one.
+            handoff.handHeld(spec) { generation -> onTunReady(generation, emptyList()) }?.let { return it }
+            establisher.establish(options)
         } catch (e: NoAllowedAppsException) {
             events.onTunFailed(TunFailure(FailureKind.APPS_NONE, e.message))
             throw e
@@ -48,11 +56,16 @@ internal class VpnPlatform(
         // The core gets an independent descriptor (dup + detach) and owns it; this one stays open, and so does
         // the interface, until the tunnel ends. A late release from an older run cannot close a descriptor the
         // core is using, and the core closing its own never ends the interface.
-        return handoff.hand(PfdFd(built.descriptor)) { generation ->
-            events.onTunEstablished(generation, built.skippedPackages)
-            // The new interface follows the default network until the monitor says otherwise; a refusal is not fatal.
-            runCatching { syncUnderlying(currentUnderlying) }
+        // An interface that left selected apps out is never kept for the next run: one of them may be installed by then.
+        return handoff.hand(PfdFd(built.descriptor), spec.takeIf { built.skippedPackages.isEmpty() }) { generation ->
+            onTunReady(generation, built.skippedPackages)
         }
+    }
+
+    private fun onTunReady(generation: Int, skippedPackages: List<String>) {
+        events.onTunEstablished(generation, skippedPackages)
+        // The interface follows the default network until the monitor says otherwise; a refusal is not fatal.
+        runCatching { syncUnderlying(currentUnderlying) }
     }
 
     /** Ends the interface once the core has stopped using it. Safe to call at any time. */

@@ -239,6 +239,53 @@ class TunHandoffTest {
         assertEquals(holder.currentGeneration(), generation)
     }
 
+    // V-03: the next run of the core gets the interface that is already up, not a new one.
+    @Test
+    fun aRunThatNeedsTheSameInterfaceGetsADuplicateOfTheHeldOne() {
+        val built = Fd(7)
+        val first = handoff.hand(built, spec = "same") { }
+        assertEquals(107, first)
+        var generation = -1
+        val second = handoff.handHeld("same") { generation = it }
+        assertEquals("a fresh duplicate of the same interface", 107, second)
+        assertTrue(built.dup!!.detached)
+        assertEquals("the held original is untouched", 0, built.closed)
+        assertEquals(holder.currentGeneration(), generation)
+        assertEquals(2, generation)
+    }
+
+    @Test
+    fun aRunThatNeedsAnotherInterfaceGetsNoneOfTheHeld() {
+        val built = Fd(7)
+        handoff.hand(built, spec = "mtu 9000") { }
+        assertEquals(null, handoff.handHeld("mtu 1500") { error("must not be called") })
+        assertEquals(1, holder.currentGeneration())
+        // Built without a spec (it skipped apps): never reused.
+        handoff.hand(Fd(8)) { }
+        assertEquals(null, handoff.handHeld("mtu 9000") { error("must not be called") })
+    }
+
+    @Test
+    fun aHeldInterfaceThatCannotBeDuplicatedIsNotReusedAndStaysHeld() {
+        val built = Fd(7)
+        handoff.hand(built, spec = "same") { }
+        val broken = Fd(9, dupFails = true)
+        holder.replace(broken, spec = "same")
+        assertEquals(null, handoff.handHeld("same") { error("must not be called") })
+        assertTrue("the caller builds a new one, which then replaces it", holder.isHeld())
+    }
+
+    @Test
+    fun aFailureAfterTheReuseClosesTheDuplicateAndKeepsTheInterface() {
+        val built = Fd(7)
+        handoff.hand(built, spec = "same") { }
+        assertThrows(IllegalStateException::class.java) { handoff.handHeld("same") { throw IllegalStateException("underlying") } }
+        assertEquals(1, built.dup!!.closed)
+        assertFalse(built.dup!!.detached)
+        assertEquals(0, built.closed)
+        assertTrue(holder.isHeld())
+    }
+
     @Test
     fun aFailedDupClosesTheBuiltInterface() {
         val built = Fd(7, dupFails = true)

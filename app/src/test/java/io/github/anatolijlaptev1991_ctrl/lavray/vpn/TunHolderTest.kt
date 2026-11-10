@@ -31,6 +31,41 @@ class TunHolderTest {
         assertFalse(holder.isHeld())
     }
 
+    // V-03: an interface that is replaced leaks for a moment; the same interface for the same needs is kept instead.
+    @Test
+    fun theHeldInterfaceServesTheNextRunWhenItWasBuiltFromTheSameSpec() {
+        val holder = TunHolder<Fake>()
+        val tun = Fake()
+        val first = holder.replace(tun, spec = listOf("mtu 9000", "apps a,b"))
+        val reused = holder.reuseIf(listOf("mtu 9000", "apps a,b")) { "copy of it" }
+        assertEquals("copy of it", reused!!.first)
+        assertEquals("a new run is a new generation", first + 1, reused.second)
+        assertEquals("nothing was closed", 0, tun.closed)
+        assertTrue(holder.isHeld())
+        // A release decided against the previous run must not close what the new run uses.
+        assertFalse(holder.releaseIfCurrent(first))
+        assertEquals(0, tun.closed)
+        assertTrue(holder.releaseIfCurrent(reused.second))
+        assertEquals(1, tun.closed)
+    }
+
+    @Test
+    fun anInterfaceBuiltFromSomethingElseOrWithoutASpecIsNotReused() {
+        val holder = TunHolder<Fake>()
+        assertEquals("nothing held", null, holder.reuseIf("a") { it })
+        holder.replace(Fake(), spec = "a")
+        assertEquals(null, holder.reuseIf("b") { it })
+        val generation = holder.currentGeneration()
+        assertEquals("a refused reuse changes nothing", generation, holder.currentGeneration())
+        holder.replace(Fake())
+        assertEquals("no spec: never handed on", null, holder.reuseIf("a") { it })
+        holder.replace(Fake(), spec = "a")
+        holder.release()
+        assertEquals("released: gone, and so is its spec", null, holder.reuseIf("a") { it })
+        holder.replace(Fake())
+        assertEquals(null, holder.reuseIf("a") { it })
+    }
+
     @Test
     fun newerTunnelClosesTheOlder() {
         val holder = TunHolder<Fake>()
