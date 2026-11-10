@@ -9,9 +9,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Connect, switch and disconnect as the person means them. The consent dialog is not here: it needs an
@@ -26,28 +24,35 @@ class VpnActions(
     val status: StateFlow<VpnStatus> get() = controller.status
 
     /**
-     * Connects [profileId]. The service treats an already connected core as success, so switching to
-     * another server first disconnects and waits for the tunnel to go down.
+     * Connects [profileId]. While a tunnel is up, coming up, waiting for a network or tearing down, the switch goes
+     * through the service's `reconnect`: it rebuilds the tunnel without a direct-traffic gap and runs after a
+     * disconnect that is still in progress, so a connect is never issued into a tunnel that is going down.
      */
     fun connect(profileId: Long) {
         onServerChosen(profileId)
         scope.launch {
             session.call { settingsSetSettings(SetSettingsRequest(mapOf(REMEMBER_ID to SettingValue(intValue = profileId)))) }
-            if (controller.status.value.state.isLive) {
-                controller.disconnect()
-                withTimeoutOrNull(SWITCH_TIMEOUT_MS) { controller.status.first { !it.state.isLive } }
+            when (SwitchPlan.decide(controller.status.value.state)) {
+                SwitchPlan.Action.CONNECT -> controller.connect(profileId)
+                SwitchPlan.Action.RECONNECT -> controller.reconnect(profileId)
             }
-            controller.connect(profileId)
         }
     }
 
     fun disconnect() = controller.disconnect()
 
-    private val VpnState.isLive: Boolean
-        get() = this == VpnState.CONNECTED || this == VpnState.CONNECTING || this == VpnState.WAITING_NETWORK
-
     private companion object {
         const val REMEMBER_ID = "remember.id"
-        const val SWITCH_TIMEOUT_MS = 8_000L
+    }
+}
+
+/** What choosing a server means in each state of the tunnel. */
+object SwitchPlan {
+    enum class Action { CONNECT, RECONNECT }
+
+    /** Only a tunnel that is definitely down is connected afresh; anything else is rebuilt by the service. */
+    fun decide(state: VpnState): Action = when (state) {
+        VpnState.IDLE, VpnState.ERROR, VpnState.NEEDS_PERMISSION -> Action.CONNECT
+        VpnState.CONNECTING, VpnState.CONNECTED, VpnState.DISCONNECTING, VpnState.WAITING_NETWORK -> Action.RECONNECT
     }
 }

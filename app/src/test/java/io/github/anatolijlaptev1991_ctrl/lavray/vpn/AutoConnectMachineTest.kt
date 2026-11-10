@@ -30,7 +30,10 @@ class AutoConnectMachineTest {
 
     @Test
     fun missingConsentNotifiesAndDoesNotAttempt() {
-        assertEquals(listOf(AutoEffect.NotifyNeedsPermission), start(StartSource.BOOT, consent = false))
+        assertEquals(
+            listOf(AutoEffect.CancelRetry, AutoEffect.WatchNetwork(false), AutoEffect.NotifyNeedsPermission),
+            start(StartSource.BOOT, consent = false),
+        )
         assertEquals(AutoPhase.IDLE, machine.state.phase)
         assertFalse(machine.state.pending)
     }
@@ -147,6 +150,24 @@ class AutoConnectMachineTest {
     fun staleResultsOutsideAnAttemptAreIgnored() {
         assertTrue(machine.handle(AutoEvent.AttemptSucceeded).isEmpty())
         assertTrue(machine.handle(AutoEvent.AttemptFailed(false, "x")).isEmpty())
+    }
+
+    // B-15: a start without consent while an earlier start waits must not leave its timer and watcher armed.
+    @Test
+    fun missingConsentDisarmsAnEarlierWait() {
+        start(StartSource.BOOT, network = false)
+        assertEquals(AutoPhase.WAITING_NETWORK, machine.state.phase)
+        val effects = start(StartSource.BOOT, consent = false)
+        assertTrue(effects.contains(AutoEffect.CancelRetry))
+        assertTrue(effects.contains(AutoEffect.WatchNetwork(false)))
+        assertFalse(machine.state.pending)
+    }
+
+    @Test
+    fun failureKindTravelsWithTheFailEffect() {
+        start(StartSource.USER)
+        val effects = machine.handle(AutoEvent.AttemptFailed(permanent = true, message = "m", kind = "no_server"))
+        assertTrue(effects.contains(AutoEffect.Fail("m", "no_server")))
     }
 
     @Test

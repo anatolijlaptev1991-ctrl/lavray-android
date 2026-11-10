@@ -28,6 +28,12 @@ val useCoreStub = !coreAar.exists()
 // code can be driven by adb. Off by default and never used for published builds.
 val measureBuild = providers.gradleProperty("lavray.measure").map { it.toBoolean() }.getOrElse(false)
 
+// versionCode of an APK is baseVersionCode * 10 + the index of its ABI (abiVersionIndex): the three ABI APKs must not
+// share one code, or a 32-bit APK installs over a 64-bit one as a plain update and silently drops the app to a 32-bit
+// runtime. scripts/ci-apk.sh verify checks the result; keep the name and the literal on one line.
+val baseVersionCode = 903
+val abiVersionIndex = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+
 android {
     namespace = "io.github.anatolijlaptev1991_ctrl.lavray"
     compileSdk = 36
@@ -36,7 +42,7 @@ android {
         applicationId = "io.github.anatolijlaptev1991_ctrl.lavray"
         minSdk = 26
         targetSdk = 36
-        versionCode = 903
+        versionCode = baseVersionCode
         versionName = "0.9.3"
     }
 
@@ -127,6 +133,17 @@ android {
 // resources reference it, and the app does not use it either (R8 and aapt2 pass; no reference in the
 // camera-view-1.4.1 classes.jar or res). -0.22 MB per APK (docs/MEASUREMENTS.md, 10.7).
 configurations.configureEach { exclude(group = "androidx.appcompat") }
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abi = output.filters
+                .firstOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+            // An output without an ABI filter (no universal APK is built) keeps the base code times ten.
+            output.versionCode.set(baseVersionCode * 10 + (abiVersionIndex[abi] ?: 0))
+        }
+    }
+}
 
 dependencies {
     if (!useCoreStub) {

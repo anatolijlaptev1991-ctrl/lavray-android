@@ -43,9 +43,15 @@ type boxPlatform struct {
 	tunAddrs    []netip.Addr
 	defaultIf   *control.Interface
 	isExpensive bool
+
+	// Подменяются в тестах: имя интерфейса по дескриптору и закрытие дескриптора.
+	nameOf  func(fd int32) (string, error)
+	closeFn func(fd int)
 }
 
-func newBoxPlatform(h *host) *boxPlatform { return &boxPlatform{h: h} }
+func newBoxPlatform(h *host) *boxPlatform {
+	return &boxPlatform{h: h, nameOf: tunnelName, closeFn: closeFd}
+}
 
 func (p *boxPlatform) networkManager() adapter.NetworkManager {
 	p.mu.Lock()
@@ -183,21 +189,33 @@ func (p *boxPlatform) OpenInterface(options *tun.Options, _ option.TunPlatformOp
 	if err != nil {
 		return nil, err
 	}
-	options.Name, err = tunnelName(fd)
+	options.Name, err = p.nameOf(fd)
 	if err != nil {
+		p.closeFn(int(fd))
 		return nil, E.Cause(err, "query tun name")
 	}
 	options.InterfaceMonitor.RegisterMyInterface(options.Name)
-	dupFD, err := dupFd(fd)
-	if err != nil {
-		return nil, E.Cause(err, "dup tun file descriptor")
-	}
-	options.FileDescriptor = dupFD
 	p.mu.Lock()
 	p.tunName = options.Name
 	p.tunAddrs = tunAddresses(options)
 	p.mu.Unlock()
-	return tun.New(*options)
+	// Kotlin отдаёт независимый дескриптор (dup + detach): он принадлежит Go и закрывается
+	// вместе с туннелем, а при ошибке сборки здесь. Исходный остаётся у Kotlin (TunHolder).
+	return adoptFd(int(fd), p.closeFn, func(owned int) (tun.Tun, error) {
+		options.FileDescriptor = owned
+		return tun.New(*options)
+	})
+}
+
+// adoptFd собирает туннель на дескрипторе, которым Go теперь владеет: если сборка не
+// удалась, дескриптор закрывается, иначе он утекал бы на каждую неудачную попытку.
+func adoptFd(fd int, closeFn func(int), build func(fd int) (tun.Tun, error)) (tun.Tun, error) {
+	t, err := build(fd)
+	if err != nil {
+		closeFn(fd)
+		return nil, err
+	}
+	return t, nil
 }
 
 func tunAddresses(o *tun.Options) []netip.Addr {

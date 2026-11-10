@@ -11,9 +11,7 @@ object Reconnect {
     private const val DOWN_TIMEOUT_MS = 8_000L
 
     suspend fun now(env: AppEnv) {
-        env.controller.disconnect()
-        withTimeoutOrNull(DOWN_TIMEOUT_MS) { env.vpn.status.first { !isUp(it.state) } }
-        env.controller.connect(0L)
+        env.controller.reconnect(0L)
     }
 
     private fun isUp(state: VpnState): Boolean =

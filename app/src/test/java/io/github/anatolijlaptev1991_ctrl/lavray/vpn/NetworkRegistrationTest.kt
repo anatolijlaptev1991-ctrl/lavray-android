@@ -14,14 +14,7 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    fun androidNineToElevenUseARequest() {
-        assertEquals(NetworkRegistration.REQUEST, NetworkRegistration.forSdk(28))
-        assertEquals(NetworkRegistration.REQUEST, NetworkRegistration.forSdk(30))
-    }
-
-    @Test
-    fun oldestSupportedApisUseTheDefaultCallback() {
-        assertEquals(NetworkRegistration.DEFAULT, NetworkRegistration.forSdk(26))
-        assertEquals(NetworkRegistration.DEFAULT, NetworkRegistration.forSdk(27))
+    fun androidOreoToElevenUseARequest() {
+        for (sdk in 26..30) assertEquals("sdk $sdk", NetworkRegistration.REQUEST, NetworkRegistration.forSdk(sdk))
     }
 }

@@ -8,6 +8,9 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.IOException
 
+/** An established interface and the selected packages the Builder could not find. */
+internal data class TunBuilt(val descriptor: ParcelFileDescriptor, val skippedPackages: List<String>)
+
 /** Turns the core's TUN options into an established VpnService interface. */
 internal class TunEstablisher(
     private val service: VpnService,
@@ -17,9 +20,9 @@ internal class TunEstablisher(
 ) {
     /**
      * Opens the interface. The caller keeps the descriptor open for as long as the tunnel
-     * should exist (the core only duplicates it) and closes it to remove the interface.
+     * should exist (the core gets its own duplicate) and closes it to remove the interface.
      */
-    fun establish(options: TunOptions): ParcelFileDescriptor {
+    fun establish(options: TunOptions): TunBuilt {
         require(options.inet4.isNotEmpty() || options.inet6.isNotEmpty()) { "TUN options carry no address" }
         val builder = service.Builder().setSession(sessionName)
         if (options.mtu > 0) builder.setMtu(options.mtu)
@@ -28,27 +31,32 @@ internal class TunEstablisher(
         if (options.inet4.isNotEmpty()) builder.addRoute("0.0.0.0", 0)
         if (options.inet6.isNotEmpty()) builder.addRoute("::", 0)
         for (server in options.dns) builder.addDnsServer(server)
-        applyAppRules(builder, AppRules.from(appSelection().applyTo(options), service.packageName))
+        val applied = applyAppRules(builder, rulesFor(options))
         // The platform derives "metered" from the underlying networks we keep in sync with
         // setUnderlyingNetworks; the default (always metered) would throttle apps on Wi-Fi.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
         configureIntent?.let { builder.setConfigureIntent(it) }
-        return builder.establish() ?: throw IOException("VPN permission is not granted")
+        val pfd = builder.establish() ?: throw IOException("VPN permission is not granted")
+        return TunBuilt(pfd, applied.skipped)
     }
 
-    private fun applyAppRules(builder: VpnService.Builder, rules: AppRules) {
-        if (rules.allowed.isNotEmpty()) {
-            val added = rules.allowed.count { runCatching { builder.addAllowedApplication(it) }.isSuccess }
-            // An empty allow-list would silently tunnel every app: refuse instead.
-            if (added == 0) throw IOException("none of the allowed apps is installed")
-        } else {
-            for (pkg in rules.disallowed) {
-                try {
-                    builder.addDisallowedApplication(pkg)
-                } catch (_: PackageManager.NameNotFoundException) {
-                    // An excluded app that is no longer installed needs no rule.
-                }
+    private fun rulesFor(options: TunOptions): AppRules = try {
+        AppRules.from(appSelection().applyTo(options), service.packageName)
+    } catch (_: IllegalArgumentException) {
+        // The allow-list holds only this app: nothing else would be tunnelled.
+        throw NoAllowedAppsException()
+    }
+
+    private fun applyAppRules(builder: VpnService.Builder, rules: AppRules): AppliedRules =
+        AppRuleApplier.apply(rules) { pkg, allowed ->
+            try {
+                if (allowed) builder.addAllowedApplication(pkg) else builder.addDisallowedApplication(pkg)
+                true
+            } catch (_: PackageManager.NameNotFoundException) {
+                // Not installed, or hidden by package visibility.
+                false
+            } catch (_: IllegalArgumentException) {
+                false
             }
         }
-    }
 }

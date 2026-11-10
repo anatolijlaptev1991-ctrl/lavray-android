@@ -9,8 +9,8 @@ import android.os.IBinder
 import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnObserver
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnService
-import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatusWire
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.StartIntent
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.VpnBinder
@@ -33,15 +33,17 @@ class VpnController(context: Context) {
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableStatus = MutableStateFlow(VpnStatus.IDLE)
-    private var ready = CompletableDeferred<IVpnService>()
+    // Replaced on the main thread at unbind and disconnect, read from IO coroutines: volatile, and always completed
+    // through the deferred captured when its connection arrived, never through whatever the field holds later.
+    @Volatile private var ready = CompletableDeferred<IVpnService>()
     private var bound = false
     @Volatile private var service: IVpnService? = null
 
     val status: StateFlow<VpnStatus> = mutableStatus
 
     private val observer = object : IVpnObserver.Stub() {
-        override fun onStatus(state: Int, error: String?) {
-            mutableStatus.value = VpnStatus(VpnState.fromCode(state), error)
+        override fun onStatus(state: Int, error: String?, detail: String?) {
+            mutableStatus.value = VpnStatusWire.decode(state, error, detail)
         }
     }
 
@@ -49,9 +51,10 @@ class VpnController(context: Context) {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val api = IVpnService.Stub.asInterface(service)
             this@VpnController.service = api
+            val pending = ready
             scope.launch {
                 runCatching { api.registerObserver(observer) }
-                ready.complete(api)
+                pending.complete(api)
             }
         }
 
@@ -96,6 +99,14 @@ class VpnController(context: Context) {
         scope.launch { runCatching { ready.await().connect(profileId) } }
     }
 
+    /**
+     * Rebuilds the tunnel (server switch, changed settings) keeping the interface blocked, not open, until the new one
+     * replaces it (at most 30 s). profileId <= 0 reconnects the last server. Prefer it to disconnect() then connect().
+     */
+    fun reconnect(profileId: Long = 0) {
+        scope.launch { runCatching { ready.await().reconnect(profileId) } }
+    }
+
     fun disconnect() {
         scope.launch { runCatching { ready.await().disconnect() } }
     }
@@ -108,7 +119,23 @@ class VpnController(context: Context) {
     /** Saves the choice; it applies the next time the tunnel is built. */
     suspend fun setAppSelection(selection: AppSelection) = withContext(Dispatchers.IO) { ready.await().setAppSelection(selection.toJson()) }
 
+    /**
+     * Writes the "connect at phone start" setting and the boot receiver. True only when the value is really in force
+     * afterwards; false (or an exception from the binder) means the stored value is the old one, so the switch must
+     * show the old value.
+     */
+    suspend fun setAutoConnect(enabled: Boolean): Boolean = withContext(Dispatchers.IO) { ready.await().setAutoConnectEnabled(enabled) }
+
+    /** Fire and forget: kept for callers that cannot wait. A failed write is lost here; prefer [setAutoConnect]. */
     fun setAutoConnectEnabled(enabled: Boolean) {
-        scope.launch { runCatching { ready.await().setAutoConnectEnabled(enabled) } }
+        scope.launch { runCatching { setAutoConnect(enabled) } }
     }
+
+    /**
+     * Keeps the :vpn process alive while a long operation that runs in the core (a backup restore) is under way, even if
+     * the UI unbinds. [token] names the hold, [timeoutMs] is a hard cap (the service clamps it to 15 minutes).
+     */
+    suspend fun beginBusy(token: String, timeoutMs: Long) = withContext(Dispatchers.IO) { ready.await().beginBusy(token, timeoutMs) }
+
+    suspend fun endBusy(token: String) = withContext(Dispatchers.IO) { ready.await().endBusy(token) }
 }

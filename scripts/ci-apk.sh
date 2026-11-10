@@ -6,6 +6,7 @@
 #   version                          print versionName from app/build.gradle.kts
 #   find <dir> <abi>                 print the single APK for an ABI in <dir>
 #   verify <dir>                     exactly one APK per ABI and no others; size budget per ABI;
+#                                    versionCode = base*10 + ABI index (app/build.gradle.kts);
 #                                    16 KB alignment (zipalign -P 16 and LOAD segments) for the 64-bit ABIs
 #   stage <srcdir> <outdir> [suffix] copy to <outdir>/LAVRay-<version>-<abi><suffix>.apk
 #   recompress <dir> [abi...]        better deflate for libgojni.so and classes.dex, then zipalign and re-sign
@@ -15,7 +16,7 @@
 #   APK_BUDGET_MB       "arm64-v8a=58 armeabi-v7a=59 x86_64=62" (1 MB = 1000000 bytes), required by verify
 #   ANDROID_HOME        SDK root; ANDROID_NDK_HOME NDK root (set by .github/actions/setup-build)
 #   BUILD_TOOLS_VERSION build-tools directory for zipalign and apksigner (default 36.0.0)
-#   ZIPALIGN, APKSIGNER, LLVM_READELF   override tool paths
+#   ZIPALIGN, APKSIGNER, AAPT2, LLVM_READELF   override tool paths
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -55,6 +56,31 @@ llvm_readelf() {
   local p="${LLVM_READELF:-${ANDROID_NDK_HOME:-}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf}"
   [ -x "$p" ] || fail "нет llvm-readelf: $p (проверьте ANDROID_NDK_HOME)"
   printf '%s' "$p"
+}
+
+# versionCode of the APK of an ABI: baseVersionCode * 10 + index (armeabi-v7a 1, arm64-v8a 2, x86_64 3),
+# the same rule as androidComponents.onVariants in app/build.gradle.kts.
+expected_version_code() { # abi
+  local base idx
+  base="$(sed -n 's/^val baseVersionCode[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$ROOT/app/build.gradle.kts" | head -n1)"
+  [ -n "$base" ] || fail "baseVersionCode не найден в app/build.gradle.kts"
+  case "$1" in
+    armeabi-v7a) idx=1 ;;
+    arm64-v8a) idx=2 ;;
+    x86_64) idx=3 ;;
+    *) fail "неизвестный ABI $1" ;;
+  esac
+  printf '%s' $(( base * 10 + idx ))
+}
+
+check_version_code() { # apk abi
+  local aapt2 got want
+  aapt2="$(sdk_tool aapt2 "${AAPT2:-}")"
+  got="$("$aapt2" dump badging "$1" | sed -n "s/^package:.* versionCode='\([0-9]*\)'.*/\1/p" | head -n1)"
+  want="$(expected_version_code "$2")"
+  [ -n "$got" ] || fail "$2: не удалось прочитать versionCode из $1"
+  [ "$got" = "$want" ] || fail "$2: versionCode $got, ожидалось $want (base*10+индекс ABI)"
+  echo "versionCode $2: $got"
 }
 
 budget_bytes() { # abi
@@ -107,6 +133,7 @@ verify() {
   for abi in "${ALL_ABIS[@]}"; do
     apk="$(find_apk "$dir" "$abi")"
     check_size "$apk" "$abi"
+    check_version_code "$apk" "$abi"
   done
   for abi in "${ALIGNED_ABIS[@]}"; do
     apk="$(find_apk "$dir" "$abi")"

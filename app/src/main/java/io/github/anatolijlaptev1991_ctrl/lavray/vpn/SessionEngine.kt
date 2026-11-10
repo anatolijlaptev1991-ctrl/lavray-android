@@ -1,0 +1,404 @@
+// SPDX-License-Identifier: GPL-3.0-only
+package io.github.anatolijlaptev1991_ctrl.lavray.vpn
+
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreStatus
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
+
+/**
+ * The decisions of the tunnel service, free of Android types: one input in, effects out, in order. The service
+ * (single event-loop coroutine) owns the clock, the threads, the Binder and the notifications and only interprets the
+ * effects. Not thread-safe: the service feeds it from that one coroutine.
+ *
+ * What is decided here, and tested on the JVM: which commands are stale (superseded by a newer one from the person),
+ * who may write the persisted wish ([TunnelIntent]), when a restart by the system resumes, what a core drop means,
+ * when the interface is held or released, when the service is foreground and when it stops.
+ */
+internal class SessionEngine(
+    private val env: SessionEnv,
+    private val wish: TunnelIntent,
+    private val machine: AutoConnectMachine = AutoConnectMachine(),
+    private val watch: LinkWatch = LinkWatch(),
+    private val blackhole: BlackholePolicy = BlackholePolicy(),
+) {
+    private var coreStatus: CoreStatus? = null
+    private var requestedProfile: Long? = null
+    private var attemptRunning = false
+    private var attemptProfile: Long? = null
+    private var attemptGeneration = 0
+    private var disconnectFirst = false
+    private var disconnecting = false
+    private var knownTunGeneration = 0
+    private var holdTunGeneration: Int? = null
+    private var holdUntilMono = 0L
+    private var blackholeUntilWall = 0L
+    private var skippedPackages: List<String> = emptyList()
+    private var warnings: List<String> = emptyList()
+    private var coreEpoch = 0
+    /** The newest command number of the person this engine has looked at; a larger [SessionEnv.latestUserSeq] means one is still queued. */
+    private var handledSeq = 0L
+    private var lastFailureReasonFromAttempt: String? = null
+
+    val phase: AutoPhase get() = machine.state.phase
+
+    /** What the machine last believed about the network, for the service to reconcile with the real one. */
+    val believesNetworkUp: Boolean get() = machine.state.networkAvailable
+    val established: Boolean get() = watch.established
+
+    /** The process starts: a wish left over from a dead process of this boot becomes an unexpected stop. */
+    fun onCreated(exitReason: () -> String?) {
+        wish.onProcessStarted(exitReason)
+        if (wish.snapshot.needsPermission && env.consentGranted()) wish.onPermissionGranted()
+    }
+
+    // ---- commands
+
+    /**
+     * Connect. [seq] is the number of the person's command; a USER connect that a newer command from the person
+     * has superseded is dropped (its Disconnect, or the next Connect, follows in the queue).
+     */
+    fun onConnect(source: StartSource, profile: Long?, seq: Long): List<SessionEffect> {
+        handledSeq = maxOf(handledSeq, seq)
+        if (source == StartSource.USER && seq < env.latestUserSeq()) return finish(Out())
+        return connect(source, profile, reconnecting = false)
+    }
+
+    fun onReconnect(profile: Long?, seq: Long): List<SessionEffect> {
+        handledSeq = maxOf(handledSeq, seq)
+        if (seq < env.latestUserSeq()) return finish(Out())
+        val source = if (machine.state.retries) StartSource.SYSTEM else StartSource.USER
+        return connect(source, profile, reconnecting = true)
+    }
+
+    private fun connect(source: StartSource, profile: Long?, reconnecting: Boolean): List<SessionEffect> {
+        val out = Out()
+        val consent = env.consentGranted()
+        // Only entry points that carry intent write the wish: the person's tap did (binder), boot did (receiver).
+        // The system's Always-on carries it here. A USER start executes a request that was already written.
+        if (consent && source == StartSource.SYSTEM) wish.onConnectRequested()
+        if (profile != null) requestedProfile = profile
+        // A rebuild asks the core to stop first; harmless when it is idle, and it never skips the switch.
+        disconnectFirst = reconnecting && consent
+        if (!reconnecting) {
+            watch.reset().forEach { out.link(it) }
+            blackhole.reset()
+            endHold(out)
+        }
+        warnings = emptyList()
+        out += SessionEffect.CancelAlert
+        apply(machine.handle(AutoEvent.Start(source, consent, env.networkUp())), out)
+        return finish(out)
+    }
+
+    /** A deliberate Disconnect; a stale one (a newer command from the person exists) is dropped. */
+    fun onDisconnect(seq: Long): List<SessionEffect> {
+        handledSeq = maxOf(handledSeq, seq)
+        if (seq < env.latestUserSeq()) return finish(Out())
+        // Re-applied here: a result that was queued before this command must not leave the wish set.
+        wish.onUserDisconnect()
+        return stop(AutoEvent.ManualDisconnect)
+    }
+
+    fun onRevoked(): List<SessionEffect> {
+        wish.onRevoked()
+        return stop(AutoEvent.ConsentRevoked)
+    }
+
+    private fun stop(reason: AutoEvent): List<SessionEffect> {
+        val out = Out()
+        apply(machine.handle(reason), out)
+        attemptGeneration++
+        cancelAttempt(out)
+        watch.reset().forEach { out.link(it) }
+        blackhole.reset()
+        endHold(out)
+        disconnecting = true
+        out += SessionEffect.Publish(computeStatus())
+        out += SessionEffect.DisconnectCore
+        return out.toList()
+    }
+
+    /** The core answered Disconnect (or did not, and was cut loose): the interface goes now. */
+    fun onDisconnectDone(): List<SessionEffect> {
+        disconnecting = false
+        coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE, lastError = null)
+        skippedPackages = emptyList()
+        warnings = emptyList()
+        val out = Out()
+        out += SessionEffect.ReleaseTun(null)
+        return finish(out)
+    }
+
+    /** The system restarted the service after the process died (null intent). */
+    fun onResume(): List<SessionEffect> {
+        val out = Out()
+        when (ResumePolicy.decide(wish.snapshot, env.consentGranted())) {
+            ResumeAction.CONNECT -> {
+                wish.onResumeAttempt()
+                return connect(StartSource.SYSTEM, null, reconnecting = false)
+            }
+            ResumeAction.STOP_QUIET -> Unit
+            ResumeAction.NEEDS_PERMISSION -> {
+                wish.onPermissionMissing()
+                out += SessionEffect.Alert(AlertKind.PermissionNeeded)
+            }
+            ResumeAction.GIVE_UP -> {
+                // The process died again and again before the tunnel came up: stop the restart loop.
+                wish.onGaveUp(FailureKind.REPEATED_CRASH, null, wasEstablished = false)
+                out += SessionEffect.Alert(AlertKind.Failure(FailureKind.REPEATED_CRASH, null))
+            }
+        }
+        return finish(out)
+    }
+
+    /** The foreground promise of a start could not be kept: nothing may be started, the failure is recorded and shown. */
+    fun onRestrictedStart(message: String?, seq: Long = 0): List<SessionEffect> {
+        handledSeq = maxOf(handledSeq, seq)
+        val out = Out()
+        wish.onGaveUp(FailureKind.RESTRICTED_START, message, wasEstablished = false)
+        out += SessionEffect.Alert(AlertKind.Failure(FailureKind.RESTRICTED_START, message))
+        return finish(out)
+    }
+
+    // ---- events
+
+    fun onCore(status: CoreStatus): List<SessionEffect> {
+        val out = Out()
+        applyCore(status, out)
+        return finish(out)
+    }
+
+    private fun applyCore(status: CoreStatus, out: Out) {
+        coreStatus = status
+        watch.onCore(status.state, attemptRunning).forEach { out.link(it) }
+    }
+
+    fun onAttemptDone(generation: Int, outcome: AttemptOutcome): List<SessionEffect> {
+        // A cancelled or replaced attempt must not overwrite anything.
+        if (generation != attemptGeneration) return finish(Out())
+        attemptRunning = false
+        val out = Out()
+        when (outcome) {
+            is AttemptOutcome.Success -> {
+                applyCore(outcome.result.status, out)
+                warnings = outcome.result.warnings
+                wish.onConnected()
+                apply(machine.handle(AutoEvent.AttemptSucceeded), out)
+            }
+            is AttemptOutcome.Failure -> {
+                val f = outcome.failure
+                lastFailureReasonFromAttempt = f.reason
+                apply(machine.handle(AutoEvent.AttemptFailed(f.permanent, f.message, f.kind)), out)
+            }
+        }
+        return finish(out)
+    }
+
+    fun onGraceElapsed(token: Int): List<SessionEffect> {
+        val out = Out()
+        watch.onGraceElapsed(token).forEach { out.link(it) }
+        return finish(out)
+    }
+
+    fun onTunEstablished(generation: Int, skipped: List<String>): List<SessionEffect> {
+        knownTunGeneration = generation
+        skippedPackages = skipped
+        return finish(Out())
+    }
+
+    fun onAuto(event: AutoEvent): List<SessionEffect> {
+        val out = Out()
+        apply(machine.handle(event), out)
+        return finish(out)
+    }
+
+    /** The Go core was cut loose from underneath (it did not stop in time): the UI must fetch the endpoint again. */
+    fun onCoreCutLoose(timedOut: Boolean): List<SessionEffect> {
+        coreEpoch++
+        coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE, lastError = null)
+        if (timedOut) wish.onFailureNoted(FailureKind.CORE_STOP_TIMEOUT, "the core did not stop in time")
+        return finish(Out())
+    }
+
+    /** A command of the person that will never reach the loop (its start was refused): it no longer counts as queued. */
+    fun onCommandAbandoned(seq: Long): List<SessionEffect> {
+        handledSeq = maxOf(handledSeq, seq)
+        return finish(Out())
+    }
+
+    /** A clock tick, a Binder bind or unbind, a busy-hold change: nothing to decide, everything to re-evaluate. */
+    fun onPoke(): List<SessionEffect> = finish(Out())
+
+    // ---- decisions
+
+    private fun apply(effects: List<AutoEffect>, out: Out) {
+        for (effect in effects) {
+            when (effect) {
+                AutoEffect.StartAttempt -> launchAttempt(out)
+                is AutoEffect.ScheduleRetry -> out += SessionEffect.ScheduleRetry(effect.delayMs)
+                AutoEffect.CancelRetry -> out += SessionEffect.CancelRetry
+                is AutoEffect.WatchNetwork -> out += SessionEffect.WatchNetwork(effect.enabled)
+                AutoEffect.NotifyNeedsPermission -> {
+                    wish.onPermissionMissing()
+                    attemptGeneration++
+                    cancelAttempt(out)
+                    out += SessionEffect.Alert(AlertKind.PermissionNeeded)
+                }
+                is AutoEffect.Fail -> giveUp(effect.kind ?: FailureKind.CONNECT_FAILED, effect.message, wasEstablished = false, out)
+            }
+        }
+    }
+
+    private fun launchAttempt(out: Out) {
+        val profile = requestedProfile
+        // The same profile already in flight is joined, not cancelled: two starts at boot (the receiver and the
+        // system's Always-on) must not abort the first connect. What the second start asked for is already under way.
+        if (AttemptGate.decide(attemptRunning, attemptProfile, profile) == AttemptDecision.KEEP) {
+            disconnectFirst = false
+            return
+        }
+        cancelAttempt(out)
+        attemptRunning = true
+        attemptProfile = profile
+        lastFailureReasonFromAttempt = null
+        val generation = ++attemptGeneration
+        val first = disconnectFirst
+        disconnectFirst = false
+        out += SessionEffect.StartAttempt(generation, profile, first)
+    }
+
+    private fun cancelAttempt(out: Out) {
+        if (!attemptRunning) return
+        attemptRunning = false
+        out += SessionEffect.CancelAttempt
+    }
+
+    private fun Out.link(effect: LinkEffect) {
+        when (effect) {
+            is LinkEffect.StartGrace -> this += SessionEffect.StartGrace(effect.token, effect.delayMs)
+            LinkEffect.CancelGrace -> this += SessionEffect.CancelGrace
+            LinkEffect.Lost -> onTunnelLost(this)
+        }
+    }
+
+    private fun onTunnelLost(out: Out) {
+        apply(machine.handle(AutoEvent.ConnectionLost), out)
+        // No retry follows (a user start, or a state that cannot retry): the tunnel ended on its own.
+        if (!machine.state.pending) giveUp(FailureKind.TUNNEL_LOST, coreStatus?.lastError, wasEstablished = true, out)
+    }
+
+    /** The service stops trying: persist why, and say so when nobody is looking at the app. */
+    private fun giveUp(kind: String, message: String?, wasEstablished: Boolean, out: Out) {
+        wish.onGaveUp(kind, message, wasEstablished, reason = lastFailureReasonFromAttempt.takeUnless { wasEstablished })
+        if (env.uiBound()) return
+        out += SessionEffect.Alert(if (wasEstablished) AlertKind.Stopped else AlertKind.Failure(kind, message))
+    }
+
+    /** After every input: hold or release the interface, foreground, status, and stop when nothing needs the process. */
+    private fun finish(out: Out): List<SessionEffect> {
+        reconcileHold(out)
+        val active = isCoreActive()
+        val pending = machine.state.pending
+        // A command of the person that is still queued will start (or stop) things: this is not the moment to leave.
+        val commandQueued = env.latestUserSeq() > handledSeq
+        val transition = watch.inGrace || holdUntilMono != 0L || commandQueued
+        val busy = env.busy()
+        out += SessionEffect.SetForeground(ShutdownPolicy.shouldBeForeground(active, pending, transition, busy))
+        out += SessionEffect.Publish(computeStatus())
+        if (ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)) {
+            // Whenever the service stops on its own the wish is cleared, so a fresh process never reads a stale one.
+            // Nothing went wrong, so no failure is recorded.
+            if (wish.snapshot.wantConnected) wish.onServiceStopped()
+            out += SessionEffect.StopSelf
+        }
+        return out.toList()
+    }
+
+    /** The rule is [BlackholePolicy]: keep the interface blocked only while the app itself rebuilds an established tunnel. */
+    private fun reconcileHold(out: Out) {
+        val now = env.nowMono()
+        val input = HoldInput(
+            tunHeld = env.tunHeld(),
+            coreActive = isCoreActive(),
+            established = watch.established,
+            inGrace = watch.inGrace,
+            phase = machine.state.phase,
+            newInterface = holdTunGeneration?.let { knownTunGeneration > it } ?: false,
+        )
+        when (val decision = blackhole.evaluate(now, input)) {
+            HoldDecision.None -> endHold(out)
+            is HoldDecision.Hold -> {
+                if (holdTunGeneration == null) holdTunGeneration = knownTunGeneration
+                beginHold(now, decision.untilMs, out)
+            }
+            is HoldDecision.Release -> {
+                endHold(out)
+                // Against the generation this engine knows: a newer interface, built while this input was on its way, stays.
+                out += SessionEffect.ReleaseTun(knownTunGeneration)
+                if (decision.capExpired) {
+                    wish.onFailureNoted(FailureKind.PROTECTION_OFF, null)
+                    out += SessionEffect.Alert(AlertKind.ProtectionOff)
+                }
+            }
+        }
+    }
+
+    private fun beginHold(now: Long, untilMono: Long, out: Out) {
+        if (holdUntilMono == untilMono) return
+        holdUntilMono = untilMono
+        blackholeUntilWall = env.nowWall() + (untilMono - now)
+        out += SessionEffect.ScheduleHold(untilMono - now)
+    }
+
+    private fun endHold(out: Out) {
+        holdTunGeneration = null
+        if (holdUntilMono == 0L) return
+        holdUntilMono = 0
+        blackholeUntilWall = 0
+        out += SessionEffect.CancelHold
+    }
+
+    private fun computeStatus(): VpnStatus {
+        val saved = wish.snapshot
+        return StatusModel.compute(
+            StatusInputs(
+                coreState = coreStatus?.state,
+                coreError = coreStatus?.lastError,
+                healthError = coreStatus?.healthError,
+                phase = machine.state.phase,
+                needsPermission = saved.needsPermission,
+                lastFailure = saved.lastFailure,
+                failureKind = saved.failureKind,
+                failureReason = saved.failureReason,
+                warnings = warnings,
+                coreEpoch = coreEpoch,
+                inGrace = watch.inGrace,
+                disconnecting = disconnecting,
+                unexpectedStop = saved.unexpectedStop,
+                stopReason = saved.stopReason,
+                skippedPackages = skippedPackages,
+                blackholeUntilMs = blackholeUntilWall,
+            ),
+        )
+    }
+
+    private fun isCoreActive(): Boolean = when (coreStatus?.state) {
+        CoreState.CORE_STATE_CONNECTING,
+        CoreState.CORE_STATE_CONNECTED,
+        CoreState.CORE_STATE_DISCONNECTING,
+        CoreState.CORE_STATE_RECONNECTING -> true
+        else -> false
+    }
+
+    /** The effects collected by one input, in order. */
+    private class Out {
+        private val list = ArrayList<SessionEffect>()
+
+        operator fun plusAssign(effect: SessionEffect) {
+            list += effect
+        }
+
+        fun toList(): List<SessionEffect> = list.toList()
+    }
+}

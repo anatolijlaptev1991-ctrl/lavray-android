@@ -90,12 +90,28 @@
                 android:value="vpn" />
         </service>
 
+        <!-- Not exported: only the system sends these. The component default stays ENABLED on purpose: the app switches
+             it off while "connect at phone start" is off (no process is spawned at boot for nothing) and back to the
+             default when it is on, so a failed switch can only leave it on, never auto-connect silently off. -->
         <receiver
             android:name=".vpn.BootReceiver"
             android:exported="false"
             android:process=":vpn">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- An update kills the running tunnel and BOOT_COMPLETED does not follow. Always enabled: it restores a tunnel
+             that was wanted and re-aligns the boot receiver with the preference. -->
+        <receiver
+            android:name=".vpn.UpdateReceiver"
+            android:exported="false"
+            android:process=":vpn">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>

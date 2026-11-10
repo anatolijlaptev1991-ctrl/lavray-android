@@ -9,4 +9,4 @@ import "os"
 // Вне Linux (тесты на рабочей станции) работа с дескриптором TUN не поддерживается.
 func tunnelName(int32) (string, error) { return "", os.ErrInvalid }
 
-func dupFd(int32) (int, error) { return 0, os.ErrInvalid }
+func closeFd(int) {}

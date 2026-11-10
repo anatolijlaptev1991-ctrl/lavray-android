@@ -21,8 +21,9 @@ import (
 type Platform interface {
 	// OpenTun вызывает VpnService.Builder.establish и возвращает дескриптор.
 	// optionsJSON: {mtu, inet4:[cidr], inet6:[cidr], dns:[ip], includePackages:[],
-	// excludePackages:[], route4:[cidr], route6:[cidr]}. Go дублирует (dup)
-	// дескриптор; Kotlin остаётся владельцем исходного и закрывает его сам.
+	// excludePackages:[], route4:[cidr], route6:[cidr]}. Возвращается НЕЗАВИСИМЫЙ
+	// дескриптор (Kotlin делает dup и отдаёт копию): им владеет Go и закрывает его вместе
+	// с туннелем. Исходный дескриптор держит Kotlin, пока интерфейс должен существовать.
 	OpenTun(optionsJSON string) (int32, error)
 	// Protect вызывает VpnService.protect(fd).
 	Protect(fd int32) error

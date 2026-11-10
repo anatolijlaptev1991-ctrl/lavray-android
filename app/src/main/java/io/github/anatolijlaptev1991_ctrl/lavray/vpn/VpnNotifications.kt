@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import io.github.anatolijlaptev1991_ctrl.lavray.R
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.MainActivity
 
@@ -34,7 +35,7 @@ internal object VpnNotifications {
         return Notification.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_stat_vpn)
             .setContentTitle(context.getString(R.string.app_name))
-            .setContentText(model.detail ?: context.getString(textFor(model.state)))
+            .setContentText(model.detail ?: context.getString(if (model.busy && model.state == VpnState.IDLE) R.string.notif_busy else textFor(model.state)))
             .setContentIntent(openApp(context))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -59,17 +60,37 @@ internal object VpnNotifications {
         manager(context).notify(ID_ALERT, n)
     }
 
-    fun postFailure(context: Context, message: String?) {
+    /** A start failed. A known [kind] gets a localized sentence; anything else shows the core's message. */
+    fun postFailure(context: Context, kind: String?, message: String?) {
+        val text = failureText(kind)?.let { context.getString(it) } ?: message?.takeIf { it.isNotBlank() }
+        postAlert(context, R.string.notif_failure_title, text)
+    }
+
+    /** The tunnel was up and is gone for good. */
+    fun postStopped(context: Context) =
+        postAlert(context, R.string.notif_stopped_title, context.getString(R.string.notif_stopped_text))
+
+    /** A transition block ran into its hard cap: apps now use the normal connection. */
+    fun postProtectionOff(context: Context) =
+        postAlert(context, R.string.notif_protection_off_title, context.getString(R.string.notif_protection_off_text))
+
+    private fun postAlert(context: Context, title: Int, text: String?) {
         ensureChannels(context)
         val n = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_vpn)
-            .setContentTitle(context.getString(R.string.notif_failure_title))
-            .apply { if (!message.isNullOrBlank()) setContentText(message) }
+            .setContentTitle(context.getString(title))
+            .apply { if (!text.isNullOrBlank()) setContentText(text) }
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_ERROR)
             .build()
         manager(context).notify(ID_ALERT, n)
+    }
+
+    private fun failureText(kind: String?): Int? = when (kind) {
+        FailureKind.NO_SERVER -> R.string.notif_failure_no_server
+        FailureKind.APPS_NONE -> R.string.notif_failure_apps_none
+        else -> null
     }
 
     fun cancelAlert(context: Context) = manager(context).cancel(ID_ALERT)
