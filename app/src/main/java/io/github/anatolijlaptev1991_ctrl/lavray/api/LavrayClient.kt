@@ -145,7 +145,7 @@ class LavrayClient(
      */
     private fun wrap(e: Throwable): Throwable = when {
         e is ApiException || e !is IOException -> e
-        e is ResponseTooLargeException -> ApiException(ConnectCode.RESOURCE_EXHAUSTED, e.message ?: "response too large", cause = e)
+        e is ResponseTooLargeException -> ApiException(ConnectCode.RESOURCE_EXHAUSTED, e.message ?: "response too large", cause = e, reason = ApiException.REASON_TOO_LARGE)
         else -> ApiException(ConnectCode.UNAVAILABLE, e.message ?: "transport error", cause = e)
     }
 

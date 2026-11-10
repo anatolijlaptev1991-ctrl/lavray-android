@@ -63,7 +63,7 @@ class ContractFixesTests {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val changed = AtomicInteger()
     private val subscriptions = SubscriptionsModel(core.session, scope, NoFailures()) { changed.incrementAndGet() }
-    private val servers = ServersModel(core.session, scope) { }
+    private val servers = ServersModel(core.session, scope)
 
     @After
     fun stop() = scope.cancel()
@@ -240,7 +240,7 @@ class OversizedAnswerTests {
         )
         val r = session.call { coreGetStatus() }
         assertTrue(r is io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail)
-        assertEquals(ErrorKind.Generic, (r as io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail).kind)
+        assertEquals(ErrorKind.TooLarge, (r as io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail).kind)
         session.call { coreGetStatus() }
         assertEquals("the client was not dropped, so it was built once", 1, drops.get())
     }

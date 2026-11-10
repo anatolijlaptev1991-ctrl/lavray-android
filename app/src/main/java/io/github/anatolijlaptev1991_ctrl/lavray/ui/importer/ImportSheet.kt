@@ -93,7 +93,7 @@ private fun ImportSheet(ui: ImportUi, model: ImportModel) {
         ui.note?.let { NoteBanner(it) }
         Preview(ui)
         ui.previewError?.let { PreviewErrorBanner(it) }
-        if (ui.busy) Working()
+        if (ui.busy) Working(ui.isSubscriptionImport)
         ui.problem?.let { p -> ProblemBanner(p) { model.close(); nav.openSection("servers", "subscriptions") } }
         ui.error?.let { kind ->
             LavBanner(StatusTone.Error, ui.errorLine?.let { stringResource(R.string.imp_err_line, it.toString()) } ?: stringResource(kind.textRes()))
@@ -132,12 +132,13 @@ private fun LinkTab(ui: ImportUi, model: ImportModel) {
             text, { text = it; model.setPayload(it) },
             modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.imp_link),
             placeholder = "vless://…", mono = true, singleLine = false, minLines = 3, leading = LavIcon.Link,
+            enabled = !ui.busy,
         )
         LavText(stringResource(R.string.imp_hint), style = Lav.type.small, color = Lav.colors.textTertiary)
         LavButton(
             stringResource(R.string.imp_clipPaste),
             { readClipboardText(context)?.let { model.setPayload(it) } },
-            icon = LavIcon.Clipboard,
+            icon = LavIcon.Clipboard, enabled = !ui.busy,
         )
     }
 }
@@ -194,9 +195,10 @@ private fun NoteBanner(note: ImportNote) {
 }
 
 @Composable
-private fun Working() {
+private fun Working(subscription: Boolean) {
     val subs by LocalEnv.current.subscriptions.state.collectAsStateWithLifecycle()
-    WorkingLine(fetching = subs.isBusy, phase = subs.progress.phase)
+    // Only an import of a subscription link is "Subscription: ..."; another update that happens to run says nothing about this one.
+    WorkingLine(fetching = subscription && subs.isBusy, phase = subs.progress.phase)
 }
 
 @Composable

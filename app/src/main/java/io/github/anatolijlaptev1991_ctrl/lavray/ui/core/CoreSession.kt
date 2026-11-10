@@ -14,7 +14,7 @@ import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 
 /** What went wrong, in terms the UI can word for a person. The wording lives in [errorText]. */
-enum class ErrorKind { CoreUnavailable, NotImplemented, Precondition, InvalidInput, NotFound, Generic }
+enum class ErrorKind { CoreUnavailable, NotImplemented, Precondition, InvalidInput, NotFound, TooLarge, Generic }
 
 /**
  * Outcome of one core call. Never carries a raw exception text to the screen; [line] is the one number the core names
@@ -36,6 +36,7 @@ sealed interface CoreResult<out T> {
 }
 
 fun Throwable.errorKind(): ErrorKind = when {
+    this is ApiException && reason == ApiException.REASON_TOO_LARGE -> ErrorKind.TooLarge
     this is ApiException -> when (code) {
         ConnectCode.UNAVAILABLE, ConnectCode.UNAUTHENTICATED, ConnectCode.DEADLINE_EXCEEDED -> ErrorKind.CoreUnavailable
         ConnectCode.UNIMPLEMENTED -> ErrorKind.NotImplemented

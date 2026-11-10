@@ -51,8 +51,10 @@ class RestartHubTest {
         { ep -> LavrayClient(ep.token, { if (core) Conn(ByteArrayInputStream(ok)) else throw IOException("down") }, Dispatchers.IO) },
     )
 
-    private fun hub(live: MutableStateFlow<Boolean>, core: Boolean = true, reconnect: suspend () -> Boolean = { true }) =
-        RestartHub(session(core), scope, live, reconnect)
+    private fun hub(
+        live: MutableStateFlow<Boolean>, core: Boolean = true, reconnect: suspend () -> Boolean = { true },
+        built: MutableStateFlow<Int> = MutableStateFlow(0),
+    ) = RestartHub(session(core), scope, live, reconnect, built)
 
     private suspend fun RestartHub.settled() = withTimeout(5_000) { state.first { !it.busy } }
 
@@ -80,6 +82,29 @@ class RestartHubTest {
         hub.need(PendingReason.Routing)
         live.value = false
         withTimeout(5_000) { hub.state.first { !it.needed } }
+        scope.cancel()
+    }
+
+    @Test fun aRebuiltTunnelEndsTheNeedEvenThoughItNeverLeftLive() = runBlocking {
+        // A server switch is a reconnect: CONNECTED, CONNECTING, CONNECTED. The new tunnel is built from the saved settings.
+        val live = MutableStateFlow(true)
+        val built = MutableStateFlow(1)
+        val hub = hub(live, built = built)
+        hub.need(PendingReason.Dns)
+        assertTrue(hub.state.value.needed)
+        built.value = 2
+        withTimeout(5_000) { hub.state.first { !it.needed } }
+        scope.cancel()
+    }
+
+    @Test fun aTunnelBuiltByOurOwnRestartDoesNotEndTheNeedBeforeTheRestartSettles() = runBlocking {
+        val live = MutableStateFlow(true)
+        val built = MutableStateFlow(1)
+        val hub = hub(live, reconnect = { built.value = 2; true }, built = built)
+        hub.need(PendingReason.Tunnel)
+        val event = hub.restartAndAwait()
+        assertTrue(event is RestartEvent.Done)
+        assertFalse("applied, so nothing is pending", hub.settled().needed)
         scope.cancel()
     }
 

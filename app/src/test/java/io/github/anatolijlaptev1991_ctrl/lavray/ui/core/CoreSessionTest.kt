@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.core
 
+import io.github.anatolijlaptev1991_ctrl.lavray.R
+import io.github.anatolijlaptev1991_ctrl.lavray.api.ApiException
+import io.github.anatolijlaptev1991_ctrl.lavray.api.ConnectCode
 import io.github.anatolijlaptev1991_ctrl.lavray.api.Connection
 import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
 import io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient
@@ -138,5 +141,37 @@ class CoreEpochTest {
         session.call { coreConnect() }
         session.call { coreConnect() }
         assertEquals("the first client is not cached, the second is", listOf("t1", "t2"), built)
+    }
+}
+
+/** M5 of the import review: an answer the app cannot hold is said so, instead of "something went wrong, try again". */
+class TooLargeAnswerTest {
+    private class Conn(override val input: InputStream) : Connection {
+        override val output: OutputStream = ByteArrayOutputStream()
+        override fun abort() = Unit
+        override fun close() = Unit
+    }
+
+    @Test
+    fun anAnswerOverTheLimitIsTooLargeAndTheClientStays() = runBlocking {
+        val body = ByteArray(200) { '1'.code.toByte() }
+        val http = ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\n\r\n").toByteArray() + body
+        val asked = AtomicInteger()
+        val session = CoreSession(
+            { CoreEndpoint("/x", "t${asked.incrementAndGet()}") },
+            { ep -> LavrayClient(ep.token, { Conn(ByteArrayInputStream(http)) }, Dispatchers.IO, 64) },
+        )
+        val first = session.call { coreConnect() }
+        assertEquals(CoreResult.Fail(ErrorKind.TooLarge, ApiException.REASON_TOO_LARGE), first)
+        session.call { coreConnect() }
+        assertEquals("the core answered: the client is kept and nothing is retried", 1, asked.get())
+    }
+
+    @Test
+    fun theTextForItSaysRepeatingDoesNotHelp() {
+        assertEquals(R.string.err_tooLarge, ErrorKind.TooLarge.textRes())
+        assertEquals(ErrorKind.TooLarge, ApiException(ConnectCode.RESOURCE_EXHAUSTED, "x", reason = ApiException.REASON_TOO_LARGE).errorKind())
+        // The core's own RESOURCE_EXHAUSTED (a preset limit) is not "too large for the phone".
+        assertEquals(ErrorKind.Generic, ApiException(ConnectCode.RESOURCE_EXHAUSTED, "limit").errorKind())
     }
 }

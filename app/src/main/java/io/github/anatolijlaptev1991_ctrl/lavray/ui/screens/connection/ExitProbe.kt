@@ -75,7 +75,16 @@ fun probeKey(profileId: Long, startedAtMs: Long): String? =
  * when the screen is shown again after a pass that failed or was cut short. A pass that is cancelled (the screen
  * stopped, the tunnel went down) puts the state back as it was, so a half answer is never shown.
  */
-class ExitProbe(private val backend: ProbeBackend, private val clock: () -> Long = System::currentTimeMillis) {
+class ExitProbe(
+    private val backend: ProbeBackend,
+    /**
+     * False while another latency batch of the core is running (the Servers screen's "test all"). The core runs one batch at
+     * a time per server and a newer batch cuts the older one short, so the probe SKIPS its delay measurement then (the report
+     * shows no delay) instead of cutting the person's test; it does not queue behind a test that can take minutes.
+     */
+    private val canMeasureLatency: () -> Boolean = { true },
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
     private val mutable = MutableStateFlow<ProbeState>(ProbeState.Idle)
     private val gate = Mutex()
 
@@ -114,7 +123,7 @@ class ExitProbe(private val backend: ProbeBackend, private val clock: () -> Long
     private suspend fun pass(key: String, profileId: Long): ProbeState = coroutineScope {
         val leaks = async { backend.leaks() }
         val dns = async { backend.dns() }
-        val latency = async { backend.latency(profileId) }
+        val latency = async { if (canMeasureLatency()) backend.latency(profileId) else null }
         when (val l = leaks.await()) {
             is CoreResult.Fail -> {
                 dns.cancel()

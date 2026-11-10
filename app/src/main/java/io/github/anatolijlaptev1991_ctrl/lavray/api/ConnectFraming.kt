@@ -47,7 +47,7 @@ internal class FrameReader(private val input: InputStream) {
             ((header[3].toInt() and 0xFF) shl 8) or
             (header[4].toInt() and 0xFF)
         if (length < 0 || length > ConnectFraming.MAX_PAYLOAD) {
-            throw ApiException(ConnectCode.RESOURCE_EXHAUSTED, "stream frame of $length bytes is too large")
+            throw ApiException(ConnectCode.RESOURCE_EXHAUSTED, "stream frame of $length bytes is too large", reason = ApiException.REASON_TOO_LARGE)
         }
         val payload = ByteArray(length)
         readFully(payload, allowCleanEof = false)

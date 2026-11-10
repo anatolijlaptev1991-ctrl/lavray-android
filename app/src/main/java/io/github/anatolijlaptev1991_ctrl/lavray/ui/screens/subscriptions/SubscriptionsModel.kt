@@ -1,30 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions
 
-import io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.DeleteSubscriptionRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.GetSettingsRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Group
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ListProfilesRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Page
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.RollbackSubscriptionRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SetSettingsRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SettingValue
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscriptionProgress
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.UpdateAllSubscriptionsRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.UpdateGroupRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.UpdateSubscriptionRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.UpdateSubscriptionSettingsRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileListProfiles
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileUpdateGroup
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsGetSettings
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsSetSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionDeleteSubscription
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionListSubscriptions
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionRollbackSubscription
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionUpdateAllSubscriptions
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionUpdateSubscription
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionUpdateSubscriptionSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
@@ -33,10 +24,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,47 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
-/** One-shot results the screen words as a toast. */
-sealed interface SubscriptionsEvent {
-    data class Added(val name: String) : SubscriptionsEvent
-    data class Updated(val name: String) : SubscriptionsEvent
-    data class UpdateFailed(val failure: SubFailure) : SubscriptionsEvent
-    data class UpdateAllDone(val tally: UpdateTally) : SubscriptionsEvent
-    data class RolledBack(val name: String, val count: Int) : SubscriptionsEvent
-    data object RollbackFailed : SubscriptionsEvent
-    data object Saved : SubscriptionsEvent
-    data object Deleted : SubscriptionsEvent
-
-    /** The core refused to delete the subscription that holds the connected server. */
-    data object InUse : SubscriptionsEvent
-    data class Failed(val kind: ErrorKind) : SubscriptionsEvent
-}
-
-/** Settings shared by all subscriptions that the per-subscription sheet shows. */
-data class SharedSubSettings(val hwid: Boolean, val tunnel: Boolean)
-
-/** What a single-subscription update stream said, collected while it ran and turned into a [FetchResult] at its end. */
-private class UpdateOutcome {
-    var done = false
-    var wouldRemove: Int? = null
-    var failure: SubFailure? = null
-    var coreProblem: ErrorKind? = null
-    var added = 0
-    var removed = 0
-    var total = 0
-    var detail: String? = null
-
-    fun toResult(): FetchResult {
-        val ask = wouldRemove
-        val f = failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
-        return when {
-            done -> FetchResult.Done(added, removed, total, SubscriptionLogic.skippedLinesOf(detail) ?: 0)
-            ask != null -> FetchResult.NeedsConfirm(ask)
-            else -> FetchResult.Failed(f, coreProblem)
-        }
-    }
-}
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Subscriptions: loads the groups, runs updates as streams that live only while the screen collects them
@@ -104,6 +52,7 @@ class SubscriptionsModel(
     private val mutableEvents = MutableSharedFlow<SubscriptionsEvent>(extraBufferCapacity = 8)
     private var rawGroups: Map<Long, Group> = emptyMap()
     private var runJob: Job? = null
+    private val running = AtomicBoolean(false)
 
     val state: StateFlow<SubscriptionsState> = mutable.asStateFlow()
     val events: SharedFlow<SubscriptionsEvent> = mutableEvents.asSharedFlow()
@@ -136,33 +85,45 @@ class SubscriptionsModel(
             is CoreResult.Ok -> {
                 val groups = r.value.groups
                 rawGroups = groups.associateBy { it.id }
-                val counts = countsOf(groups)
+                val counts = SubscriptionCounts.perGroup(session, groups)
                 dispatch(SubscriptionsAction.Loaded(groups.map { SubRow.from(it, counts[it.id] ?: it.profileOrder.size) }))
             }
         }
     }
 
-    /** Servers per subscription: the core's total for the group, the group's own order when that call fails. */
-    private suspend fun countsOf(groups: List<Group>): Map<Long, Int> = coroutineScope {
-        groups.map { g ->
-            async {
-                val r = session.call { profileListProfiles(ListProfilesRequest(groupId = g.id, page = Page(offset = 0, limit = 1))) }
-                g.id to ((r as? CoreResult.Ok)?.value?.total?.toInt() ?: g.profileOrder.size)
-            }
-        }.awaitAll().toMap()
-    }
-
     // ---- updates
 
+    /**
+     * One update at a time, decided here and not by the published state (that one is set a moment later): a second request
+     * while one runs is refused AND said, so a button that did nothing never looks like it worked.
+     */
+    private fun claimRun(): Boolean {
+        if (running.compareAndSet(false, true)) return true
+        mutableEvents.tryEmit(SubscriptionsEvent.Busy)
+        return false
+    }
+
     fun update(id: Long, confirm: Boolean = false) {
-        if (mutable.value.isBusy) return
+        if (!claimRun()) return
         val name = rawGroups[id]?.name.orEmpty()
-        runJob = scope.launch(Dispatchers.IO) { settle(id, name, confirm, runUpdate(id, name, confirm)) }
+        runJob = scope.launch(Dispatchers.IO) {
+            try {
+                settle(id, name, confirm, runUpdate(id, name, confirm))
+            } finally {
+                running.set(false)
+            }
+        }
     }
 
     fun updateAll() {
-        if (mutable.value.isBusy) return
-        runJob = scope.launch(Dispatchers.IO) { runUpdateAll() }
+        if (!claimRun()) return
+        runJob = scope.launch(Dispatchers.IO) {
+            try {
+                runUpdateAll()
+            } finally {
+                running.set(false)
+            }
+        }
     }
 
     /** Called when the screen stops: a running stream is cancelled, which aborts its socket. */
@@ -179,37 +140,16 @@ class SubscriptionsModel(
             val request = UpdateSubscriptionRequest(groupId = id, confirmDestructive = if (confirm) true else null)
             session.stream { subscriptionUpdateSubscription(request) }.collect { ev ->
                 publishProgress(ev)
-                note(out, ev)
+                out.note(ev)
             }
         } catch (e: CancellationException) {
             dispatch(SubscriptionsAction.UpdateFinished)
             throw e
         } catch (e: StreamFailure) {
-            // A core that closes the stream with an error after the confirm frame is asking, not failing.
-            if (out.wouldRemove == null) {
-                if (e.kind == ErrorKind.CoreUnavailable) out.coreProblem = e.kind
-                out.failure = SubscriptionLogic.failureOf(e.cause?.message.orEmpty(), System.currentTimeMillis())
-            }
+            out.failed(e)
         }
         dispatch(SubscriptionsAction.UpdateFinished)
         return out.toResult()
-    }
-
-    private fun note(out: UpdateOutcome, ev: SubscriptionProgress) {
-        when (ev.phase) {
-            SubscriptionProgress.Phase.PHASE_DIFFING -> {
-                out.added = ev.addedCount ?: 0
-                out.removed = ev.removedCount ?: 0
-                out.total = ev.totalCount ?: 0
-            }
-            SubscriptionProgress.Phase.PHASE_CONFIRM_REQUIRED -> out.wouldRemove = ev.wouldRemoveCount ?: 0
-            SubscriptionProgress.Phase.PHASE_FAILED -> out.failure = SubscriptionLogic.failureOf(ev.detail.orEmpty(), System.currentTimeMillis())
-            SubscriptionProgress.Phase.PHASE_DONE -> {
-                out.done = true
-                out.detail = ev.detail
-            }
-            else -> Unit
-        }
     }
 
     private suspend fun settle(id: Long, name: String, confirmed: Boolean, result: FetchResult) {
@@ -221,6 +161,8 @@ class SubscriptionsModel(
                 load()
                 onServersChanged()
             }
+            // The scheduler of the core is updating it: not a failure, so no failure badge is left on the card.
+            result is FetchResult.AlreadyRunning -> mutableEvents.tryEmit(SubscriptionsEvent.Busy)
             result is FetchResult.Failed && result.coreProblem != null -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(result.coreProblem))
             else -> {
                 val f = (result as? FetchResult.Failed)?.failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
@@ -308,13 +250,17 @@ class SubscriptionsModel(
     fun rollback(row: SubRow) {
         scope.launch(Dispatchers.IO) {
             when (val r = session.call { subscriptionRollbackSubscription(RollbackSubscriptionRequest(row.id)) }) {
-                is CoreResult.Fail -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(r.kind))
+                // The snapshot to go back to lives in the memory of the core only: after a core restart there is none, and while an
+                // update of this subscription runs there is no rollback either. Both come as FAILED_PRECONDITION.
+                is CoreResult.Fail -> mutableEvents.tryEmit(
+                    if (r.kind == ErrorKind.Precondition) SubscriptionsEvent.RollbackUnavailable else SubscriptionsEvent.Failed(r.kind),
+                )
                 // The core answers a rollback that worked with an empty message (success stays false, no count): only a
                 // reported error means it did not work. The number of servers is then read from the group itself.
                 is CoreResult.Ok -> if (r.value.error != null) {
                     mutableEvents.tryEmit(SubscriptionsEvent.RollbackFailed)
                 } else {
-                    val count = r.value.restoredCount ?: serverCount(row.id) ?: 0
+                    val count = r.value.restoredCount ?: SubscriptionCounts.of(session, row.id)
                     mutableEvents.tryEmit(SubscriptionsEvent.RolledBack(row.name, count))
                     load()
                     onServersChanged()
@@ -322,9 +268,6 @@ class SubscriptionsModel(
             }
         }
     }
-
-    private suspend fun serverCount(groupId: Long): Int? =
-        (session.call { profileListProfiles(ListProfilesRequest(groupId = groupId, page = Page(offset = 0, limit = 1))) } as? CoreResult.Ok)?.value?.total?.toInt()
 
     // ---- sheets: these return the outcome so the sheet can show the error under its field
 
@@ -353,34 +296,41 @@ class SubscriptionsModel(
      * switch) that the person changes before updating it again.
      */
     suspend fun addAndFetch(link: String): SubscribeResult {
-        if (mutable.value.isBusy) return SubscribeResult.Busy
-        val registered = when (val r = registry.register(link.trim())) {
-            is CoreResult.Fail -> return SubscribeResult.Refused(r.kind, r.line)
-            is CoreResult.Ok -> r.value
+        // The same claim as every other update: two imports in the window before the state says "busy" would make two groups.
+        if (!running.compareAndSet(false, true)) return SubscribeResult.Busy
+        try {
+            val registered = when (val r = registry.register(link.trim())) {
+                is CoreResult.Fail -> return SubscribeResult.Refused(r.kind, r.line)
+                is CoreResult.Ok -> r.value
+            }
+            val group = registered.group
+            rawGroups = rawGroups + (group.id to group)
+            val notes = SubNotes(registered.duplicateLeft, insecure = group.subscriptionUrl.orEmpty().trimStart().startsWith("http://", ignoreCase = true))
+            return finishAdd(group, registered.existed, notes, runUpdate(group.id, group.name, confirm = false))
+        } finally {
+            running.set(false)
         }
-        val group = registered.group
-        rawGroups = rawGroups + (group.id to group)
-        return finishAdd(group, registered.existed, runUpdate(group.id, group.name, confirm = false))
     }
 
-    private suspend fun finishAdd(group: Group, existed: Boolean, result: FetchResult): SubscribeResult {
+    /** Reloads the subscription list only: whoever called [addAndFetch] reloads the servers once, when it knows what changed. */
+    private suspend fun finishAdd(group: Group, existed: Boolean, notes: SubNotes, result: FetchResult): SubscribeResult {
         val id = group.id
         val out = when (result) {
             is FetchResult.Done -> {
                 dispatch(SubscriptionsAction.DropFailure(id))
-                SubscribeResult.Fetched(group.name, existed, result.added, result.removed, result.total, result.unparsedLines)
+                SubscribeResult.Fetched(group.name, existed, result.added, result.removed, result.total, result.unparsedLines, notes)
             }
             is FetchResult.NeedsConfirm -> {
                 askToConfirm(id, group.name, result.remove)
-                SubscribeResult.NeedsConfirm(group.name, existed, result.remove)
+                SubscribeResult.NeedsConfirm(group.name, existed, result.remove, notes)
             }
+            is FetchResult.AlreadyRunning -> SubscribeResult.Updating(group.name, existed, notes)
             is FetchResult.Failed -> {
                 if (result.coreProblem == null) dispatch(SubscriptionsAction.NoteFailure(id, result.failure))
-                SubscribeResult.NotFetched(group.name, existed, result.failure, deviceLimitMayApply(result.failure))
+                SubscribeResult.NotFetched(group.name, existed, result.failure, deviceLimitMayApply(result.failure), result.coreProblem, notes)
             }
         }
         load()
-        onServersChanged()
         return out
     }
 
@@ -412,15 +362,6 @@ class SubscriptionsModel(
                 load()
                 CoreResult.Ok(Unit)
             }
-        }
-    }
-
-    private suspend fun LavrayClient.applyPlan(g: Group, plan: EditPlan) {
-        var group = g
-        plan.newUrl?.let { group = subscriptionUpdateSubscriptionSettings(UpdateSubscriptionSettingsRequest(g.id, it)) }
-        if (plan.touchesGroup) profileUpdateGroup(UpdateGroupRequest(SubscriptionEdit.apply(group, plan)))
-        if (plan.settings.isNotEmpty()) {
-            settingsSetSettings(SetSettingsRequest(plan.settings.mapValues { SettingValue(boolValue = it.value) }))
         }
     }
 

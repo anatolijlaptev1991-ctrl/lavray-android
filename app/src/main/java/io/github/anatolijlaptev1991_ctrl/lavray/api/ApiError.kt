@@ -53,6 +53,9 @@ class ApiException(
 
     companion object {
         const val NOT_REACHABLE = "core socket is not reachable"
+
+        /** [reason] of an answer the client itself refused to hold (too large for a phone): repeating the request cannot help. */
+        const val REASON_TOO_LARGE = "client_response_too_large"
     }
 }
 

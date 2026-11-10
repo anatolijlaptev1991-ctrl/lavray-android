@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /** What was saved and is not in the running tunnel yet. */
@@ -80,6 +81,11 @@ class RestartHub(
     private val scope: CoroutineScope,
     private val live: StateFlow<Boolean>,
     private val reconnect: suspend () -> Boolean,
+    /**
+     * Counts the tunnels that came up. A rebuild or a server switch goes CONNECTED, CONNECTING, CONNECTED without the tunnel ever
+     * being "not live", yet the new tunnel is built from the saved settings: it ends what was recorded, like a tunnel that went away.
+     */
+    private val built: StateFlow<Int> = MutableStateFlow(0),
 ) {
     private class Slot(val reason: PendingReason, val baseline: Any?)
 
@@ -100,11 +106,13 @@ class RestartHub(
         // The starting value is taken here, not in the coroutine: a need recorded right after construction must not be
         // taken for the edge "a tunnel came up" when the collector delivers the current value.
         var wasUp = live.value
+        var wasBuilt = built.value
         scope.launch {
-            live.collect { up ->
+            combine(live, built) { up, count -> up to count }.collect { (up, count) ->
                 // A tunnel that went away or a new one that came up: what was recorded is moot (unless a restart of ours is running).
-                if (up != wasUp) synchronized(lock) { if (!busy) resetLocked() }
+                if (up != wasUp || count != wasBuilt) synchronized(lock) { if (!busy) resetLocked() }
                 wasUp = up
+                wasBuilt = count
             }
         }
     }

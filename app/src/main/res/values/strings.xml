@@ -238,6 +238,7 @@
     <string name="err_notfound">Запись не найдена. Обновите список и повторите.</string>
     <string name="err_precondition">Сейчас это действие недоступно</string>
     <string name="err_retry">Повторить</string>
+    <string name="err_tooLarge">Ответ ядра слишком велик, чтобы приложение его приняло. Повтор не поможет.</string>
     <string name="err_unimplemented">Функция пока не реализована</string>
     <string name="fail_apps_none">Ни одного из выбранных приложений нет на телефоне</string>
     <string name="fail_connect_failed">Подключиться не удалось</string>
@@ -282,6 +283,7 @@
     <string name="imp_done_sub">Подписка «%1$s» добавлена, серверов: %2$s.</string>
     <string name="imp_done_sub_again">Подписка «%2$s» уже была и обновлена: серверов %4$s (добавлено %1$s, убрано %3$s).</string>
     <string name="imp_done_unparsed">Строк в ответе провайдера не разобрано: %1$s.</string>
+    <string name="imp_done_updating">Подписка «%1$s» сохранена, ядро как раз обновляет её: серверы появятся, когда обновление закончится.</string>
     <string name="imp_err_line">Строка %1$s из вставленного текста отклонена. Проверьте эту ссылку или уберите её и повторите.</string>
     <string name="imp_fileHint_phone">Выберите файл: YAML, base64 или список ссылок.</string>
     <string name="imp_fileTooLarge">Файл слишком большой: предел для импорта — %1$s МБ</string>
@@ -298,6 +300,8 @@
     <string name="imp_issue_t">Строку %1$s нельзя импортировать</string>
     <string name="imp_link">Ссылка</string>
     <string name="imp_name">Имя подписки (необязательно)</string>
+    <string name="imp_note_dupleft">Пустую копию подписки не удалось убрать: удалите её на экране «Подписки».</string>
+    <string name="imp_p_badaddr">Ядро не приняло адрес подписки. Адреса из локальной или частной сети (localhost, 192.168.x.x, 10.x.x.x) оно не принимает, и адрес должен быть обычным веб-адресом.</string>
     <string name="imp_p_busy">Сейчас обновляются подписки. Подождите немного и повторите.</string>
     <string name="imp_p_dup">Все серверы из этого текста уже есть в списке: %1$s.</string>
     <string name="imp_p_hwid">Если провайдер ограничивает число устройств, включите «%1$s» в настройках подписки и обновите её.</string>
@@ -396,6 +400,7 @@
     <string name="nt_perm_t">Нужно разрешение VPN</string>
     <string name="nt_protection_off_d">Приложения могут ходить в сеть напрямую. Подключитесь снова, чтобы вернуть защиту.</string>
     <string name="nt_reconnect">Подключить снова</string>
+    <string name="nt_skipped">Выбранных приложений нет на телефоне, они пропущены: %1$s</string>
     <string name="nt_stop_crash">LAVRay остановился из-за внутренней ошибки.</string>
     <string name="nt_stop_do">Туннель не работает. Подключитесь снова, чтобы вернуть его.</string>
     <string name="nt_stop_lost">Связь с сервером пропала, восстановить её не удалось.</string>
@@ -577,7 +582,7 @@
     <string name="srv_empty_d">Добавьте подписку или ссылку — серверы появятся здесь.</string>
     <string name="srv_empty_t">Пока нет серверов</string>
     <string name="srv_group">Группировать по подписке</string>
-    <string name="srv_inUse">Подключённый сервер и группу с ним удалить нельзя: сначала отключитесь или переключитесь на другой сервер.</string>
+    <string name="srv_inUse">Не удалено: ядро не удаляет подключённый сервер, группу с ним и последнюю оставшуюся группу. Сначала отключитесь или переключитесь на другой сервер.</string>
     <string name="srv_manual">Добавлены вручную</string>
     <string name="srv_menu_clone">Дублировать</string>
     <string name="srv_menu_move">Переместить в группу…</string>
@@ -610,6 +615,7 @@
     <string name="stats_total_traffic">Весь трафик</string>
     <string name="stats_uploaded">Отправлено</string>
     <string name="stub_soon">Этот раздел ещё в разработке.</string>
+    <string name="sub_busy">Другое обновление уже идёт, поэтому это не началось. Повторите, когда оно закончится.</string>
     <string name="sub_confirm_t">Обновить подписку «%1$s»?</string>
     <string name="sub_err_auth">Доступ закрыт: ссылка устарела или подписка закончилась</string>
     <string name="sub_err_badge">Ошибка</string>
@@ -622,6 +628,8 @@
     <string name="sub_expiresSoon">Скоро истекает</string>
     <string name="sub_hwid_hint">Некоторые провайдеры ограничивают число устройств. Идентификатор случайный и создаётся для этой установки.</string>
     <string name="sub_noExpiry">Бессрочно</string>
+    <string name="sub_rollbackGone">Откатываться не к чему: предыдущий список хранится только в памяти ядра и пропадает при его перезапуске, и обновление этой подписки не должно идти.</string>
+    <string name="sub_rolledNoCount">Подписка «%1$s» возвращена к предыдущему списку.</string>
     <string name="sub_set_global">Для всех подписок</string>
     <string name="sub_set_hwid">Передавать идентификатор устройства (HWID)</string>
     <string name="sub_set_interval">Обновлять каждые</string>

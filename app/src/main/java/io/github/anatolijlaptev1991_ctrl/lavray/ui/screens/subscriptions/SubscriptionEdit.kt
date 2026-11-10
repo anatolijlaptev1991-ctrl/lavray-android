@@ -35,13 +35,17 @@ data class EditForm(
     val uaTouched: Boolean = false,
     val hwid: Boolean = false,
     val hwidTouched: Boolean = false,
+    /** The address the subscription has now: left as it is, it is not judged (an old group may hold one that is not http(s)). */
+    val originalUrl: String = url,
 ) {
     /**
-     * Custom User-Agent needs a value, a name must not be blank, header length is capped as in the core. The link must be
-     * http(s): the core stores an edited address as typed and cannot open an encrypted link there (only when one is added).
+     * Custom User-Agent needs a value, a name must not be blank, header length is capped as in the core. An address that
+     * the person changed must be http(s): the core stores an edited address as typed and cannot open an encrypted link there
+     * (only when one is added). An address left alone is not checked, so a subscription whose stored address is something
+     * else can still be renamed.
      */
     val valid: Boolean
-        get() = name.isNotBlank() && SubscriptionLogic.isWebLink(url) &&
+        get() = name.isNotBlank() && (url.trim() == originalUrl.trim() || SubscriptionLogic.isWebLink(url)) &&
             (ua != UaPreset.Custom || uaCustom.isNotBlank()) && uaCustom.length <= SubscriptionLogic.UA_MAX
 
     companion object {

@@ -150,8 +150,11 @@ private fun eventText(ctx: android.content.Context, e: SubscriptionsEvent): Stri
     is SubscriptionsEvent.UpdateFailed -> ctx.getString(e.failure.kind.textRes())
     is SubscriptionsEvent.UpdateAllDone -> updateAllText(ctx, e.tally)
     // Placeholders {n} and {name} are numbered alphabetically: n first.
-    is SubscriptionsEvent.RolledBack -> ctx.getString(R.string.subs_rollback_done, e.count.toString(), e.name)
+    is SubscriptionsEvent.RolledBack ->
+        if (e.count != null) ctx.getString(R.string.subs_rollback_done, e.count.toString(), e.name) else ctx.getString(R.string.sub_rolledNoCount, e.name)
     SubscriptionsEvent.RollbackFailed -> ctx.getString(R.string.subs_rollback_fail)
+    SubscriptionsEvent.RollbackUnavailable -> ctx.getString(R.string.sub_rollbackGone)
+    SubscriptionsEvent.Busy -> ctx.getString(R.string.sub_busy)
     SubscriptionsEvent.Saved -> ctx.getString(R.string.toast_saved)
     SubscriptionsEvent.Deleted -> null
     SubscriptionsEvent.InUse -> ctx.getString(R.string.srv_inUse)

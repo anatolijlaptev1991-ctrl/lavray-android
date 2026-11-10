@@ -12,5 +12,6 @@ fun ErrorKind.textRes(): Int = when (this) {
     ErrorKind.Precondition -> R.string.err_precondition
     ErrorKind.InvalidInput -> R.string.err_invalid
     ErrorKind.NotFound -> R.string.err_notfound
+    ErrorKind.TooLarge -> R.string.err_tooLarge
     ErrorKind.Generic -> R.string.err_generic
 }

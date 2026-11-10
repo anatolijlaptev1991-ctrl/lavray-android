@@ -21,6 +21,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.BackupModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ResolverBackupFiles
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ServiceHold
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelSight
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -67,7 +69,7 @@ class AppEnv(
     }
 
     val connection: ConnectionModel by lazy { ConnectionModel(session, scope, vpn.status) }
-    val servers: ServersModel by lazy { ServersModel(session, scope, vpn::connect) }
+    val servers: ServersModel by lazy { ServersModel(session, scope) }
     /** Raised when servers or subscriptions change behind a screen's back (import); screens that list them reload on it. */
     val data = DataChanges()
     val importer: ImportModel by lazy { ImportModel(session, scope, subscriptions, ::serversChanged) }
@@ -82,7 +84,12 @@ class AppEnv(
         vpn.status.map { phaseOf(it.state).let { p -> p == Phase.On || p == Phase.Connecting || p == Phase.WaitingNetwork } }
             .stateIn(scope, SharingStarted.Eagerly, false)
     }
-    val restart: RestartHub by lazy { RestartHub(session, scope, tunnelLive) { Reconnect.now(this) } }
+    /** Counts the tunnels that came up: a rebuild or a server switch never leaves "live" but is a new tunnel all the same. */
+    private val tunnelsBuilt: StateFlow<Int> by lazy {
+        vpn.status.map { it.state }.scan(TunnelSight()) { sight, state -> sight.next(state) }.map { it.tunnel }
+            .stateIn(scope, SharingStarted.Eagerly, 0)
+    }
+    val restart: RestartHub by lazy { RestartHub(session, scope, tunnelLive, reconnect = { Reconnect.now(this) }, built = tunnelsBuilt) }
     val appSelection: AppSelectionSaver by lazy {
         AppSelectionSaver(
             read = { runCatching { controller.appSelection() }.getOrNull() },
@@ -91,7 +98,8 @@ class AppEnv(
             onSaved = { before, after -> restart.noteTunnelChange(PendingReason.Apps, "apps", before?.canonical(), after.canonical()) },
         )
     }
-    val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session)) }
+    // The core's latency test is single-flight: the exit probe leaves its delay measurement out while "test all" runs.
+    val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session), canMeasureLatency = { !servers.state.value.test.running }) }
     val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext), ::serversChanged) }
 
     /**
@@ -104,8 +112,8 @@ class AppEnv(
             // Before the request, not after it: if the app dies during or right after the restore, the old id must not survive.
             onBeforeReplace = { update { it.copy(selectedProfileId = 0L) } },
             onRestored = {
-                servers.refresh()
-                connection.refresh(0L)
+                // One signal for "the data changed": the servers list and the Connection screen both reload on it.
+                serversChanged()
                 // The result is also told here: the person may be on another screen by now.
                 toast.show(appContext.getString(R.string.bk_done))
             },

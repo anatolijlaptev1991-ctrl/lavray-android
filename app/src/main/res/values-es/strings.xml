@@ -238,6 +238,7 @@
     <string name="err_notfound">No se encontró el elemento. Actualiza la lista e inténtalo de nuevo.</string>
     <string name="err_precondition">Esta acción no está disponible ahora</string>
     <string name="err_retry">Reintentar</string>
+    <string name="err_tooLarge">La respuesta del núcleo es demasiado grande para que la app la reciba. Reintentar no ayudará.</string>
     <string name="err_unimplemented">Esta función aún no está disponible</string>
     <string name="fail_apps_none">Ninguna de las aplicaciones elegidas está en este teléfono</string>
     <string name="fail_connect_failed">No se pudo conectar</string>
@@ -282,6 +283,7 @@
     <string name="imp_done_sub">Suscripción «%1$s» añadida, servidores: %2$s.</string>
     <string name="imp_done_sub_again">La suscripción «%2$s» ya existía y se ha actualizado: %4$s servidores (%1$s añadidos, %3$s eliminados).</string>
     <string name="imp_done_unparsed">Líneas de la respuesta del proveedor que no se pudieron leer: %1$s.</string>
+    <string name="imp_done_updating">La suscripción «%1$s» está guardada y el núcleo la está actualizando ahora: sus servidores aparecerán al terminar.</string>
     <string name="imp_err_line">Se rechazó la línea %1$s del texto pegado. Revisa ese enlace o quítalo e inténtalo de nuevo.</string>
     <string name="imp_fileHint_phone">Elige un archivo: YAML, base64 o una lista de enlaces.</string>
     <string name="imp_fileTooLarge">El archivo es demasiado grande: el límite de importación es %1$s MB</string>
@@ -298,6 +300,8 @@
     <string name="imp_issue_t">La línea %1$s no se puede importar</string>
     <string name="imp_link">Enlace</string>
     <string name="imp_name">Nombre de la suscripción (opcional)</string>
+    <string name="imp_note_dupleft">No se pudo eliminar una copia vacía de la suscripción: elimínala en la pantalla Suscripciones.</string>
+    <string name="imp_p_badaddr">El núcleo rechazó esta dirección de suscripción. No acepta direcciones de una red local o privada (localhost, 192.168.x.x, 10.x.x.x), y debe ser una dirección web válida.</string>
     <string name="imp_p_busy">Se están actualizando suscripciones. Espera un momento y vuelve a intentarlo.</string>
     <string name="imp_p_dup">Todos los servidores de este texto ya están en la lista: %1$s.</string>
     <string name="imp_p_hwid">Si el proveedor limita el número de dispositivos, activa «%1$s» en los ajustes de la suscripción y actualízala.</string>
@@ -396,6 +400,7 @@
     <string name="nt_perm_t">Se necesita el permiso de VPN</string>
     <string name="nt_protection_off_d">Las aplicaciones pueden estar usando la red directamente. Conéctate de nuevo para restaurar la protección.</string>
     <string name="nt_reconnect">Conectar de nuevo</string>
+    <string name="nt_skipped">Aplicaciones elegidas que no están instaladas y se omitieron: %1$s</string>
     <string name="nt_stop_crash">LAVRay se detuvo por un error interno.</string>
     <string name="nt_stop_do">El túnel no está en marcha. Conéctate de nuevo para restablecerlo.</string>
     <string name="nt_stop_lost">Se perdió el enlace con el servidor y no se pudo restablecer.</string>
@@ -569,7 +574,7 @@
     <string name="srv_empty_d">Añade una suscripción o un enlace y tus servidores aparecerán aquí.</string>
     <string name="srv_empty_t">Aún no hay servidores</string>
     <string name="srv_group">Agrupar por suscripción</string>
-    <string name="srv_inUse">No se puede eliminar el servidor conectado ni un grupo que lo contiene: desconéctate o cambia a otro servidor antes.</string>
+    <string name="srv_inUse">No se eliminó: el núcleo no elimina el servidor conectado, un grupo que lo contiene ni el último grupo restante. Desconéctate o cambia a otro servidor primero.</string>
     <string name="srv_manual">Añadidos a mano</string>
     <string name="srv_menu_clone">Duplicar</string>
     <string name="srv_menu_move">Mover a un grupo…</string>
@@ -602,6 +607,7 @@
     <string name="stats_total_traffic">Tráfico total</string>
     <string name="stats_uploaded">Enviado</string>
     <string name="stub_soon">Esta sección aún está en desarrollo.</string>
+    <string name="sub_busy">Ya hay otra actualización en curso, así que esta no se inició. Inténtalo de nuevo cuando termine.</string>
     <string name="sub_confirm_t">¿Actualizar «%1$s»?</string>
     <string name="sub_err_auth">Acceso denegado: el enlace está obsoleto o la suscripción terminó</string>
     <string name="sub_err_badge">Error</string>
@@ -614,6 +620,8 @@
     <string name="sub_expiresSoon">Caduca pronto</string>
     <string name="sub_hwid_hint">Algunos proveedores limitan el número de dispositivos. El identificador es aleatorio y se crea para esta instalación.</string>
     <string name="sub_noExpiry">Sin caducidad</string>
+    <string name="sub_rollbackGone">No hay nada a lo que volver: la lista anterior solo se guarda en la memoria del núcleo y se pierde al reiniciarlo, y no puede haber una actualización de esta suscripción en curso.</string>
+    <string name="sub_rolledNoCount">La suscripción «%1$s» volvió a su lista anterior.</string>
     <string name="sub_set_global">Para todas las suscripciones</string>
     <string name="sub_set_hwid">Enviar identificador de dispositivo (HWID)</string>
     <string name="sub_set_interval">Actualizar cada</string>

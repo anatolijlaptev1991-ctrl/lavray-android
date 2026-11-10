@@ -80,7 +80,8 @@ class ImportOutcomeTests {
             ImportResult.Problem(ImportProblem.NotFetched("n", false, SubErrorKind.Auth, "403", true)),
             ImportOutcomes.subscribed(SubscribeResult.NotFetched("n", false, failure, hwidHint = true)),
         )
-        assertEquals(ImportResult.Rejected(ErrorKind.InvalidInput, 2), ImportOutcomes.subscribed(SubscribeResult.Refused(ErrorKind.InvalidInput, 2)))
+        assertEquals(ImportResult.Problem(ImportProblem.BadAddress), ImportOutcomes.subscribed(SubscribeResult.Refused(ErrorKind.InvalidInput, 2)))
+        assertEquals(ImportResult.Rejected(ErrorKind.CoreUnavailable, null), ImportOutcomes.subscribed(SubscribeResult.Refused(ErrorKind.CoreUnavailable, null)))
         assertEquals(ImportResult.Problem(ImportProblem.Busy), ImportOutcomes.subscribed(SubscribeResult.Busy))
     }
 

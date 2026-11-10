@@ -53,6 +53,8 @@ fun LavTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailing: (@Composable () -> Unit)? = null,
+    /** False: the text stays visible and selectable but cannot be changed (a request that was made from it is still running). */
+    enabled: Boolean = true,
 ) {
     val c = Lav.colors
     val source = remember { MutableInteractionSource() }
@@ -85,6 +87,7 @@ fun LavTextField(
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
+                    readOnly = !enabled,
                     // The visible placeholder is not exposed to TalkBack by itself: without a name the field is just "edit box".
                     modifier = Modifier.fillMaxWidth().semantics { (label ?: placeholder)?.let { contentDescription = it } },
                     textStyle = textStyle,

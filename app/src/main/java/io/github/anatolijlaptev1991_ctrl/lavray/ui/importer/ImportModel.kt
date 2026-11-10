@@ -46,6 +46,10 @@ data class ImportUi(
     val sheet: Int = 0,
 ) {
     val payloadLarge: Boolean get() = payload.length > FIELD_LIMIT
+
+    /** The text is (as far as the core or, before it answers, the local reading says) a subscription link to be added and loaded. */
+    val isSubscriptionImport: Boolean
+        get() = preview?.isSubscription ?: (input is ImportInput.SubscriptionUrl)
     val canSubmit: Boolean get() = !busy && input != ImportInput.Empty && input != ImportInput.Unrecognized &&
         !(input is ImportInput.Links && input.readable == 0) && previewError?.blocksImport != true
 
@@ -114,11 +118,14 @@ class ImportModel(
     }
 
     fun selectTab(tab: ImportTab) {
+        // While an import runs the text it was made from stays as it is: a result must not land next to other text.
+        if (mutable.value.busy) return
         if (tab != mutable.value.tab) previewJob?.cancel()
         mutable.update { it.switchedTo(tab) }
     }
 
     fun setPayload(text: String) {
+        if (mutable.value.busy) return
         previewJob?.cancel()
         mutable.update { it.copy(payload = text, note = null, error = null, errorLine = null, problem = null, preview = null, previewError = null) }
         val sheet = mutable.value.sheet
@@ -136,7 +143,8 @@ class ImportModel(
         if (LinkClassifier.isImportable(text)) {
             open(text, ImportTab.Link)
         } else {
-            mutable.update { it.copy(open = true, tab = ImportTab.Qr, note = ImportNote.NothingRecognised) }
+            // A new opening of the sheet: a result of an import that is still running must not close or fill this one.
+            mutable.update { it.copy(open = true, tab = ImportTab.Qr, note = ImportNote.NothingRecognised, busy = false, sheet = it.sheet + 1) }
         }
     }
 

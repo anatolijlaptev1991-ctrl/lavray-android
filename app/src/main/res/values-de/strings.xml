@@ -238,6 +238,7 @@
     <string name="err_notfound">Eintrag nicht gefunden. Aktualisiere die Liste und versuche es erneut.</string>
     <string name="err_precondition">Diese Aktion ist derzeit nicht verfügbar</string>
     <string name="err_retry">Erneut versuchen</string>
+    <string name="err_tooLarge">Die Antwort des Kerns ist zu groß, als dass die App sie empfangen könnte. Ein erneuter Versuch hilft nicht.</string>
     <string name="err_unimplemented">Diese Funktion ist noch nicht verfügbar</string>
     <string name="fail_apps_none">Keine der gewählten Apps ist auf diesem Telefon</string>
     <string name="fail_connect_failed">Verbindung fehlgeschlagen</string>
@@ -282,6 +283,7 @@
     <string name="imp_done_sub">Abo „%1$s“ hinzugefügt, Server: %2$s.</string>
     <string name="imp_done_sub_again">Abo „%2$s“ gab es schon und wurde aktualisiert: %4$s Server (%1$s neu, %3$s entfernt).</string>
     <string name="imp_done_unparsed">Zeilen der Anbieter-Antwort, die nicht gelesen werden konnten: %1$s.</string>
+    <string name="imp_done_updating">Das Abonnement „%1$s“ ist gespeichert und der Kern aktualisiert es gerade: Die Server erscheinen, wenn das fertig ist.</string>
     <string name="imp_err_line">Zeile %1$s des eingefügten Textes wurde abgelehnt. Prüfen Sie den Link oder entfernen Sie ihn und versuchen Sie es erneut.</string>
     <string name="imp_fileHint_phone">Wähle eine Datei: YAML, Base64 oder eine Liste von Links.</string>
     <string name="imp_fileTooLarge">Die Datei ist zu groß: Das Importlimit beträgt %1$s MB</string>
@@ -298,6 +300,8 @@
     <string name="imp_issue_t">Zeile %1$s kann nicht importiert werden</string>
     <string name="imp_link">Link</string>
     <string name="imp_name">Abo-Name (optional)</string>
+    <string name="imp_note_dupleft">Eine leere Kopie des Abonnements konnte nicht entfernt werden: Lösche sie auf dem Bildschirm „Abonnements“.</string>
+    <string name="imp_p_badaddr">Der Kern hat diese Abonnement-Adresse abgelehnt. Adressen aus einem lokalen oder privaten Netz (localhost, 192.168.x.x, 10.x.x.x) nimmt er nicht an, und die Adresse muss eine gültige Webadresse sein.</string>
     <string name="imp_p_busy">Abos werden gerade aktualisiert. Bitte kurz warten und erneut versuchen.</string>
     <string name="imp_p_dup">Alle Server in diesem Text sind schon in der Liste: %1$s.</string>
     <string name="imp_p_hwid">Begrenzt der Anbieter die Zahl der Geräte, aktiviere „%1$s“ in den Abo-Einstellungen und aktualisiere das Abo.</string>
@@ -396,6 +400,7 @@
     <string name="nt_perm_t">VPN-Berechtigung nötig</string>
     <string name="nt_protection_off_d">Apps nutzen das Netz möglicherweise direkt. Verbinde dich erneut, um den Schutz wiederherzustellen.</string>
     <string name="nt_reconnect">Erneut verbinden</string>
+    <string name="nt_skipped">Gewählte Apps, die nicht installiert sind und übersprungen wurden: %1$s</string>
     <string name="nt_stop_crash">LAVRay wurde wegen eines internen Fehlers beendet.</string>
     <string name="nt_stop_do">Der Tunnel läuft nicht. Verbinde dich erneut, um ihn wiederherzustellen.</string>
     <string name="nt_stop_lost">Die Verbindung zum Server ging verloren und ließ sich nicht wiederherstellen.</string>
@@ -569,7 +574,7 @@
     <string name="srv_empty_d">Füge ein Abo oder einen Link hinzu, dann erscheinen deine Server hier.</string>
     <string name="srv_empty_t">Noch keine Server</string>
     <string name="srv_group">Nach Abo gruppieren</string>
-    <string name="srv_inUse">Der verbundene Server und eine Gruppe, die ihn enthält, lassen sich nicht löschen: Erst trennen oder auf einen anderen Server wechseln.</string>
+    <string name="srv_inUse">Nicht gelöscht: Der Kern löscht weder den verbundenen Server noch eine Gruppe, die ihn enthält, noch die letzte verbleibende Gruppe. Trenne zuerst die Verbindung oder wechsle zu einem anderen Server.</string>
     <string name="srv_manual">Manuell hinzugefügt</string>
     <string name="srv_menu_clone">Duplizieren</string>
     <string name="srv_menu_move">In Gruppe verschieben …</string>
@@ -602,6 +607,7 @@
     <string name="stats_total_traffic">Gesamtverkehr</string>
     <string name="stats_uploaded">Gesendet</string>
     <string name="stub_soon">Dieser Bereich ist noch in Arbeit.</string>
+    <string name="sub_busy">Ein anderes Update läuft bereits, deshalb wurde dieses nicht gestartet. Versuche es nach dessen Ende erneut.</string>
     <string name="sub_confirm_t">„%1$s“ aktualisieren?</string>
     <string name="sub_err_auth">Zugang gesperrt: Der Link ist veraltet oder das Abo ist beendet</string>
     <string name="sub_err_badge">Fehler</string>
@@ -614,6 +620,8 @@
     <string name="sub_expiresSoon">Läuft bald ab</string>
     <string name="sub_hwid_hint">Manche Anbieter begrenzen die Zahl der Geräte. Die Kennung ist zufällig und wird für diese Installation erzeugt.</string>
     <string name="sub_noExpiry">Ohne Ablauf</string>
+    <string name="sub_rollbackGone">Es gibt nichts, wohin zurückgesetzt werden könnte: Die vorherige Liste liegt nur im Speicher des Kerns und ist nach dessen Neustart weg, und es darf kein Update dieses Abonnements laufen.</string>
+    <string name="sub_rolledNoCount">Das Abonnement „%1$s“ wurde auf die vorherige Liste zurückgesetzt.</string>
     <string name="sub_set_global">Für alle Abos</string>
     <string name="sub_set_hwid">Gerätekennung senden (HWID)</string>
     <string name="sub_set_interval">Aktualisieren alle</string>

@@ -238,6 +238,7 @@
     <string name="err_notfound">Item not found. Refresh the list and try again.</string>
     <string name="err_precondition">This action is not available right now</string>
     <string name="err_retry">Retry</string>
+    <string name="err_tooLarge">The answer of the core is too large for the app to receive. Trying again will not help.</string>
     <string name="err_unimplemented">This feature is not available yet</string>
     <string name="fail_apps_none">None of the chosen apps is on this phone</string>
     <string name="fail_connect_failed">Could not connect</string>
@@ -282,6 +283,7 @@
     <string name="imp_done_sub">Subscription “%1$s” added, servers: %2$s.</string>
     <string name="imp_done_sub_again">Subscription “%2$s” already existed and was updated: %4$s servers (%1$s added, %3$s removed).</string>
     <string name="imp_done_unparsed">Lines of the provider\'s answer that could not be read: %1$s.</string>
+    <string name="imp_done_updating">Subscription “%1$s” is saved and the core is updating it right now: its servers will appear when that ends.</string>
     <string name="imp_err_line">Line %1$s of what you pasted was refused. Check that link or remove it, then try again.</string>
     <string name="imp_fileHint_phone">Choose a file: YAML, base64 or a list of links.</string>
     <string name="imp_fileTooLarge">The file is too large: the import limit is %1$s MB</string>
@@ -298,6 +300,8 @@
     <string name="imp_issue_t">Line %1$s cannot be imported</string>
     <string name="imp_link">Link</string>
     <string name="imp_name">Subscription name (optional)</string>
+    <string name="imp_note_dupleft">An empty duplicate of the subscription could not be removed: delete it on the Subscriptions screen.</string>
+    <string name="imp_p_badaddr">The core refused this subscription address. It does not accept addresses on a local or private network (localhost, 192.168.x.x, 10.x.x.x), and the address must be a valid web address.</string>
     <string name="imp_p_busy">Subscriptions are updating right now. Wait a moment and try again.</string>
     <string name="imp_p_dup">Every server in this text is already in the list: %1$s.</string>
     <string name="imp_p_hwid">If the provider limits the number of devices, turn on “%1$s” in the subscription settings and update it.</string>
@@ -396,6 +400,7 @@
     <string name="nt_perm_t">VPN permission is needed</string>
     <string name="nt_protection_off_d">Apps may be using the network directly. Connect again to restore protection.</string>
     <string name="nt_reconnect">Connect again</string>
+    <string name="nt_skipped">Selected apps that are not installed and were skipped: %1$s</string>
     <string name="nt_stop_crash">LAVRay stopped because of an internal error.</string>
     <string name="nt_stop_do">The tunnel is not running. Connect again to restore it.</string>
     <string name="nt_stop_lost">The link to the server was lost and could not be restored.</string>
@@ -569,7 +574,7 @@
     <string name="srv_empty_d">Add a subscription or link, and your servers will appear here.</string>
     <string name="srv_empty_t">No servers yet</string>
     <string name="srv_group">Group by subscription</string>
-    <string name="srv_inUse">The connected server, and a group that holds it, cannot be deleted: disconnect or switch to another server first.</string>
+    <string name="srv_inUse">Not deleted: the core does not delete the connected server, a group that holds it, or the last remaining group. Disconnect or switch to another server first.</string>
     <string name="srv_manual">Added manually</string>
     <string name="srv_menu_clone">Duplicate</string>
     <string name="srv_menu_move">Move to group…</string>
@@ -602,6 +607,7 @@
     <string name="stats_total_traffic">Total traffic</string>
     <string name="stats_uploaded">Sent</string>
     <string name="stub_soon">This section is still in development.</string>
+    <string name="sub_busy">Another update is running, so this one did not start. Try again when it ends.</string>
     <string name="sub_confirm_t">Update “%1$s”?</string>
     <string name="sub_err_auth">Access denied: the link is outdated or the subscription has ended</string>
     <string name="sub_err_badge">Error</string>
@@ -614,6 +620,8 @@
     <string name="sub_expiresSoon">Expires soon</string>
     <string name="sub_hwid_hint">Some providers limit the number of devices. The identifier is random and created for this installation.</string>
     <string name="sub_noExpiry">No expiry</string>
+    <string name="sub_rollbackGone">There is nothing to roll back to: the previous list is kept in the memory of the core only and is gone after the core restarts, and no update of this subscription may be running.</string>
+    <string name="sub_rolledNoCount">Subscription “%1$s” was rolled back to its previous list.</string>
     <string name="sub_set_global">For all subscriptions</string>
     <string name="sub_set_hwid">Send a device identifier (HWID)</string>
     <string name="sub_set_interval">Update every</string>

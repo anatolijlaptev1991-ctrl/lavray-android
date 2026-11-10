@@ -50,6 +50,23 @@ class ExitProbeTests {
 
     private fun fake() = Fake { CoreResult.Ok(clean) }
 
+    @Test fun theDelayIsNotMeasuredWhileAnotherLatencyTestRunsAndTheRestOfThePassStillIs() = runBlocking {
+        // The core cuts an older latency batch when a newer one shares a server: the probe must not cut "test all".
+        val fake = fake()
+        var testRunning = true
+        val probe = ExitProbe(fake, canMeasureLatency = { !testRunning })
+        probe.ensure("1:1", 1)
+        assertEquals("no latency batch was started", 0, fake.latencyCalls.get())
+        val first = (probe.state.value as ProbeState.Ready).report
+        assertNull("the report says nothing about a delay it did not measure", first.latencyMs)
+        assertEquals(1, fake.leakCalls.get())
+        // Once the test is over a manual refresh measures it.
+        testRunning = false
+        probe.refresh("1:1", 1)
+        assertEquals(1, fake.latencyCalls.get())
+        assertEquals(87, (probe.state.value as ProbeState.Ready).report.latencyMs)
+    }
+
     @Test fun aKeyNeedsAServerAndAStartTime() {
         assertEquals("3:1700000", probeKey(3, 1_700_000))
         assertNull(probeKey(0, 1_700_000))

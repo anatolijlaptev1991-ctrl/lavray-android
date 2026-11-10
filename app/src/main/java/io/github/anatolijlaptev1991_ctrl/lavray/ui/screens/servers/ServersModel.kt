@@ -68,7 +68,6 @@ sealed interface ServersEvent {
 class ServersModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
-    private val connectTo: (Long) -> Unit,
 ) {
     private val actions = Channel<ServersAction>(Channel.UNLIMITED)
     private val mutable = MutableStateFlow(ServersState())
@@ -255,7 +254,6 @@ class ServersModel(
         is CoreResult.Fail -> null
     }.also { if (it == null) mutableEvents.tryEmit(ServersEvent.Failed(ErrorKind.NotFound)) }
 
-    fun connect(id: Long) = connectTo(id)
 
     /**
      * A refused change is reported, and the list is read again: the core applies a batch one item at a time and stops

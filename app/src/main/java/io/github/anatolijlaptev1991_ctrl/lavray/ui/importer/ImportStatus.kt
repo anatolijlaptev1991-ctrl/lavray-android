@@ -18,6 +18,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.label
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubNotes
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.UpdatePhase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.labelRes
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.textRes
@@ -69,21 +70,30 @@ internal fun ProblemBanner(problem: ImportProblem, onOpenSubscriptions: () -> Un
             text = listOfNotNull(stringResource(R.string.imp_p_none), problem.hint).joinToString("\n"),
         )
         ImportProblem.Busy -> LavBanner(StatusTone.Connecting, stringResource(R.string.imp_p_busy))
+        ImportProblem.BadAddress -> LavBanner(StatusTone.Error, stringResource(R.string.imp_p_badaddr))
         is ImportProblem.NotFetched -> NotFetchedBanner(problem, onOpenSubscriptions)
     }
 }
 
 @Composable
 private fun NotFetchedBanner(p: ImportProblem.NotFetched, onOpenSubscriptions: () -> Unit) {
-    val reason = stringResource(p.kind.textRes()) + if (p.code.all { it.isDigit() }) " (${p.code})" else ""
-    val hwid = if (p.hwidHint) stringResource(R.string.imp_p_hwid, stringResource(R.string.sub_set_hwid)) else null
+    // The core not answering is the core's trouble, not the provider's: the provider's words would send the person the wrong way.
+    val reason = p.coreProblem?.let { stringResource(it.textRes()) }
+        ?: (stringResource(p.kind.textRes()) + if (p.code.all { it.isDigit() }) " (${p.code})" else "")
+    val hwid = if (p.hwidHint && p.coreProblem == null) stringResource(R.string.imp_p_hwid, stringResource(R.string.sub_set_hwid)) else null
     LavBanner(
         StatusTone.Error,
         stringResource(if (p.existed) R.string.imp_p_nf_again else R.string.imp_p_nf_new, p.name),
-        text = listOfNotNull(reason, hwid, stringResource(R.string.imp_p_nf_retry)).joinToString("\n"),
+        text = listOfNotNull(reason, hwid, p.notes.dupLine(), p.notes.httpLine(), stringResource(R.string.imp_p_nf_retry)).joinToString("\n"),
         actions = { LavButton(stringResource(R.string.imp_p_open), onOpenSubscriptions, variant = ButtonVariant.Primary) },
     )
 }
+
+@Composable
+private fun SubNotes.dupLine(): String? = if (duplicateLeft) stringResource(R.string.imp_note_dupleft) else null
+
+@Composable
+private fun SubNotes.httpLine(): String? = if (insecure) stringResource(R.string.imp_httpWarn) else null
 
 /** The line shown while the core works: what it is doing with the subscription, when it is one. */
 @Composable
@@ -107,15 +117,27 @@ internal fun ImportReport.toastText(context: Context): String = when (this) {
             context.getString(R.string.imp_done_sub, name, total.toString())
         },
         if (unparsedLines > 0) context.getString(R.string.imp_done_unparsed, unparsedLines.toString()) else null,
+        notes.text(context),
     ).joinToString(" ")
-    is ImportReport.SubscriptionConfirm -> context.getString(R.string.imp_done_confirm, name, remove.toString())
+    is ImportReport.SubscriptionConfirm -> listOfNotNull(context.getString(R.string.imp_done_confirm, name, remove.toString()), notes.text(context)).joinToString(" ")
+    is ImportReport.SubscriptionUpdating -> listOfNotNull(context.getString(R.string.imp_done_updating, name), notes.text(context)).joinToString(" ")
 }
+
+private fun SubNotes.text(context: Context): String? = listOfNotNull(
+    if (duplicateLeft) context.getString(R.string.imp_note_dupleft) else null,
+    if (insecure) context.getString(R.string.imp_httpWarn) else null,
+).joinToString(" ").takeIf { it.isNotEmpty() }
 
 /** The toast text for an import that brought nothing in after the sheet was closed. */
 internal fun ImportProblem.toastText(context: Context): String = when (this) {
     is ImportProblem.AlreadyHave -> context.getString(R.string.imp_p_dup, count.toString())
     is ImportProblem.NothingFound -> context.getString(R.string.imp_p_none)
     ImportProblem.Busy -> context.getString(R.string.imp_p_busy)
-    is ImportProblem.NotFetched -> context.getString(if (existed) R.string.imp_p_nf_again else R.string.imp_p_nf_new, name) +
-        ". " + context.getString(R.string.imp_p_nf_retry)
+    ImportProblem.BadAddress -> context.getString(R.string.imp_p_badaddr)
+    is ImportProblem.NotFetched -> listOfNotNull(
+        context.getString(if (existed) R.string.imp_p_nf_again else R.string.imp_p_nf_new, name) + ".",
+        coreProblem?.let { context.getString(it.textRes()) },
+        notes.text(context),
+        context.getString(R.string.imp_p_nf_retry),
+    ).joinToString(" ")
 }

@@ -6,6 +6,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ImportContentResponse
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ProfileType
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubErrorKind
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubNotes
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscribeResult
 
 /** What the sheet closes with: the person is told, in a toast, what really changed. */
@@ -15,10 +16,16 @@ sealed interface ImportReport {
     data class Servers(val added: Int, val alreadyHad: Int, val xhttp: Int, val customDropped: Int) : ImportReport
 
     /** A subscription was added (or found again) and its servers loaded. */
-    data class Subscribed(val name: String, val existed: Boolean, val added: Int, val removed: Int, val total: Int, val unparsedLines: Int) : ImportReport
+    data class Subscribed(
+        val name: String, val existed: Boolean, val added: Int, val removed: Int, val total: Int, val unparsedLines: Int,
+        val notes: SubNotes = SubNotes(),
+    ) : ImportReport
 
     /** The subscription exists and its update would remove servers: the question waits on the Subscriptions screen. */
-    data class SubscriptionConfirm(val name: String, val remove: Int) : ImportReport
+    data class SubscriptionConfirm(val name: String, val remove: Int, val notes: SubNotes = SubNotes()) : ImportReport
+
+    /** The subscription is saved and the core is already updating it (its own scheduler): the servers appear when that ends. */
+    data class SubscriptionUpdating(val name: String, val notes: SubNotes = SubNotes()) : ImportReport
 }
 
 /** Why nothing was imported although the core did not refuse: the sheet stays open and says so. */
@@ -33,8 +40,17 @@ sealed interface ImportProblem {
     /** An update of subscriptions is running; the link was not touched. */
     data object Busy : ImportProblem
 
-    /** The subscription [name] is saved, its servers are not: [kind] and [code] say why, [hwidHint] points at the device-limit switch. */
-    data class NotFetched(val name: String, val existed: Boolean, val kind: SubErrorKind, val code: String, val hwidHint: Boolean) : ImportProblem
+    /**
+     * The subscription [name] is saved, its servers are not: [kind] and [code] say why, [hwidHint] points at the device-limit
+     * switch. [coreProblem] is set when the core itself did not answer: the reason is then the core, not the provider.
+     */
+    data class NotFetched(
+        val name: String, val existed: Boolean, val kind: SubErrorKind, val code: String, val hwidHint: Boolean,
+        val coreProblem: ErrorKind? = null, val notes: SubNotes = SubNotes(),
+    ) : ImportProblem
+
+    /** The core refused the address of a subscription link: a local or private address, or not a valid web address. */
+    data object BadAddress : ImportProblem
 }
 
 /** The final state of one import: close with a report, stay open with a problem, or stay open with a core error. */
@@ -99,10 +115,14 @@ object ImportOutcomes {
     }
 
     fun subscribed(r: SubscribeResult): ImportResult = when (r) {
-        is SubscribeResult.Fetched -> ImportResult.Report(ImportReport.Subscribed(r.name, r.existed, r.added, r.removed, r.total, r.unparsedLines))
-        is SubscribeResult.NeedsConfirm -> ImportResult.Report(ImportReport.SubscriptionConfirm(r.name, r.remove))
-        is SubscribeResult.NotFetched -> ImportResult.Problem(ImportProblem.NotFetched(r.name, r.existed, r.failure.kind, r.failure.code, r.hwidHint))
-        is SubscribeResult.Refused -> ImportResult.Rejected(r.kind, r.line)
+        is SubscribeResult.Fetched -> ImportResult.Report(ImportReport.Subscribed(r.name, r.existed, r.added, r.removed, r.total, r.unparsedLines, r.notes))
+        is SubscribeResult.NeedsConfirm -> ImportResult.Report(ImportReport.SubscriptionConfirm(r.name, r.remove, r.notes))
+        is SubscribeResult.Updating -> ImportResult.Report(ImportReport.SubscriptionUpdating(r.name, r.notes))
+        is SubscribeResult.NotFetched ->
+            ImportResult.Problem(ImportProblem.NotFetched(r.name, r.existed, r.failure.kind, r.failure.code, r.hwidHint, r.coreProblem, r.notes))
+        // The core already said it is a subscription link, so a refusal of the address is about the address, not "the input could not be read".
+        is SubscribeResult.Refused ->
+            if (r.kind == ErrorKind.InvalidInput) ImportResult.Problem(ImportProblem.BadAddress) else ImportResult.Rejected(r.kind, r.line)
         SubscribeResult.Busy -> ImportResult.Problem(ImportProblem.Busy)
     }
 

@@ -410,11 +410,15 @@ class ImportFlowTests {
     fun anUpdateAlreadyRunningIsSaidBeforeAnythingIsCreated() {
         core.on(ProfileService.IMPORT_CONTENT, subscriptionKind())
         existing()
-        subscriptions.dispatch(io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsAction.UpdateAllStarted)
+        // A real update of all subscriptions, held open by the core while the link is imported.
+        val gate = java.util.concurrent.CountDownLatch(1)
+        core.on(SubscriptionService.UPDATE_ALL_SUBSCRIPTIONS) { gate.await(5, java.util.concurrent.TimeUnit.SECONDS); Reply.Frames(emptyList()) }
+        subscriptions.updateAll()
         runBlocking { withTimeout(5_000) { subscriptions.state.first { it.isBusy } } }
         open(PROVIDER)
 
         val (event, ui) = submit()
+        gate.countDown()
 
         assertNull(event)
         assertEquals(ImportProblem.Busy, ui.problem)
@@ -431,7 +435,9 @@ class ImportFlowTests {
         val (event, ui) = submit()
 
         assertNull(event)
-        assertEquals(ErrorKind.InvalidInput, ui.error)
+        // The core had said "subscription link": a refusal of the address is about the address (M3), not "input could not be read".
+        assertEquals(ImportProblem.BadAddress, ui.problem)
+        assertNull(ui.error)
         assertTrue(core.callsTo(SubscriptionService.UPDATE_SUBSCRIPTION).isEmpty())
     }
 

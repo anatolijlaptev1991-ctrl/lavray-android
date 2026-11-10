@@ -20,7 +20,10 @@ sealed interface ImportInput {
         val readable: Int get() = links.size - issues.size
     }
 
-    /** A single http(s) address: a subscription. [insecure] is plain http (the provider and the network see it). */
+    /**
+     * A single http(s) address with a path or a query: the page of a subscription (the core's rule, import_kind.go). [insecure]
+     * is plain http (the provider and the network see it). An address without either is an HTTP proxy link: [Links].
+     */
     data class SubscriptionUrl(val url: String, val insecure: Boolean) : ImportInput
 
     /** An encrypted subscription link; the core decrypts it locally. */
@@ -65,7 +68,13 @@ object LinkClassifier {
         val schemes = lines.map { schemeOf.matchEntire(it)!!.groupValues[1].lowercase() }
         if (lines.size == 1) {
             val s = schemes[0]
-            if (s == "http" || s == "https") return ImportInput.SubscriptionUrl(lines[0], insecure = s == "http")
+            if (s == "http" || s == "https") {
+                return if (isSubscriptionPage(lines[0])) {
+                    ImportInput.SubscriptionUrl(lines[0], insecure = s == "http")
+                } else {
+                    ImportInput.Links(links = listOf(lines[0]), schemes = listOf(s), skipped = 0)
+                }
+            }
             if (s == ENCRYPTED_SCHEME) return ImportInput.EncryptedLink(lines[0])
         }
         val known = lines.indices.filter { schemes[it] in shareSchemes }
@@ -78,6 +87,19 @@ object LinkClassifier {
                 if (schemes[i] != "ss") null else SsLinkCheck.check(lines[i])?.let { LinkIssue(lineNumbers[i], it, mask(lines[i])) }
             },
         )
+    }
+
+    private val authority = Regex("^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*([^?#]*)(?:\\?([^#]*))?")
+
+    /**
+     * The core calls a single http(s) address a subscription when it has a path (more than slashes) or a query with any key
+     * other than security and sni; what looks like host:port with those two keys is an HTTP proxy link and stays a server.
+     */
+    internal fun isSubscriptionPage(url: String): Boolean {
+        val m = authority.find(url) ?: return false
+        if (m.groupValues[1].trim('/').isNotEmpty()) return true
+        val keys = m.groupValues[2].split('&').map { it.substringBefore('=') }.filter { it.isNotEmpty() }
+        return keys.any { it != "security" && it != "sni" }
     }
 
     private fun classifyDocument(text: String): ImportInput {
