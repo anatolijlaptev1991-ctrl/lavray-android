@@ -33,7 +33,7 @@
 - **DNS**, **connections**, **log**, **statistics**, and a "Why isn’t it working?" screen.
 - **Per-app tunnel:** all apps, only selected apps, or all except selected.
 - **Auto-connect after reboot** to the last server, and support for the system Always-on VPN. The tunnel is restored after an app update and after the system kills the service.
-- **No direct traffic while the tunnel is rebuilt:** when you switch server or tap "Reconnect", apps’ traffic is held, not sent directly, for at most 30 seconds.
+- **No direct traffic when you switch server:** on a server switch, "Reconnect" or a core restart the VPN interface stays the same, and apps’ traffic is held, not sent directly, for at most 30 seconds. The exception: when the interface’s own parameters change (MTU, IPv6, tunnel DNS, the app list), Android creates a new interface, and a gap of a fraction of a second is possible.
 - **Backup** to an encrypted file through the system file picker.
 - **Five interface languages** (Русский, English, 中文, Español, Deutsch), light and dark themes, several accents.
 

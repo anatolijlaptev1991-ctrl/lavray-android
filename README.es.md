@@ -33,7 +33,7 @@
 - **DNS**, **conexiones**, **registro**, **estadísticas** y una pantalla «¿Por qué no funciona?».
 - **Túnel por app:** todas, solo las elegidas o todas menos las elegidas.
 - **Conexión automática tras reiniciar** al último servidor y compatibilidad con la VPN siempre activa del sistema. El túnel se restablece tras actualizar la app y tras un cierre del servicio por parte del sistema.
-- **Sin tráfico directo mientras se reconstruye el túnel:** al cambiar de servidor o pulsar «Reconectar», el tráfico de las apps se retiene, no sale directo, como máximo 30 segundos.
+- **Sin tráfico directo al cambiar de servidor:** al cambiar de servidor, pulsar «Reconectar» o reiniciar el núcleo, la interfaz VPN sigue siendo la misma y el tráfico de las apps se retiene, no sale directo, como máximo 30 segundos. La excepción: si cambian los parámetros de la propia interfaz (MTU, IPv6, DNS del túnel, lista de apps), Android crea una interfaz nueva y durante una fracción de segundo puede haber un hueco.
 - **Copia de seguridad** en un archivo cifrado, mediante el selector de archivos del sistema.
 - **Cinco idiomas** de interfaz (Русский, English, 中文, Español, Deutsch), temas claro y oscuro y varios colores de acento.
 

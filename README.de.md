@@ -33,7 +33,7 @@
 - **DNS**, **Verbindungen**, **Protokoll**, **Statistik** und der Bildschirm „Warum funktioniert es nicht?“.
 - **Tunnel pro App:** alle Apps, nur ausgewählte oder alle außer ausgewählten.
 - **Automatisches Verbinden nach dem Neustart** mit dem zuletzt genutzten Server und Unterstützung für das systemweite Always-on-VPN. Der Tunnel kommt nach einem App-Update und nach dem Beenden des Dienstes durch das System zurück.
-- **Kein direkter Datenverkehr, während der Tunnel neu aufgebaut wird:** Beim Serverwechsel oder bei „Neu verbinden“ wird der Datenverkehr der Apps höchstens 30 Sekunden lang angehalten, nicht direkt gesendet.
+- **Kein direkter Datenverkehr beim Serverwechsel:** Beim Serverwechsel, bei „Neu verbinden“ und beim Neustart des Core bleibt die VPN-Schnittstelle dieselbe, und der Datenverkehr der Apps wird höchstens 30 Sekunden lang angehalten, nicht direkt gesendet. Ausnahme: Ändern sich die Parameter der Schnittstelle selbst (MTU, IPv6, Tunnel-DNS, App-Liste), legt Android eine neue Schnittstelle an, und für Sekundenbruchteile ist eine Lücke möglich.
 - **Sicherung** in eine verschlüsselte Datei über die Dateiauswahl des Systems.
 - **Fünf Oberflächensprachen** (Русский, English, 中文, Español, Deutsch), helles und dunkles Design, mehrere Akzentfarben.
 
