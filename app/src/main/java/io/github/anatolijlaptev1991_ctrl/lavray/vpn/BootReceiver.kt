@@ -35,53 +35,83 @@ class UpdateReceiver : BroadcastReceiver() {
     }
 }
 
-/** What both receivers do: one preference read, then start the service, post "permission needed", or nothing. */
+/** What the boot flow does to the world; the platform's implementation is below, tests bring their own. */
+internal interface BootActions {
+    fun consentGranted(): Boolean
+
+    /** Starts the service as a boot start. Throws a RuntimeException when the system refuses. */
+    fun startService()
+    fun notifyPermissionNeeded()
+    fun notifyFailure(kind: String, message: String?)
+}
+
+/** The decisions of both receivers, free of Android types: one preference read, then start, notify or nothing. */
+internal object BootLogic {
+    fun run(trigger: BootTrigger, autoConnect: Boolean, intent: TunnelIntent, actions: BootActions) {
+        // A wish from before a reboot reads as cleared (the boot count differs): only auto-connect carries it over.
+        val want = intent.snapshot.wantConnected
+        val wanted = if (trigger == BootTrigger.BOOT) autoConnect else want
+        val consent = wanted && actions.consentGranted()
+        when (BootPolicy.decide(trigger, autoConnect, want, consent)) {
+            BootAction.IGNORE -> Unit
+            BootAction.NOTIFY_PERMISSION -> {
+                intent.onPermissionMissing()
+                actions.notifyPermissionNeeded()
+            }
+            BootAction.START_SERVICE -> start(intent, actions)
+        }
+    }
+
+    private fun start(intent: TunnelIntent, actions: BootActions) {
+        try {
+            intent.onConnectRequested()
+            actions.startService()
+        } catch (e: RuntimeException) {
+            // ForegroundServiceStartNotAllowedException or SecurityException on a restricted device: say so, do not crash.
+            intent.onGaveUp(FailureKind.RESTRICTED_START, e.message, wasEstablished = false)
+            actions.notifyFailure(FailureKind.RESTRICTED_START, e.message)
+        }
+    }
+}
+
 internal object BootFlow {
     private const val TAG = "LavrayBoot"
 
     fun handle(context: Context, trigger: BootTrigger) {
         val prefs = VpnPrefs(context)
-        val intent = TunnelIntent(prefs)
-        val autoConnect = prefs.autoConnect
-        BootComponents.reconcile(context, autoConnect)
-        if (BootPolicy.dropsOldIntent(trigger, autoConnect)) intent.onBootWithoutAutoConnect()
-        val want = intent.snapshot.wantConnected
-        val wanted = if (trigger == BootTrigger.BOOT) autoConnect else want
-        // Calling prepare() from a receiver is not described by the docs; treated as "no consent" on failure.
-        // It can make this app the prepared VPN package when another one is; a start follows, so that is acceptable.
-        val consent = wanted && runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
-        when (BootPolicy.decide(trigger, autoConnect, want, consent)) {
-            BootAction.IGNORE -> Unit
-            BootAction.NOTIFY_PERMISSION -> {
-                intent.onPermissionMissing()
-                VpnNotifications.postPermissionNeeded(context)
-            }
-            BootAction.START_SERVICE -> start(context, intent)
+        val setting = BootComponents.setting(context, prefs)
+        val outcome = setting.reconcile()
+        if (outcome == SwitchOutcome.FAILED_STILL_DISABLED || outcome == SwitchOutcome.FAILED_STAYS_ENABLED) {
+            Log.w(TAG, "boot receiver switch failed: $outcome")
         }
-    }
+        val intent = TunnelIntent(prefs) { BootCount.read(context) }
+        BootLogic.run(trigger, prefs.autoConnect, intent, object : BootActions {
+            // Calling prepare() from a receiver is not described by the docs; treated as "no consent" on failure.
+            // It can make this app the prepared VPN package when another one is; a start follows, so that is acceptable.
+            override fun consentGranted() = runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
 
-    private fun start(context: Context, intent: TunnelIntent) {
-        try {
-            intent.onConnectRequested()
-            context.startForegroundService(
-                Intent(context, LavrayVpnService::class.java).putExtra(StartIntent.EXTRA_SOURCE, StartSource.BOOT.wire),
-            )
-        } catch (e: RuntimeException) {
-            // ForegroundServiceStartNotAllowedException or SecurityException on a restricted device: say so, do not crash.
-            Log.w(TAG, "service start refused: ${e.javaClass.simpleName}")
-            intent.onGaveUp(FailureKind.RESTRICTED_START, e.message, wasEstablished = false)
-            VpnNotifications.postFailure(context, FailureKind.RESTRICTED_START, e.message)
-        }
+            override fun startService() {
+                context.startForegroundService(
+                    Intent(context, LavrayVpnService::class.java).putExtra(StartIntent.EXTRA_SOURCE, StartSource.BOOT.wire),
+                )
+            }
+
+            override fun notifyPermissionNeeded() = VpnNotifications.postPermissionNeeded(context)
+
+            override fun notifyFailure(kind: String, message: String?) = VpnNotifications.postFailure(context, kind, message)
+        })
     }
 }
 
-/** The platform's switch of the boot receiver component. */
+/** The platform's switch of the boot receiver component, and the one lock-protected setting that drives it. */
 internal object BootComponents {
-    /** Aligns the receiver with the preference; never throws. The fallback of every failure is "receiver stays on". */
-    fun reconcile(context: Context, autoConnect: Boolean): SwitchOutcome {
+    fun setting(context: Context, prefs: VpnPrefs): AutoConnectSetting =
+        AutoConnectSetting({ prefs.autoConnect }, { prefs.setAutoConnect(it) }, BootReceiverSwitch(portFor(context)))
+
+    private fun portFor(context: Context): BootSwitchPort {
         val pm = context.packageManager
         val component = ComponentName(context, BootReceiver::class.java)
-        val port = object : BootSwitchPort {
+        return object : BootSwitchPort {
             override fun current(): BootSwitch? = try {
                 when (pm.getComponentEnabledSetting(component)) {
                     PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
@@ -103,10 +133,5 @@ internal object BootComponents {
                 pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
             }
         }
-        val outcome = BootReceiverSwitch(port).reconcile(autoConnect)
-        if (outcome == SwitchOutcome.FAILED_STAYS_ENABLED || outcome == SwitchOutcome.FAILED_STILL_DISABLED) {
-            Log.w("LavrayBoot", "boot receiver switch failed: $outcome")
-        }
-        return outcome
     }
 }

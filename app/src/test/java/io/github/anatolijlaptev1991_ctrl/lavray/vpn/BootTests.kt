@@ -32,12 +32,6 @@ class BootTriggerTest {
         assertEquals(BootAction.NOTIFY_PERMISSION, BootPolicy.decide(BootTrigger.UPDATE, false, true, false))
     }
 
-    @Test
-    fun staleIntentDiesWithTheRebootUnlessAutoConnectRestoresIt() {
-        assertTrue(BootPolicy.dropsOldIntent(BootTrigger.BOOT, autoConnectEnabled = false))
-        assertFalse(BootPolicy.dropsOldIntent(BootTrigger.BOOT, true))
-        assertFalse(BootPolicy.dropsOldIntent(BootTrigger.UPDATE, false))
-    }
 }
 
 class BootReceiverSwitchTest {

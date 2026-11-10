@@ -43,8 +43,4 @@ object BootPolicy {
         }
         return decide(wanted, consentGranted)
     }
-
-    /** After a reboot an intent from before it is stale unless auto-connect restores it. */
-    fun dropsOldIntent(trigger: BootTrigger, autoConnectEnabled: Boolean): Boolean =
-        trigger == BootTrigger.BOOT && !autoConnectEnabled
 }
