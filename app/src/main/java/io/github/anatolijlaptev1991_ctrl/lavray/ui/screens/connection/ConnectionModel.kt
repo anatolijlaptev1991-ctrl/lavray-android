@@ -4,6 +4,7 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection
 import androidx.compose.runtime.Immutable
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.GetProfileRequest
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.GetSettingsRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ListProfilesRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Page
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Profile
@@ -14,12 +15,15 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreGetStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileGetProfile
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileListProfiles
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.routingGetActivePreset
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsGetSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.statsSubscribe
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionListSubscriptions
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.StreamFailure
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.StreamBackoff
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,6 +57,8 @@ data class ConnectionInfo(
     val hasServers: Boolean = false,
     val subscriptions: Int = 0,
     val error: ErrorKind? = null,
+    /** Settings "check the link after connecting"; the core's default is on, so it stays on when it cannot be read. */
+    val healthCheck: Boolean = true,
 )
 
 /** Speed and session totals from the stats stream (desktop lib/traffic.ts), bytes and bytes per second. */
@@ -81,9 +87,18 @@ fun TrafficReading.apply(snapshot: StatsSnapshot): TrafficReading {
  * stream: it opens the stats socket when collected and closes it when the collector goes away, so it only
  * runs while the screen is visible and the tunnel is up.
  */
-class ConnectionModel(private val session: CoreSession, private val scope: CoroutineScope) {
+class ConnectionModel(
+    private val session: CoreSession,
+    private val scope: CoroutineScope,
+    private val healthSource: HealthSource = CoreHealthSource(session),
+) {
     private val mutable = MutableStateFlow(ConnectionInfo())
     val info: StateFlow<ConnectionInfo> = mutable.asStateFlow()
+
+    private val mutableHealth = MutableStateFlow(HealthSignal.None)
+
+    /** The last status frame of the core's event stream; [HealthSignal.None] while the stream is closed or broken. */
+    val health: StateFlow<HealthSignal> = mutableHealth.asStateFlow()
 
     private var refreshJob: Job? = null
 
@@ -111,7 +126,29 @@ class ConnectionModel(private val session: CoreSession, private val scope: Corou
             mutable.value = ConnectionInfo(
                 loaded = true, server = server, preset = preset,
                 startedAtMs = if (live) st.startedAtMs ?: 0L else 0L, hasServers = hasServers, subscriptions = subscriptions,
+                healthCheck = if (live) healthCheckEnabled() else true,
             )
+        }
+    }
+
+    private suspend fun healthCheckEnabled(): Boolean {
+        val r = session.call { settingsGetSettings(GetSettingsRequest(listOf(SettingKeys.HEALTH_CHECK))) }
+        return (r as? CoreResult.Ok)?.value?.values?.get(SettingKeys.HEALTH_CHECK)?.boolValue ?: true
+    }
+
+    /**
+     * Follows the core's status frames and keeps the latest in [health]. It suspends for as long as it is collected
+     * (the screen runs it only while visible and the tunnel is up) and reopens the stream after a break.
+     */
+    suspend fun watchHealth() {
+        try {
+            StreamBackoff.run(
+                open = { healthSource.frames() },
+                onError = { mutableHealth.value = HealthSignal.None },
+                onFrame = { frame -> mutableHealth.value = frame },
+            )
+        } finally {
+            mutableHealth.value = HealthSignal.None
         }
     }
 

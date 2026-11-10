@@ -52,6 +52,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.UnitFormat
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.rememberUnitFormat
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.ImportTab
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartBanner
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.label
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.Role
@@ -99,13 +101,25 @@ fun ConnectionScreen() {
     val onRefresh: () -> Unit = { if (key != null) scope.launch { probe.refresh(key, serverId) } }
     val quick = rememberQuickActions(info, scope)
 
-    LightField(phase.mark, Modifier.fillMaxSize()) {
+    // The core's own word on traffic through the server: its status frames, read only while this screen is started
+    // and the tunnel is up (the stream closes with the screen).
+    val healthSignal by model.health.collectAsStateWithLifecycle()
+    LaunchedEffect(phase.isLive) {
+        if (phase.isLive) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.watchHealth() }
+    }
+    val link = rememberLinkHealth(healthSignal, info.healthCheck)
+    val shown = Shown(
+        link = link, errorDetail = if (phase == Phase.Error) ErrorDetail.clean(status.error) else null,
+        onChooseServer = { nav.openSection("servers", "profiles") },
+    )
+
+    LightField(markFor(phase, link), Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
             if (wide) {
                 Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StateCard(phase, onConnect, info)
+                        StateCard(phase, onConnect, info, shown)
                         QuickActionsRow(quick)
                     }
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -117,7 +131,7 @@ fun ConnectionScreen() {
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    StateCard(phase, onConnect, info)
+                    StateCard(phase, onConnect, info, shown)
                     Details(phase, info, traffic, ProbeUi(probeState, key, onRefresh), onChange = { nav.openSection("servers", "profiles") }, onStats = { nav.push("stats") })
                     QuickActionsRow(quick)
                 }
@@ -127,12 +141,15 @@ fun ConnectionScreen() {
 }
 
 @Composable
-private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo) {
+private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo, shown: Shown) {
     val env = LocalEnv.current
     val c = Lav.colors
     val stateText = stateLabel(phase)
     val noServer = info.loaded && info.server == null
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // A saved change the running tunnel does not have yet: here it is shown whether or not "later" was tapped.
+        RestartBanner(showWhenSnoozed = true)
+        if (phase == Phase.On && shown.link is LinkHealth.NoTraffic) NoTrafficBanner(shown.link.reason, shown.onChooseServer)
         if (info.error != null) {
             LavBanner(
                 StatusTone.Error, stringResource(R.string.core_err_t), text = stringResource(info.error.textRes()),
@@ -145,13 +162,15 @@ private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo)
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ReflectionMark(phase.mark, size = 120.dp)
+                ReflectionMark(markFor(phase, shown.link), size = 120.dp)
                 // The single live region of the screen: TalkBack announces the state when it changes.
                 LavText(
                     stateText, Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     style = Lav.type.h1, textAlign = TextAlign.Center,
                 )
-                LavText(stateSub(phase), style = Lav.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
+                LavText(stringResource(stateSubRes(phase, shown.link)), style = Lav.type.small, color = c.textSecondary, textAlign = TextAlign.Center)
+                // The reason the service reported, when it reported one (a plain short line, nothing from the core is trusted as markup).
+                shown.errorDetail?.let { LavText(it, style = Lav.type.mono, color = c.textTertiary, textAlign = TextAlign.Center) }
                 if (phase == Phase.Error || phase == Phase.NeedsPermission) {
                     LavText(stringResource(R.string.conn_try_again), style = Lav.type.small, color = c.textTertiary, textAlign = TextAlign.Center)
                 }
@@ -207,11 +226,14 @@ private fun Details(
     onStats: () -> Unit,
 ) {
     val fmt = rememberUnitFormat()
+    // What is saved but not in the running tunnel yet: the preset and DNS shown below are the saved ones.
+    val pending by LocalEnv.current.restart.state.collectAsStateWithLifecycle()
+    val running = phase.isLive
     if (info.server != null) ServerCard(info.server, onChange)
-    if (phase.isLive) ExitCard(probe.state, probe.key, info.server, fmt, probe.onRefresh)
+    if (running) ExitCard(probe.state, probe.key, info.server, fmt, probe.onRefresh, dnsPending = PendingReason.Dns in pending.reasons)
     TrafficCard(phase, info, traffic, fmt, onStats)
-    if (phase.isLive) LeakCard(probe.state, probe.key, probe.onRefresh)
-    if (info.preset != null) PresetRow(info.preset)
+    if (running) LeakCard(probe.state, probe.key, probe.onRefresh)
+    if (info.preset != null) PresetRow(info.preset, pending = running && PendingReason.Routing in pending.reasons)
 }
 
 /** The probe as the cards need it: its state, the connection it belongs to and the manual refresh. */
@@ -280,12 +302,16 @@ private fun ServerCard(server: ServerSummary, onChange: () -> Unit) {
 }
 
 @Composable
-private fun PresetRow(preset: PresetSummary) {
+private fun PresetRow(preset: PresetSummary, pending: Boolean) {
     val c = Lav.colors
     LavCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             LavText(stringResource(R.string.health_preset), style = Lav.type.small, color = c.textTertiary)
-            LavText(presetTitle(preset), Modifier.weight(1f).padding(start = 12.dp), style = Lav.type.bodyStrong, textAlign = TextAlign.End)
+            Column(Modifier.weight(1f).padding(start = 12.dp), horizontalAlignment = Alignment.End) {
+                LavText(presetTitle(preset), style = Lav.type.bodyStrong, textAlign = TextAlign.End)
+                // The tunnel still routes by the previous preset until the restart.
+                if (pending) LavText(stringResource(R.string.cx_pending_apply), style = Lav.type.caption, color = c.connectingText, textAlign = TextAlign.End)
+            }
         }
     }
 }
@@ -368,16 +394,8 @@ private fun stateLabel(phase: Phase): String = stringResource(
     },
 )
 
-@Composable
-private fun stateSub(phase: Phase): String = stringResource(
-    when (phase) {
-        Phase.Off -> R.string.conn_state_off_sub
-        Phase.Connecting, Phase.Disconnecting -> R.string.conn_state_connecting_sub
-        Phase.WaitingNetwork -> R.string.conn_state_off_sub
-        Phase.On -> R.string.conn_state_on_sub
-        Phase.NeedsPermission, Phase.Error -> R.string.conn_state_err_sub
-    },
-)
+/** What the state card needs beyond the phase: the core's word on traffic, the service's reason for a failure, the way out. */
+private class Shown(val link: LinkHealth, val errorDetail: String?, val onChooseServer: () -> Unit)
 
 /** Route preset name as on the desktop: brand names are not translated, built-in generic ones come from the dictionary. */
 @Composable

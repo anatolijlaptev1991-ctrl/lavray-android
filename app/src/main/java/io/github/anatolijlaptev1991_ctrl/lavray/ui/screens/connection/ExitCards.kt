@@ -47,7 +47,7 @@ private fun viewOf(state: ProbeState, key: String?): ProbeView {
 
 /** Exit address through the tunnel, the country of the server and the quality figures that were measured. */
 @Composable
-fun ExitCard(state: ProbeState, key: String?, server: ServerSummary?, fmt: UnitFormat, onRefresh: () -> Unit) {
+fun ExitCard(state: ProbeState, key: String?, server: ServerSummary?, fmt: UnitFormat, onRefresh: () -> Unit, dnsPending: Boolean = false) {
     val view = viewOf(state, key)
     val c = Lav.colors
     LavCard(Modifier.fillMaxWidth()) {
@@ -63,7 +63,7 @@ fun ExitCard(state: ProbeState, key: String?, server: ServerSummary?, fmt: UnitF
                 view.report != null -> LavText(stringResource(R.string.st_na), style = Lav.type.small, color = c.textSecondary)
                 else -> Checking()
             }
-            val rows = exitRows(server, view.report, fmt)
+            val rows = exitRows(server, view.report, fmt, dnsPending)
             if (rows.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { rows.forEach { (label, value) -> InfoRow(label, value) } }
             }
@@ -72,7 +72,7 @@ fun ExitCard(state: ProbeState, key: String?, server: ServerSummary?, fmt: UnitF
 }
 
 @Composable
-private fun exitRows(server: ServerSummary?, report: ExitReport?, fmt: UnitFormat): List<Pair<String, String>> {
+private fun exitRows(server: ServerSummary?, report: ExitReport?, fmt: UnitFormat, dnsPending: Boolean): List<Pair<String, String>> {
     val locale = LocalConfiguration.current.locales[0]
     val country = server?.geo?.let { code ->
         Geo.name(code, locale)?.let { name -> listOfNotNull(Geo.flag(code), name).joinToString(" ") }
@@ -80,7 +80,11 @@ private fun exitRows(server: ServerSummary?, report: ExitReport?, fmt: UnitForma
     return listOfNotNull(
         country?.let { stringResource(R.string.cx_country_server) to it },
         report?.latencyMs?.let { stringResource(R.string.health_latency) to fmt.latency(it) },
-        report?.dns?.let { stringResource(R.string.health_dns) to dnsText(it) },
+        report?.dns?.let {
+            // The label is the saved DNS; the tunnel still resolves by the previous one until the restart.
+            val value = if (dnsPending) dnsText(it) + " · " + stringResource(R.string.cx_pending_apply) else dnsText(it)
+            stringResource(R.string.health_dns) to value
+        },
     )
 }
 
