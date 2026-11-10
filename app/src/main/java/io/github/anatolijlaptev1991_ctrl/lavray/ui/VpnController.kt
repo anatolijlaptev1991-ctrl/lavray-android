@@ -41,6 +41,9 @@ class VpnController(context: Context) {
 
     val status: StateFlow<VpnStatus> = mutableStatus
 
+    // connect, reconnect and disconnect reach the service in the order they were called.
+    private val commands = SerialCalls<IVpnService>(scope) { ready.await() }
+
     private val observer = object : IVpnObserver.Stub() {
         override fun onStatus(state: Int, error: String?, detail: String?) {
             mutableStatus.value = VpnStatusWire.decode(state, error, detail)
@@ -96,7 +99,7 @@ class VpnController(context: Context) {
 
     /** profileId <= 0 connects the last server. */
     fun connect(profileId: Long = 0) {
-        scope.launch { runCatching { ready.await().connect(profileId) } }
+        commands.submit { it.connect(profileId) }
     }
 
     /**
@@ -104,11 +107,11 @@ class VpnController(context: Context) {
      * replaces it (at most 30 s). profileId <= 0 reconnects the last server. Prefer it to disconnect() then connect().
      */
     fun reconnect(profileId: Long = 0) {
-        scope.launch { runCatching { ready.await().reconnect(profileId) } }
+        commands.submit { it.reconnect(profileId) }
     }
 
     fun disconnect() {
-        scope.launch { runCatching { ready.await().disconnect() } }
+        commands.submit { it.disconnect() }
     }
 
     suspend fun isAutoConnectEnabled(): Boolean = withContext(Dispatchers.IO) { ready.await().isAutoConnectEnabled() }
@@ -135,7 +138,7 @@ class VpnController(context: Context) {
      * Keeps the :vpn process alive while a long operation that runs in the core (a backup restore) is under way, even if
      * the UI unbinds. [token] names the hold, [timeoutMs] is a hard cap (the service clamps it to 15 minutes).
      */
-    suspend fun beginBusy(token: String, timeoutMs: Long) = withContext(Dispatchers.IO) { ready.await().beginBusy(token, timeoutMs) }
+    suspend fun beginBusy(token: String, timeoutMs: Long): Boolean = withContext(Dispatchers.IO) { ready.await().beginBusy(token, timeoutMs) }
 
     suspend fun endBusy(token: String) = withContext(Dispatchers.IO) { ready.await().endBusy(token) }
 }
