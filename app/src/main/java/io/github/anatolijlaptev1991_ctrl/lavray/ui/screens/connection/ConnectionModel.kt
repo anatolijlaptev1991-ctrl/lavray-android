@@ -6,6 +6,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.GetProfileRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ListProfilesRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Page
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Profile
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.ProfileType
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.StatsSnapshot
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscribeStatsRequest
@@ -14,6 +15,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileGetProfile
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileListProfiles
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.routingGetActivePreset
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.statsSubscribe
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionListSubscriptions
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
@@ -31,7 +33,11 @@ import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 
 @Immutable
-data class ServerSummary(val id: Long, val name: String, val address: String, val port: Int, val type: ProfileType)
+data class ServerSummary(val id: Long, val name: String, val address: String, val port: Int, val type: ProfileType, val geo: String = "") {
+    companion object {
+        fun of(p: Profile) = ServerSummary(p.id, p.name, p.address, p.port, p.type, p.geo)
+    }
+}
 
 @Immutable
 data class PresetSummary(val id: String, val displayName: String)
@@ -44,6 +50,7 @@ data class ConnectionInfo(
     val preset: PresetSummary? = null,
     val startedAtMs: Long = 0L,
     val hasServers: Boolean = false,
+    val subscriptions: Int = 0,
     val error: ErrorKind? = null,
 )
 
@@ -90,13 +97,12 @@ class ConnectionModel(private val session: CoreSession, private val scope: Corou
             val first = session.call { profileListProfiles(ListProfilesRequest(page = Page(0L, 1))) }
             val hasServers = first is CoreResult.Ok && first.value.total > 0
             val wanted = if (live) st.activeProfileId ?: selectedId else selectedId
-            val server = loadServer(wanted) ?: (first as? CoreResult.Ok)?.value?.profiles?.firstOrNull()?.let {
-                ServerSummary(it.id, it.name, it.address, it.port, it.type)
-            }
+            val server = loadServer(wanted) ?: (first as? CoreResult.Ok)?.value?.profiles?.firstOrNull()?.let(ServerSummary::of)
+            val subscriptions = (session.call { subscriptionListSubscriptions() } as? CoreResult.Ok)?.value?.groups?.size ?: 0
             val preset = (session.call { routingGetActivePreset() } as? CoreResult.Ok)?.value?.let { PresetSummary(it.id, it.displayName) }
             mutable.value = ConnectionInfo(
                 loaded = true, server = server, preset = preset,
-                startedAtMs = if (live) st.startedAtMs ?: 0L else 0L, hasServers = hasServers,
+                startedAtMs = if (live) st.startedAtMs ?: 0L else 0L, hasServers = hasServers, subscriptions = subscriptions,
             )
         }
     }
@@ -104,8 +110,12 @@ class ConnectionModel(private val session: CoreSession, private val scope: Corou
     private suspend fun loadServer(id: Long): ServerSummary? {
         if (id <= 0) return null
         val r = session.call { profileGetProfile(GetProfileRequest(id)) }
-        return (r as? CoreResult.Ok)?.value?.let { ServerSummary(it.id, it.name, it.address, it.port, it.type) }
+        return (r as? CoreResult.Ok)?.value?.let(ServerSummary::of)
     }
+
+    /** Every server id, for "check servers"; empty when the core cannot be asked. */
+    suspend fun profileIds(): List<Long> =
+        (session.call { profileListProfiles(ListProfilesRequest()) } as? CoreResult.Ok)?.value?.profiles?.map { it.id }.orEmpty()
 
     /** Live speed and totals; completes with an empty reading when the core cannot be reached. */
     fun traffic(): Flow<TrafficReading> = flow {

@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,8 +46,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.rememberUnitFormat
 @Composable
 fun SubscriptionsScreen() {
     val env = LocalEnv.current
-    val scope = rememberCoroutineScope()
-    val model = remember(env) { SubscriptionsModel(env.session, scope, SubFailureStore(env.appContext)) }
+    val model = env.subscriptions
     val state by model.state.collectAsStateWithLifecycle()
     var sheet by remember { mutableStateOf<SubSheet?>(null) }
 
@@ -136,7 +134,7 @@ private fun Cards(state: SubscriptionsState, actions: CardActions) {
 }
 
 @Composable
-private fun EventToasts(model: SubscriptionsModel) {
+internal fun EventToasts(model: SubscriptionsModel) {
     val env = LocalEnv.current
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(model) {

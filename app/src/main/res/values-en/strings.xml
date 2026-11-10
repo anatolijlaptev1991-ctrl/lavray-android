@@ -180,8 +180,13 @@
     <string name="core_err_t">The core didn’t start</string>
     <string name="core_unavailable">Core unavailable — the app is not running or the core did not start</string>
     <string name="cx_add">Add server</string>
+    <string name="cx_country_server">Server country</string>
     <string name="cx_empty_d">Add a subscription or link from your provider, then connect.</string>
     <string name="cx_empty_t">No servers yet</string>
+    <string name="cx_exit_t">Exit point</string>
+    <string name="cx_leak_clear">No leak found: the address LAVRay sees directly differs from the one through the tunnel.</string>
+    <string name="cx_leak_unchecked">Not checked: one of the two addresses could not be measured this time.</string>
+    <string name="cx_probe_fail">This check did not complete just now.</string>
     <string name="da_json_invalid">The core did not accept this JSON. Fix it and check again.</string>
     <string name="dens_compact">Compact</string>
     <string name="dens_normal">Comfortable</string>
@@ -229,6 +234,9 @@
     <string name="grp_name">Group name</string>
     <string name="grp_rename">Rename</string>
     <string name="grp_title">Server groups</string>
+    <string name="health_dns">Remote DNS</string>
+    <string name="health_ip_refresh">Refresh public IP</string>
+    <string name="health_latency">Latency</string>
     <string name="health_preset">Route preset</string>
     <string name="imp_cam_allow">Allow camera</string>
     <string name="imp_cam_denied_d">The camera is used only to read QR codes. Allow it in the app settings or pick an image with a QR code.</string>
@@ -272,6 +280,7 @@
     <string name="leak_direct">Direct IP</string>
     <string name="leak_dns">DNS</string>
     <string name="leak_ipv6">IPv6</string>
+    <string name="leak_last">Checked: %1$s</string>
     <string name="leak_noLeak">no leaks</string>
     <string name="leak_off">Connect to check that no traffic bypasses the tunnel.</string>
     <string name="leak_run">Check</string>
@@ -369,6 +378,8 @@
     <string name="qr_title">Profile QR code</string>
     <string name="qr_tooLong">The link is too long for a QR code. Copy it and share it as text.</string>
     <string name="quick_import">Add server</string>
+    <string name="quick_subs">Refresh subscriptions</string>
+    <string name="quick_test">Test servers</string>
     <string name="ra_active">Active</string>
     <string name="ra_apply">Use this preset</string>
     <string name="ra_collapsed">Collapsed</string>
@@ -490,6 +501,7 @@
     <string name="srv_sort_default">Default order</string>
     <string name="srv_view">View</string>
     <string name="st_fail">error</string>
+    <string name="st_na">not checked</string>
     <string name="st_ok">OK</string>
     <string name="st_warn">warning</string>
     <string name="state_disconnecting">Disconnecting…</string>

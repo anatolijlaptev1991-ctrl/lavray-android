@@ -180,8 +180,13 @@
     <string name="core_err_t">Ядро не запустилось</string>
     <string name="core_unavailable">Ядро недоступно — приложение не запущено или ядро не поднялось</string>
     <string name="cx_add">Добавить сервер</string>
+    <string name="cx_country_server">Страна сервера</string>
     <string name="cx_empty_d">Добавьте подписку или ссылку от провайдера — и подключайтесь.</string>
     <string name="cx_empty_t">Пока нет серверов</string>
+    <string name="cx_exit_t">Точка выхода</string>
+    <string name="cx_leak_clear">Утечек не найдено: адрес, который LAVRay видит напрямую, отличается от адреса через туннель.</string>
+    <string name="cx_leak_unchecked">Не проверено: в этот раз не удалось измерить один из двух адресов.</string>
+    <string name="cx_probe_fail">Эта проверка сейчас не завершилась.</string>
     <string name="da_json_invalid">Ядро не приняло этот JSON. Исправьте его и проверьте ещё раз.</string>
     <string name="dens_compact">Компактная</string>
     <string name="dens_normal">Обычная</string>
@@ -229,6 +234,9 @@
     <string name="grp_name">Название группы</string>
     <string name="grp_rename">Переименовать</string>
     <string name="grp_title">Группы серверов</string>
+    <string name="health_dns">Удалённый DNS</string>
+    <string name="health_ip_refresh">Обновить внешний IP</string>
+    <string name="health_latency">Задержка</string>
     <string name="health_preset">Пресет маршрутов</string>
     <string name="imp_cam_allow">Разрешить камеру</string>
     <string name="imp_cam_denied_d">Камера нужна только для чтения QR-кодов. Разрешите её в настройках приложения или выберите изображение с QR-кодом.</string>
@@ -272,6 +280,7 @@
     <string name="leak_direct">Прямой IP</string>
     <string name="leak_dns">DNS</string>
     <string name="leak_ipv6">IPv6</string>
+    <string name="leak_last">Проверено: %1$s</string>
     <string name="leak_noLeak">утечек нет</string>
     <string name="leak_off">Подключитесь, чтобы проверить, не уходит ли трафик мимо туннеля.</string>
     <string name="leak_run">Проверить</string>
@@ -377,6 +386,8 @@
     <string name="qr_title">QR-код профиля</string>
     <string name="qr_tooLong">Ссылка слишком длинная для QR-кода. Скопируйте её и передайте текстом.</string>
     <string name="quick_import">Добавить сервер</string>
+    <string name="quick_subs">Обновить подписки</string>
+    <string name="quick_test">Проверить серверы</string>
     <string name="ra_active">Активен</string>
     <string name="ra_apply">Использовать этот пресет</string>
     <string name="ra_collapsed">Свёрнуто</string>
@@ -498,6 +509,7 @@
     <string name="srv_sort_default">По порядку</string>
     <string name="srv_view">Вид</string>
     <string name="st_fail">ошибка</string>
+    <string name="st_na">не проверено</string>
     <string name="st_ok">в порядке</string>
     <string name="st_warn">внимание</string>
     <string name="state_disconnecting">Отключение…</string>

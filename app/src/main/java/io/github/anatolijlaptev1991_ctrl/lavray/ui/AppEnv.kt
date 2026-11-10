@@ -14,8 +14,12 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.ImportModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ConnectionModel
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.CoreProbeBackend
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ExitProbe
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersModel
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubFailureStore
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +49,8 @@ class AppEnv(
     val servers: ServersModel by lazy { ServersModel(session, scope, vpn) }
     val importer: ImportModel by lazy { ImportModel(session, scope, servers) }
     val restart: RestartHub by lazy { RestartHub(session, scope) }
+    val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session)) }
+    val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext)) }
 
     /** Replaces the settings and saves them; the UI recomposes from the new immutable value. */
     fun update(change: (UiSettings) -> UiSettings) {

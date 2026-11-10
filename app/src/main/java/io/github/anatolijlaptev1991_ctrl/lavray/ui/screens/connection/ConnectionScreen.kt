@@ -14,7 +14,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +55,10 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.label
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.Role
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.TestLatencyRequest
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.EventToasts
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Connection: the mark in its state, connect or disconnect, the current server, the active route preset and
@@ -77,6 +82,23 @@ fun ConnectionScreen() {
     }.collectAsStateWithLifecycle(TrafficReading.Empty)
 
     val onConnect = { connect(info.server?.id ?: 0L) }
+    val owner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    val probe = env.exit
+    val probeState by probe.state.collectAsStateWithLifecycle()
+    val serverId = info.server?.id ?: 0L
+    val key = if (phase.isLive) probeKey(serverId, info.startedAtMs) else null
+    // One pass per connection, only while this screen is visible: leaving the screen or dropping the tunnel cancels it.
+    LaunchedEffect(key) {
+        if (key == null) {
+            probe.reset()
+            return@LaunchedEffect
+        }
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { probe.ensure(key, serverId) }
+    }
+    val onRefresh: () -> Unit = { if (key != null) scope.launch { probe.refresh(key, serverId) } }
+    val quick = rememberQuickActions(info, scope)
+
     LightField(phase.mark, Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp
@@ -84,9 +106,10 @@ fun ConnectionScreen() {
                 Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         StateCard(phase, onConnect, info)
+                        QuickActionsRow(quick)
                     }
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Details(phase, info, traffic, onChange = { nav.openSection("servers", "profiles") }, onStats = { nav.push("stats") })
+                        Details(phase, info, traffic, ProbeUi(probeState, key, onRefresh), onChange = { nav.openSection("servers", "profiles") }, onStats = { nav.push("stats") })
                     }
                 }
             } else {
@@ -95,7 +118,8 @@ fun ConnectionScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     StateCard(phase, onConnect, info)
-                    Details(phase, info, traffic, onChange = { nav.openSection("servers", "profiles") }, onStats = { nav.push("stats") })
+                    Details(phase, info, traffic, ProbeUi(probeState, key, onRefresh), onChange = { nav.openSection("servers", "profiles") }, onStats = { nav.push("stats") })
+                    QuickActionsRow(quick)
                 }
             }
         }
@@ -178,13 +202,55 @@ private fun Details(
     phase: Phase,
     info: ConnectionInfo,
     traffic: TrafficReading,
+    probe: ProbeUi,
     onChange: () -> Unit,
     onStats: () -> Unit,
 ) {
     val fmt = rememberUnitFormat()
     if (info.server != null) ServerCard(info.server, onChange)
-    if (info.preset != null) PresetRow(info.preset)
+    if (phase.isLive) ExitCard(probe.state, probe.key, info.server, fmt, probe.onRefresh)
     TrafficCard(phase, info, traffic, fmt, onStats)
+    if (phase.isLive) LeakCard(probe.state, probe.key, probe.onRefresh)
+    if (info.preset != null) PresetRow(info.preset)
+}
+
+/** The probe as the cards need it: its state, the connection it belongs to and the manual refresh. */
+private class ProbeUi(val state: ProbeState, val key: String?, val onRefresh: () -> Unit)
+
+private class QuickState(
+    val testing: Boolean, val progress: String?, val updatingSubs: Boolean, val info: ConnectionInfo,
+    val onTest: () -> Unit, val onAdd: () -> Unit, val onSubs: () -> Unit,
+)
+
+@Composable
+private fun rememberQuickActions(info: ConnectionInfo, scope: kotlinx.coroutines.CoroutineScope): QuickState {
+    val env = LocalEnv.current
+    val servers by env.servers.state.collectAsStateWithLifecycle()
+    var subsAsked by remember { mutableStateOf(false) }
+    // The subscriptions model is built (and its events heard) only after the person asks for an update.
+    var updating = false
+    if (subsAsked) {
+        EventToasts(env.subscriptions)
+        updating = env.subscriptions.state.collectAsStateWithLifecycle().value.isBusy
+    }
+    val test = servers.test
+    return QuickState(
+        testing = test.running,
+        progress = if (test.running) stringResource(R.string.test_progress, test.done.toString(), test.total.toString()) else null,
+        updatingSubs = updating, info = info,
+        onTest = { scope.launch { env.servers.startTest(env.connection.profileIds(), TestLatencyRequest.Mode.MODE_TCP_PING) } },
+        onAdd = { env.importer.open(tab = ImportTab.Link) },
+        onSubs = { subsAsked = true; env.subscriptions.updateAll() },
+    )
+}
+
+@Composable
+private fun QuickActionsRow(q: QuickState) {
+    QuickActions(
+        testing = q.testing, testProgress = q.progress, updatingSubs = q.updatingSubs,
+        canTest = q.info.hasServers, canUpdateSubs = q.info.subscriptions > 0,
+        onTest = q.onTest, onAdd = q.onAdd, onSubs = q.onSubs,
+    )
 }
 
 @Composable

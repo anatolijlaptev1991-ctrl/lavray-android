@@ -180,8 +180,13 @@
     <string name="core_err_t">Der Core ist nicht gestartet</string>
     <string name="core_unavailable">Core nicht verfügbar — die App läuft nicht oder der Core startete nicht</string>
     <string name="cx_add">Server hinzufügen</string>
+    <string name="cx_country_server">Land des Servers</string>
     <string name="cx_empty_d">Füge ein Abo oder einen Link deines Anbieters hinzu und verbinde dich.</string>
     <string name="cx_empty_t">Noch keine Server</string>
+    <string name="cx_exit_t">Ausgangspunkt</string>
+    <string name="cx_leak_clear">Kein Leck gefunden: Die Adresse, die LAVRay direkt sieht, unterscheidet sich von der durch den Tunnel.</string>
+    <string name="cx_leak_unchecked">Nicht geprüft: Eine der beiden Adressen konnte diesmal nicht gemessen werden.</string>
+    <string name="cx_probe_fail">Diese Prüfung ist gerade nicht abgeschlossen worden.</string>
     <string name="da_json_invalid">Der Kern hat dieses JSON nicht akzeptiert. Korrigieren Sie es und prüfen Sie erneut.</string>
     <string name="dens_compact">Kompakt</string>
     <string name="dens_normal">Normal</string>
@@ -229,6 +234,9 @@
     <string name="grp_name">Gruppenname</string>
     <string name="grp_rename">Umbenennen</string>
     <string name="grp_title">Servergruppen</string>
+    <string name="health_dns">Remote-DNS</string>
+    <string name="health_ip_refresh">Öffentliche IP aktualisieren</string>
+    <string name="health_latency">Latenz</string>
     <string name="health_preset">Routing-Preset</string>
     <string name="imp_cam_allow">Kamera erlauben</string>
     <string name="imp_cam_denied_d">Die Kamera dient nur zum Lesen von QR-Codes. Erlaube sie in den App-Einstellungen oder wähle ein Bild mit QR-Code.</string>
@@ -272,6 +280,7 @@
     <string name="leak_direct">Direkte IP</string>
     <string name="leak_dns">DNS</string>
     <string name="leak_ipv6">IPv6</string>
+    <string name="leak_last">Geprüft: %1$s</string>
     <string name="leak_noLeak">keine Lecks</string>
     <string name="leak_off">Verbinde dich, um zu prüfen, dass nichts am Tunnel vorbeiläuft.</string>
     <string name="leak_run">Prüfen</string>
@@ -369,6 +378,8 @@
     <string name="qr_title">QR-Code des Profils</string>
     <string name="qr_tooLong">Der Link ist für einen QR-Code zu lang. Kopieren Sie ihn und geben Sie ihn als Text weiter.</string>
     <string name="quick_import">Server hinzufügen</string>
+    <string name="quick_subs">Abos aktualisieren</string>
+    <string name="quick_test">Server testen</string>
     <string name="ra_active">Aktiv</string>
     <string name="ra_apply">Dieses Preset verwenden</string>
     <string name="ra_collapsed">Zugeklappt</string>
@@ -490,6 +501,7 @@
     <string name="srv_sort_default">Standardreihenfolge</string>
     <string name="srv_view">Ansicht</string>
     <string name="st_fail">Fehler</string>
+    <string name="st_na">nicht geprüft</string>
     <string name="st_ok">in Ordnung</string>
     <string name="st_warn">Achtung</string>
     <string name="state_disconnecting">Trennen …</string>

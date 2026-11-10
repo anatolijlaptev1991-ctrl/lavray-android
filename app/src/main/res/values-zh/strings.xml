@@ -180,8 +180,13 @@
     <string name="core_err_t">内核未能启动</string>
     <string name="core_unavailable">内核不可用 — 应用未运行或内核未能启动</string>
     <string name="cx_add">添加服务器</string>
+    <string name="cx_country_server">服务器所在国家</string>
     <string name="cx_empty_d">添加服务商的订阅或链接，即可连接。</string>
     <string name="cx_empty_t">还没有服务器</string>
+    <string name="cx_exit_t">出口</string>
+    <string name="cx_leak_clear">未发现泄漏：LAVRay 直接看到的地址与通过隧道看到的地址不同。</string>
+    <string name="cx_leak_unchecked">未检查：这次没能测得两个地址中的一个。</string>
+    <string name="cx_probe_fail">这项检查刚才没有完成。</string>
     <string name="da_json_invalid">核心不接受此 JSON。请修正后重新检查。</string>
     <string name="dens_compact">紧凑</string>
     <string name="dens_normal">舒适</string>
@@ -229,6 +234,9 @@
     <string name="grp_name">分组名称</string>
     <string name="grp_rename">重命名</string>
     <string name="grp_title">服务器分组</string>
+    <string name="health_dns">远程 DNS</string>
+    <string name="health_ip_refresh">刷新公网 IP</string>
+    <string name="health_latency">延迟</string>
     <string name="health_preset">路由预设</string>
     <string name="imp_cam_allow">允许使用相机</string>
     <string name="imp_cam_denied_d">相机仅用于读取二维码。请在应用设置中允许使用，或选择含二维码的图片。</string>
@@ -272,6 +280,7 @@
     <string name="leak_direct">直连 IP</string>
     <string name="leak_dns">DNS</string>
     <string name="leak_ipv6">IPv6</string>
+    <string name="leak_last">已检查：%1$s</string>
     <string name="leak_noLeak">无泄露</string>
     <string name="leak_off">连接后可检查是否有流量绕过隧道。</string>
     <string name="leak_run">检查</string>
@@ -365,6 +374,8 @@
     <string name="qr_title">配置二维码</string>
     <string name="qr_tooLong">链接太长，无法生成二维码。请复制后以文本形式分享。</string>
     <string name="quick_import">添加服务器</string>
+    <string name="quick_subs">更新订阅</string>
+    <string name="quick_test">测试服务器</string>
     <string name="ra_active">已启用</string>
     <string name="ra_apply">使用此预设</string>
     <string name="ra_collapsed">已折叠</string>
@@ -486,6 +497,7 @@
     <string name="srv_sort_default">默认顺序</string>
     <string name="srv_view">视图</string>
     <string name="st_fail">错误</string>
+    <string name="st_na">未检测</string>
     <string name="st_ok">正常</string>
     <string name="st_warn">注意</string>
     <string name="state_disconnecting">正在断开…</string>
