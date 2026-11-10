@@ -600,10 +600,6 @@
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">El MTU debe ir de 1280 a 9000</string>
     <string name="tun_mtu_d">Paquete más grande que lleva el túnel. Bájalo si algunos sitios se cuelgan y otros no.</string>
-    <string name="tun_stack">Pila</string>
-    <string name="tun_stack_d">La del sistema es más rápida, gVisor más compatible; la mixta usa TCP del sistema y UDP de gVisor</string>
-    <string name="tun_stack_mixed">Mixta</string>
-    <string name="tun_stack_sys">Del sistema</string>
     <string name="u_b">B/s</string>
     <string name="u_gb">GB/s</string>
     <string name="u_kb">KB/s</string>

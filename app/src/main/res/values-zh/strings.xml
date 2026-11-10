@@ -596,10 +596,6 @@
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">MTU 须在 1280–9000 之间</string>
     <string name="tun_mtu_d">隧道可传输的最大数据包。如果部分网站卡住而其他正常，请调低。</string>
-    <string name="tun_stack">协议栈</string>
-    <string name="tun_stack_d">系统更快，gVisor 兼容性更好；混合模式 TCP 用系统、UDP 用 gVisor</string>
-    <string name="tun_stack_mixed">混合</string>
-    <string name="tun_stack_sys">系统</string>
     <string name="u_b">B/秒</string>
     <string name="u_gb">GB/秒</string>
     <string name="u_kb">KB/秒</string>

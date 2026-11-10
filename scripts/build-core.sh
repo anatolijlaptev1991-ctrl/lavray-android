@@ -53,6 +53,9 @@ find_ndk() {
 # copy changes; arm64 and arm never issued these calls, so the rewrite is a no-op there.
 patch_libc() {
   local src
+  # `go list -m` leaves .Dir empty for a module that is not in the cache yet (a clean CI runner),
+  # so the module is downloaded first; with a warm cache this is a no-op and needs no network.
+  (cd "$COPY" && GOFLAGS=-mod=mod go mod download modernc.org/libc)
   src="$(cd "$COPY" && GOFLAGS=-mod=mod go list -m -f '{{.Dir}}' modernc.org/libc)"
   [ -f "$src/syscall_musl.go" ] || { echo "нет syscall_musl.go в $src (libc обновлён?)" >&2; exit 1; }
   rm -rf "$LIBC"

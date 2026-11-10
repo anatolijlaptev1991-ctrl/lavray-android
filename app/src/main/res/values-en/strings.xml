@@ -600,10 +600,6 @@
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">MTU must be from 1280 to 9000</string>
     <string name="tun_mtu_d">Largest packet the tunnel carries. Lower it if some sites hang while others work.</string>
-    <string name="tun_stack">Stack</string>
-    <string name="tun_stack_d">System is faster, gVisor is more compatible; mixed uses system TCP and gVisor UDP</string>
-    <string name="tun_stack_mixed">Mixed</string>
-    <string name="tun_stack_sys">System</string>
     <string name="u_b">B/s</string>
     <string name="u_gb">GB/s</string>
     <string name="u_kb">KB/s</string>

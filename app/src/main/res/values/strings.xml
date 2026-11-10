@@ -608,10 +608,6 @@
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">MTU — от 1280 до 9000</string>
     <string name="tun_mtu_d">Наибольший пакет туннеля. Уменьшите, если одни сайты зависают, а другие открываются.</string>
-    <string name="tun_stack">Стек</string>
-    <string name="tun_stack_d">Системный быстрее, gVisor совместимее; смешанный — TCP системно, UDP через gVisor</string>
-    <string name="tun_stack_mixed">Смешанный</string>
-    <string name="tun_stack_sys">Системный</string>
     <string name="u_b">Б/с</string>
     <string name="u_gb">ГБ/с</string>
     <string name="u_kb">КБ/с</string>
