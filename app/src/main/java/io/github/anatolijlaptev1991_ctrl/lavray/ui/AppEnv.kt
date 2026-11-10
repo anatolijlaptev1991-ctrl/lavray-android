@@ -118,7 +118,9 @@ class AppEnv(
                 toast.show(appContext.getString(R.string.bk_done))
             },
             hold = object : ServiceHold {
-                override suspend fun begin(token: String, timeoutMs: Long) = controller.beginBusy(token, timeoutMs)
+                // False means the service could not keep itself alive: the same as a failed call, the restore must not run.
+                override suspend fun begin(token: String, timeoutMs: Long) =
+                    check(controller.beginBusy(token, timeoutMs)) { "the service refused the hold" }
                 override suspend fun end(token: String) = controller.endBusy(token)
             },
         )

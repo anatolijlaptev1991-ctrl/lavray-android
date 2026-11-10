@@ -66,6 +66,20 @@ class VpnController(context: Context) {
             ready = CompletableDeferred()
             mutableStatus.value = VpnStatus.IDLE
         }
+
+        // The binding itself is dead (the service's package was replaced, or its process was killed in a way the
+        // system does not reconnect): onServiceConnected will not come again for it, so bind anew.
+        override fun onBindingDied(name: ComponentName) {
+            onServiceDisconnected(name)
+            rebind()
+        }
+    }
+
+    private fun rebind() {
+        if (!bound) return
+        runCatching { app.unbindService(connection) }
+        bound = false
+        bind()
     }
 
     fun bind() {
