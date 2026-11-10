@@ -150,7 +150,8 @@ private fun Counts(active: Int, closed: Int, truncated: Boolean) {
 private fun ConnectionList(active: List<ConnRow>, closed: List<ConnRow>, nowMs: Long, fmt: UnitFormat, onOpen: (ConnRow) -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         items(active, key = { "a" + it.id }, contentType = { "row" }) { ConnListRow(it, nowMs, fmt, onOpen) }
-        items(closed, key = { "c" + it.id }, contentType = { "row" }) { ConnListRow(it, nowMs, fmt, onOpen) }
+        // A closed row has a fixed duration: it gets a constant instead of the moving clock, so it is not recomposed every tick.
+        items(closed, key = { "c" + it.id }, contentType = { "row" }) { ConnListRow(it, it.clockFor(nowMs), fmt, onOpen) }
     }
 }
 
