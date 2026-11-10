@@ -15,14 +15,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
@@ -62,6 +65,7 @@ fun LavNavRail(items: List<NavItem>, selectedId: String, onSelect: (String) -> U
 }
 
 private val IntrinsicHeight56 = 64.dp
+private const val NAV_MAX_FONT_SCALE = 1.3f
 
 @Composable
 private fun NavEntry(item: NavItem, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
@@ -77,16 +81,21 @@ private fun NavEntry(item: NavItem, selected: Boolean, onClick: () -> Unit, modi
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Box(
-            Modifier.width(56.dp).height(28.dp).background(if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent, shape),
+            Modifier.widthIn(max = 56.dp).fillMaxWidth().height(28.dp).background(if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent, shape),
             contentAlignment = Alignment.Center,
         ) { LavIconView(item.icon, if (selected) c.accent else c.textTertiary, size = 20.dp) }
-        LavText(
-            item.label,
-            Modifier.widthIn(max = 80.dp),
-            style = if (selected) Lav.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) else Lav.type.caption,
-            color = if (selected) c.textPrimary else c.textTertiary,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-        )
+        // Five labels share the width of the phone: at 200 % text size they would all end in an ellipsis, so the
+        // label grows to 130 % at most (the TalkBack name is unaffected) like the system navigation bar.
+        val density = LocalDensity.current
+        CompositionLocalProvider(LocalDensity provides Density(density.density, minOf(density.fontScale, NAV_MAX_FONT_SCALE))) {
+            LavText(
+                item.label,
+                Modifier.fillMaxWidth(),
+                style = if (selected) Lav.type.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) else Lav.type.caption,
+                color = if (selected) c.textPrimary else c.textTertiary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

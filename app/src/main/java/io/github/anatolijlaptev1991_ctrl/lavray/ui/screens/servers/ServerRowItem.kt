@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -79,10 +80,11 @@ fun ServerRowItem(
         if (flags.selecting) CheckMark(flags.checked)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             LavText(row.name, style = Lav.type.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // A flow, not a row: with a large font the address drops under the badge instead of shrinking to "1…".
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 LavBadge(row.type.label())
                 if (!flags.compact) {
-                    LavText("${row.address}:${row.port}", Modifier.weight(1f, fill = false), style = Lav.type.mono.copy(fontSize = Lav.type.caption.fontSize), color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    LavText("${row.address}:${row.port}", style = Lav.type.mono.copy(fontSize = Lav.type.caption.fontSize), color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (flags.active) {

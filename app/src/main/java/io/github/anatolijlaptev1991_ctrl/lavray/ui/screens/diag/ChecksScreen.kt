@@ -7,6 +7,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -78,9 +79,17 @@ private fun ErrorBanner(kind: ErrorKind) {
 
 @Composable
 private fun CardHeader(icon: LavIcon, title: String, action: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        LavIconView(icon, Lav.colors.textSecondary, size = 20.dp)
-        LavText(title, Modifier.weight(1f), style = Lav.type.h2)
+    // A flow: with a large font the button drops under the title instead of squeezing it into one word per line.
+    FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LavIconView(icon, Lav.colors.textSecondary, size = 20.dp)
+            LavText(title, style = Lav.type.h2)
+        }
         action?.invoke()
     }
 }

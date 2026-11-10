@@ -4,6 +4,7 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -199,8 +200,9 @@ private fun ServerCard(server: ServerSummary, onChange: () -> Unit) {
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 LavText(stringResource(R.string.srv_current), style = Lav.type.caption, color = c.textTertiary)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LavText(server.name, Modifier.weight(1f, fill = false), style = Lav.type.h2, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                // A flow: with a large font the badge drops under the name instead of cutting the name to one letter per line.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    LavText(server.name, style = Lav.type.h2, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     LavBadge(server.type.label())
                 }
                 LavText("${server.address}:${server.port}", style = Lav.type.mono, color = c.textTertiary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)

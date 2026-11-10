@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.Composable
@@ -109,7 +110,9 @@ fun AppShell() {
             ) {
                 Header(state, navigator)
                 Box(
-                    Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.ime)
+                    Modifier.weight(1f).fillMaxWidth()
+                        // Without the bottom bar (pushed screens, the rail, the keyboard) the content must clear the system gesture bar itself.
+                        .windowInsetsPadding(if (!wide && showNav) WindowInsets.ime else WindowInsets.ime.union(WindowInsets.navigationBars))
                         .graphicsLayer {
                             val p = backProgress.floatValue
                             val s = 1f - 0.08f * p
