@@ -36,8 +36,9 @@ func prepareEnv(o *Options) error {
 
 // applyMemoryLimit — мягкий предел памяти Go (debug.SetMemoryLimit): при его
 // приближении сборщик мусора работает чаще, а фоновый scavenger возвращает
-// страницы системе. 0 снимает предел. GOGC остаётся 100: числа подбираются
-// замерами (docs/MEASUREMENTS.md), а не здесь.
+// страницы системе. 0 снимает предел. Замеры docs/MEASUREMENTS.md: предел 64 МБ и GOGC=50
+// память :vpn не уменьшили (куча Go около 8 МБ из 69 МБ PSS) и чуть снизили скорость,
+// поэтому приложение передаёт 0, а GOGC остаётся 100.
 func applyMemoryLimit(mb int32) {
 	if mb <= 0 {
 		debug.SetMemoryLimit(math.MaxInt64)

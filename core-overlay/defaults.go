@@ -18,8 +18,15 @@ import (
 
 // androidSettingDefaults — ключ → JSON-значение, записываемое, пока пользователь
 // ключ не задавал.
+// tun.impl=1 (gVisor) и tun.mtu=9000 выбраны замерами docs/MEASUREMENTS.md: из рабочих сочетаний
+// это самое быстрое и дешёвое по процессору (MTU 1500 в 3–4 раза дороже на гигабайт). Стеки
+// system и mixed на телефоне не работают, пока приложение исключено из VPN (addDisallowedApplication):
+// ответы системного TCP-сокета ядра уходят мимо туннеля. Значения закреплены явно, чтобы смена
+// умолчаний десктопа не меняла телефон.
 var androidSettingDefaults = map[string]string{
 	"sub.use_proxy": "false",
+	"tun.impl":      "1",
+	"tun.mtu":       "9000",
 }
 
 // applyAndroidDefaults записывает недостающие значения; заданные не трогает.
