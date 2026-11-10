@@ -145,6 +145,7 @@ fun SubErrorKind.textRes(): Int = when (this) {
     SubErrorKind.NotFound -> R.string.sub_err_notFound
     SubErrorKind.Timeout -> R.string.sub_err_timeout
     SubErrorKind.Zero -> R.string.sub_err_zero
+    SubErrorKind.Format -> R.string.sub_err_format
     SubErrorKind.Generic -> R.string.sub_err_generic
 }
 

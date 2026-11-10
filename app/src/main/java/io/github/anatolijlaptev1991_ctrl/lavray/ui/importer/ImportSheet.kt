@@ -29,6 +29,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.anatolijlaptev1991_ctrl.lavray.R
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.AppEnv
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.LocalEnv
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
@@ -50,6 +51,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ImportHost() {
     val env = LocalEnv.current
+    val nav = LocalNavigator.current
     val model = env.importer
     val ui by model.ui.collectAsStateWithLifecycle()
     val owner = LocalLifecycleOwner.current
@@ -57,10 +59,11 @@ fun ImportHost() {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             model.events.collect { e ->
                 val ctx = env.appContext
+                val toSubscriptions = { nav.openSection("servers", "subscriptions") }
                 when (e) {
-                    is ImportEvent.Imported -> env.toast.show(
-                        if (e.count > 0) ctx.getString(R.string.toast_imported, e.count.toString()) else ctx.getString(R.string.toast_saved),
-                    )
+                    is ImportEvent.Done -> env.showImportToast(e.report.toastText(ctx), toSubscriptions.takeIf { e.report is ImportReport.SubscriptionConfirm })
+                    is ImportEvent.NotDone -> env.showImportToast(e.problem.toastText(ctx), toSubscriptions.takeIf { e.problem is ImportProblem.NotFetched })
+                    is ImportEvent.Failed -> env.showImportToast(ctx.getString(e.kind.textRes()), null)
                 }
             }
         }
@@ -68,8 +71,14 @@ fun ImportHost() {
     if (ui.open) ImportSheet(ui, model)
 }
 
+/** The toast of an import; with [openSubscriptions] it carries the way to the screen where the person goes on. */
+private fun AppEnv.showImportToast(text: String, openSubscriptions: (() -> Unit)?) {
+    if (openSubscriptions == null) toast.show(text) else toast.show(text, appContext.getString(R.string.imp_p_open), openSubscriptions)
+}
+
 @Composable
 private fun ImportSheet(ui: ImportUi, model: ImportModel) {
+    val nav = LocalNavigator.current
     LavSheet(stringResource(R.string.imp_title), onDismiss = model::close) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LavChip(stringResource(R.string.imp_tab_link), ui.tab == ImportTab.Link, { model.selectTab(ImportTab.Link) }, icon = LavIcon.Link)
@@ -83,13 +92,16 @@ private fun ImportSheet(ui: ImportUi, model: ImportModel) {
         }
         ui.note?.let { NoteBanner(it) }
         Preview(ui)
+        ui.previewError?.let { PreviewErrorBanner(it) }
+        if (ui.busy) Working()
+        ui.problem?.let { p -> ProblemBanner(p) { model.close(); nav.openSection("servers", "subscriptions") } }
         ui.error?.let { kind ->
             LavBanner(StatusTone.Error, ui.errorLine?.let { stringResource(R.string.imp_err_line, it.toString()) } ?: stringResource(kind.textRes()))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End)) {
             LavButton(stringResource(R.string.common_cancel), model::close, variant = ButtonVariant.Ghost)
             LavButton(
-                stringResource(R.string.imp_do), { model.submit(null) },
+                stringResource(if (ui.preview?.isSubscription == true) R.string.subs_add else R.string.imp_do), { model.submit(null) },
                 variant = ButtonVariant.Primary, loading = ui.busy, enabled = ui.canSubmit,
             )
         }
@@ -182,7 +194,19 @@ private fun NoteBanner(note: ImportNote) {
 }
 
 @Composable
+private fun Working() {
+    val subs by LocalEnv.current.subscriptions.state.collectAsStateWithLifecycle()
+    WorkingLine(fetching = subs.isBusy, phase = subs.progress.phase)
+}
+
+@Composable
 private fun Preview(ui: ImportUi) {
+    val core = ui.preview
+    if (core != null) {
+        CoreSummary(core, ui.input)
+        (ui.input as? ImportInput.Links)?.issues?.forEach { IssueBanner(it, othersStay = core.count > 0) }
+        return
+    }
     when (val input = ui.input) {
         ImportInput.Empty -> Unit
         ImportInput.Unrecognized -> if (ui.payload.isNotBlank()) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_unrecognized))
@@ -198,7 +222,7 @@ private fun Preview(ui: ImportUi) {
             input.issues.forEach { IssueBanner(it, othersStay = input.readable > 0) }
         }
         is ImportInput.SubscriptionUrl -> {
-            LavText(stringResource(R.string.imp_prev_subUrl), style = Lav.type.bodyStrong)
+            LavText(stringResource(R.string.imp_pv_sub), style = Lav.type.bodyStrong)
             if (input.insecure) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_httpWarn))
         }
         is ImportInput.EncryptedLink -> LavText(stringResource(R.string.onb_src_happ_d), style = Lav.type.bodyStrong)

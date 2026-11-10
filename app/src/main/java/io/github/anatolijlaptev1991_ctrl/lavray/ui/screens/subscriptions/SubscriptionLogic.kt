@@ -4,8 +4,11 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions
 import androidx.compose.runtime.Immutable
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscriptionProgress
 
-/** The wording of a failed update; the dictionary text for each is picked by the screen. */
-enum class SubErrorKind { Auth, NotFound, Timeout, Zero, Generic }
+/**
+ * The wording of a failed update; the dictionary text for each is picked by the screen. [Format] is an answer that is
+ * not a list of servers (a provider's stub page, an unknown format).
+ */
+enum class SubErrorKind { Auth, NotFound, Timeout, Zero, Format, Generic }
 
 /**
  * Last failed update of one subscription: a short code (an HTTP status, "timeout", "zero", "error"), its kind and when
@@ -42,7 +45,9 @@ object SubscriptionLogic {
 
     private val httpStatus = Regex("""HTTP\s+(\d{3})""", RegexOption.IGNORE_CASE)
     private val leadingStatus = Regex("""^(\d{3})\b""")
-    private val zeroServers = Regex("0 (профил|сервер|профилей|profile|server)|zero", RegexOption.IGNORE_CASE)
+    private val zeroServers = Regex("0 (профил|сервер|профилей|profile|server)|zero|пустой ответ|список профилей пуст", RegexOption.IGNORE_CASE)
+    private val notServers = Regex("заглушк|html stub|формат подписки не распознан|не распознано ни одного|не распознан", RegexOption.IGNORE_CASE)
+    private val skippedLines = Regex("""не разобрано строк ответа:\s*(\d+)""")
     private val timeout = Regex("timeout|deadline|не ответил|timed out", RegexOption.IGNORE_CASE)
 
     /**
@@ -59,6 +64,7 @@ object SubscriptionLogic {
             Regex("not found", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "404"
             timeout.containsMatchIn(s) -> "timeout"
             zeroServers.containsMatchIn(s) -> "zero"
+            notServers.containsMatchIn(s) -> "format"
             else -> SubFailure.GENERIC_CODE
         }
     }
@@ -68,7 +74,34 @@ object SubscriptionLogic {
         "404" -> SubErrorKind.NotFound
         "timeout" -> SubErrorKind.Timeout
         "zero" -> SubErrorKind.Zero
+        "format" -> SubErrorKind.Format
         else -> SubErrorKind.Generic
+    }
+
+    /**
+     * The count in the core's note on a finished update ("не разобрано строк ответа: N"), null when it names none.
+     * The core words the note in Russian and has no field for the number, so this is the one place that reads it.
+     */
+    fun skippedLinesOf(detail: String?): Int? = detail?.let { skippedLines.find(it)?.groupValues?.get(1)?.toIntOrNull() }?.takeIf { it > 0 }
+
+    /**
+     * Two addresses of one subscription: the scheme and the host do not depend on case, a lone trailing slash is no
+     * part of the address. The path and the query do (a token is case sensitive).
+     */
+    fun sameUrl(a: String?, b: String?): Boolean {
+        val x = normalizedUrl(a)
+        return x.isNotEmpty() && x == normalizedUrl(b)
+    }
+
+    private fun normalizedUrl(url: String?): String {
+        val s = url?.trim().orEmpty()
+        val schemeEnd = s.indexOf("://")
+        if (schemeEnd < 0) return s
+        val rest = s.substring(schemeEnd + 3)
+        val hostEnd = rest.indexOfFirst { it == '/' || it == '?' || it == '#' }.let { if (it < 0) rest.length else it }
+        val tail = rest.substring(hostEnd)
+        val cleanTail = if (tail == "/") "" else tail
+        return s.substring(0, schemeEnd).lowercase() + "://" + rest.substring(0, hostEnd).lowercase() + cleanTail
     }
 
     fun failureOf(raw: String, atMs: Long = 0L): SubFailure = SubFailure.fromCode(errorCode(raw), atMs)

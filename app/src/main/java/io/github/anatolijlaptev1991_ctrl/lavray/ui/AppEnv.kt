@@ -47,7 +47,7 @@ class AppEnv(
 
     val connection: ConnectionModel by lazy { ConnectionModel(session, scope) }
     val servers: ServersModel by lazy { ServersModel(session, scope, vpn) }
-    val importer: ImportModel by lazy { ImportModel(session, scope, servers) }
+    val importer: ImportModel by lazy { ImportModel(session, scope, subscriptions, { servers.refresh() }) }
     val restart: RestartHub by lazy { RestartHub(session, scope) }
     val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session)) }
     val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext)) }

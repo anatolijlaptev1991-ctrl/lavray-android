@@ -6,17 +6,23 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
+/** Where the last failure of each subscription is kept; the store in the app, memory in tests. */
+interface SubFailureStorage {
+    fun load(): Map<Long, SubFailure>
+    fun save(failures: Map<Long, SubFailure>)
+}
+
 /**
  * Remembers the last failed update of each subscription, because the core group has no field for it
  * (desktop keeps it in local storage). Only a short code is stored, never the provider's text: it can
  * contain the link with its token.
  */
-class SubFailureStore(context: Context) {
+class SubFailureStore(context: Context) : SubFailureStorage {
     private val prefs by lazy { context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE) }
 
-    fun load(): Map<Long, SubFailure> = decode(prefs.getString(KEY, null))
+    override fun load(): Map<Long, SubFailure> = decode(prefs.getString(KEY, null))
 
-    fun save(failures: Map<Long, SubFailure>) {
+    override fun save(failures: Map<Long, SubFailure>) {
         prefs.edit().putString(KEY, encode(failures)).apply()
     }
 

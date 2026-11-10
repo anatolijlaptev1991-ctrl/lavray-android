@@ -2,7 +2,6 @@
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions
 
 import io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CreateSubscriptionRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.DeleteSubscriptionRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.GetSettingsRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Group
@@ -20,7 +19,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileListProfiles
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileUpdateGroup
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsGetSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsSetSettings
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionCreateSubscription
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionDeleteSubscription
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionListSubscriptions
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionRollbackSubscription
@@ -63,12 +61,26 @@ sealed interface SubscriptionsEvent {
 /** Settings shared by all subscriptions that the per-subscription sheet shows. */
 data class SharedSubSettings(val hwid: Boolean, val tunnel: Boolean)
 
-/** How one single-subscription update ended, collected while its stream ran. */
+/** What a single-subscription update stream said, collected while it ran and turned into a [FetchResult] at its end. */
 private class UpdateOutcome {
     var done = false
     var wouldRemove: Int? = null
     var failure: SubFailure? = null
     var coreProblem: ErrorKind? = null
+    var added = 0
+    var removed = 0
+    var total = 0
+    var detail: String? = null
+
+    fun toResult(): FetchResult {
+        val ask = wouldRemove
+        val f = failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
+        return when {
+            done -> FetchResult.Done(added, removed, total, SubscriptionLogic.skippedLinesOf(detail) ?: 0)
+            ask != null -> FetchResult.NeedsConfirm(ask)
+            else -> FetchResult.Failed(f, coreProblem)
+        }
+    }
 }
 
 /**
@@ -79,8 +91,9 @@ private class UpdateOutcome {
 class SubscriptionsModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
-    private val store: SubFailureStore,
+    private val store: SubFailureStorage,
 ) {
+    private val registry = SubscriptionRegistry(session)
     private val actions = Channel<SubscriptionsAction>(Channel.UNLIMITED)
     private val mutable = MutableStateFlow(SubscriptionsState())
     private val mutableEvents = MutableSharedFlow<SubscriptionsEvent>(extraBufferCapacity = 8)
@@ -139,7 +152,7 @@ class SubscriptionsModel(
     fun update(id: Long, confirm: Boolean = false) {
         if (mutable.value.isBusy) return
         val name = rawGroups[id]?.name.orEmpty()
-        runJob = scope.launch(Dispatchers.IO) { runUpdate(id, name, confirm) }
+        runJob = scope.launch(Dispatchers.IO) { settle(id, name, confirm, runUpdate(id, name, confirm)) }
     }
 
     fun updateAll() {
@@ -153,7 +166,8 @@ class SubscriptionsModel(
         runJob = null
     }
 
-    private suspend fun runUpdate(id: Long, name: String, confirm: Boolean) {
+    /** Runs one update to its end, publishing its progress to [state], and says how it ended. What to do with the result is the caller's. */
+    private suspend fun runUpdate(id: Long, name: String, confirm: Boolean): FetchResult {
         dispatch(SubscriptionsAction.UpdateStarted(id))
         val out = UpdateOutcome()
         try {
@@ -173,37 +187,47 @@ class SubscriptionsModel(
             }
         }
         dispatch(SubscriptionsAction.UpdateFinished)
-        settle(id, name, confirm, out)
+        return out.toResult()
     }
 
     private fun note(out: UpdateOutcome, ev: SubscriptionProgress) {
         when (ev.phase) {
+            SubscriptionProgress.Phase.PHASE_DIFFING -> {
+                out.added = ev.addedCount ?: 0
+                out.removed = ev.removedCount ?: 0
+                out.total = ev.totalCount ?: 0
+            }
             SubscriptionProgress.Phase.PHASE_CONFIRM_REQUIRED -> out.wouldRemove = ev.wouldRemoveCount ?: 0
             SubscriptionProgress.Phase.PHASE_FAILED -> out.failure = SubscriptionLogic.failureOf(ev.detail.orEmpty(), System.currentTimeMillis())
-            SubscriptionProgress.Phase.PHASE_DONE -> out.done = true
+            SubscriptionProgress.Phase.PHASE_DONE -> {
+                out.done = true
+                out.detail = ev.detail
+            }
             else -> Unit
         }
     }
 
-    private suspend fun settle(id: Long, name: String, confirmed: Boolean, out: UpdateOutcome) {
-        val ask = out.wouldRemove
+    private suspend fun settle(id: Long, name: String, confirmed: Boolean, result: FetchResult) {
         when {
-            ask != null && !confirmed -> {
-                val known = mutable.value.rows.firstOrNull { it.id == id }?.count ?: 0
-                dispatch(SubscriptionsAction.Confirm(SubscriptionsReducer.confirmOf(id, name, ask, known)))
-            }
-            out.done -> {
+            result is FetchResult.NeedsConfirm && !confirmed -> askToConfirm(id, name, result.remove)
+            result is FetchResult.Done -> {
                 dispatch(SubscriptionsAction.DropFailure(id))
                 mutableEvents.tryEmit(SubscriptionsEvent.Updated(name))
                 load()
             }
-            out.coreProblem != null -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(out.coreProblem ?: ErrorKind.Generic))
+            result is FetchResult.Failed && result.coreProblem != null -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(result.coreProblem))
             else -> {
-                val f = out.failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
+                val f = (result as? FetchResult.Failed)?.failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
                 dispatch(SubscriptionsAction.NoteFailure(id, f))
                 mutableEvents.tryEmit(SubscriptionsEvent.UpdateFailed(f))
             }
         }
+    }
+
+    /** Puts the "this update removes N of M servers" question where the Subscriptions screen shows it. */
+    private fun askToConfirm(id: Long, name: String, remove: Int) {
+        val known = mutable.value.rows.firstOrNull { it.id == id }?.count ?: 0
+        dispatch(SubscriptionsAction.Confirm(SubscriptionsReducer.confirmOf(id, name, remove, known)))
     }
 
     private suspend fun runUpdateAll() {
@@ -277,21 +301,64 @@ class SubscriptionsModel(
 
     // ---- sheets: these return the outcome so the sheet can show the error under its field
 
-    /** Creates the subscription and starts its first update: the core makes only an empty group. */
+    /**
+     * Creates the subscription and starts its first update: the core makes only an empty group. A link that already has a
+     * subscription updates that one instead (a typed name is then not applied: the subscription keeps its own).
+     */
     suspend fun create(name: String, url: String): CoreResult<Unit> {
-        val link = url.trim()
-        val title = name.trim().ifEmpty { SubscriptionLogic.hostOf(link) }
-        return when (val r = session.call { subscriptionCreateSubscription(CreateSubscriptionRequest(title, link)) }) {
+        return when (val r = registry.register(url.trim(), name.trim())) {
             is CoreResult.Fail -> r
             is CoreResult.Ok -> {
-                mutableEvents.tryEmit(SubscriptionsEvent.Added(r.value.name))
-                rawGroups = rawGroups + (r.value.id to r.value)
+                val group = r.value.group
+                if (!r.value.existed) mutableEvents.tryEmit(SubscriptionsEvent.Added(group.name))
+                rawGroups = rawGroups + (group.id to group)
                 load()
-                update(r.value.id)
+                update(group.id)
                 CoreResult.Ok(Unit)
             }
         }
     }
+
+    /**
+     * "Add this subscription link and load it" in one action, for the import sheet: finds or makes the subscription, runs its
+     * update here (progress goes to [state] as for any update) and says what came of it. A subscription whose first fetch
+     * failed stays: the link is the part that cannot be retyped by hand, and the cause is often a setting (the device-limit
+     * switch) that the person changes before updating it again.
+     */
+    suspend fun addAndFetch(link: String): SubscribeResult {
+        if (mutable.value.isBusy) return SubscribeResult.Busy
+        val registered = when (val r = registry.register(link.trim())) {
+            is CoreResult.Fail -> return SubscribeResult.Refused(r.kind, r.line)
+            is CoreResult.Ok -> r.value
+        }
+        val group = registered.group
+        rawGroups = rawGroups + (group.id to group)
+        return finishAdd(group, registered.existed, runUpdate(group.id, group.name, confirm = false))
+    }
+
+    private suspend fun finishAdd(group: Group, existed: Boolean, result: FetchResult): SubscribeResult {
+        val id = group.id
+        val out = when (result) {
+            is FetchResult.Done -> {
+                dispatch(SubscriptionsAction.DropFailure(id))
+                SubscribeResult.Fetched(group.name, existed, result.added, result.removed, result.total, result.unparsedLines)
+            }
+            is FetchResult.NeedsConfirm -> {
+                askToConfirm(id, group.name, result.remove)
+                SubscribeResult.NeedsConfirm(group.name, existed, result.remove)
+            }
+            is FetchResult.Failed -> {
+                if (result.coreProblem == null) dispatch(SubscriptionsAction.NoteFailure(id, result.failure))
+                SubscribeResult.NotFetched(group.name, existed, result.failure, deviceLimitMayApply(result.failure))
+            }
+        }
+        load()
+        return out
+    }
+
+    /** The provider may limit devices when the answer is a refusal, an empty list or a stub, and the switch that answers it is off. */
+    private suspend fun deviceLimitMayApply(failure: SubFailure): Boolean =
+        failure.kind in DEVICE_LIMIT_SUSPECTS && (loadShared() as? CoreResult.Ok)?.value?.hwid != true
 
     suspend fun loadShared(): CoreResult<SharedSubSettings> {
         val keys = listOf(SubSettingKeys.USE_PROXY, SubSettingKeys.HWID)
