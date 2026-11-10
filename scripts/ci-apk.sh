@@ -8,6 +8,7 @@
 #   verify <dir>                     exactly one APK per ABI and no others; size budget per ABI;
 #                                    16 KB alignment (zipalign -P 16 and LOAD segments) for the 64-bit ABIs
 #   stage <srcdir> <outdir> [suffix] copy to <outdir>/LAVRay-<version>-<abi><suffix>.apk
+#   recompress <dir> [abi...]        better deflate for libgojni.so and classes.dex, then zipalign and re-sign
 #   signer <apk> release             fail when the APK is signed with the Android debug key
 #
 # Environment:
@@ -123,6 +124,67 @@ stage() {
   ls -l "$out"
 }
 
+# Better deflate for the two big entries (libgojni.so, classes.dex) with 7-Zip's encoder: -4.0 % on
+# arm64-v8a (20 645 226 -> 19 828 938 bytes, docs/MEASUREMENTS.md section 10.6), plain deflate that
+# every Android installs. 7-Zip rewrites the central directory and drops the signing block and the
+# alignment padding, so the pipeline is: 7z update -> zipalign -P 16 -> apksigner sign (same key) ->
+# checks. The original APK is kept unless every check passes and the result is smaller.
+# Signing key: the four LAVRAY_KEYSTORE_* variables when all are set, otherwise the Android debug key
+# (CI of pull requests; the release job refuses debug-signed APKs in `signer`).
+find_7z() {
+  local c
+  for c in "${SEVENZIP:-}" 7zz 7z 7za; do
+    if [ -n "$c" ] && command -v "$c" >/dev/null 2>&1; then command -v "$c"; return; fi
+  done
+  fail "нет 7-Zip (7zz, 7z или 7za; apt-get install p7zip-full)"
+}
+
+recompress_one() { # apk
+  local apk="$1" sz tmp entries zipalign apksigner before after cert_before cert_after
+  local -a sign files
+  sz="$(find_7z)"; zipalign="$(sdk_tool zipalign "${ZIPALIGN:-}")"; apksigner="$(sdk_tool apksigner "${APKSIGNER:-}")"
+  if [ -n "${LAVRAY_KEYSTORE_PATH:-}" ] && [ -n "${LAVRAY_KEYSTORE_PASSWORD:-}" ] && [ -n "${LAVRAY_KEY_ALIAS:-}" ] && [ -n "${LAVRAY_KEY_PASSWORD:-}" ]; then
+    sign=(--ks "$LAVRAY_KEYSTORE_PATH" --ks-pass env:LAVRAY_KEYSTORE_PASSWORD --ks-key-alias "$LAVRAY_KEY_ALIAS" --key-pass env:LAVRAY_KEY_PASSWORD)
+  else
+    sign=(--ks "${DEBUG_KEYSTORE:-$HOME/.android/debug.keystore}" --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android)
+  fi
+  tmp="$(mktemp -d)"
+  before="$(stat -c %s "$apk")"
+  cert_before="$("$apksigner" verify --print-certs "$apk" | grep 'certificate SHA-256 digest')" || { rm -rf "$tmp"; fail "apksigner verify не прошёл до пережатия: $apk"; }
+  mkdir -p "$tmp/x"
+  unzip -q "$apk" 'lib/*/libgojni.so' 'classes*.dex' -d "$tmp/x" || { rm -rf "$tmp"; fail "$(basename "$apk"): нет libgojni.so или classes.dex"; }
+  entries="$(cd "$tmp/x" && find . -type f | sed 's|^\./||' | sort)"
+  cp "$apk" "$tmp/out.apk"
+  readarray -t files <<<"$entries"
+  (cd "$tmp/x" && "$sz" a -tzip -mx=9 -mm=Deflate -mfb=258 -mpass=15 -mtc=off ../out.apk "${files[@]}" > "$tmp/7z.log") \
+    || { cat "$tmp/7z.log"; rm -rf "$tmp"; fail "7-Zip не обновил $(basename "$apk")"; }
+  "$zipalign" -f -P 16 4 "$tmp/out.apk" "$tmp/aligned.apk" || { rm -rf "$tmp"; fail "zipalign не выровнял $(basename "$apk")"; }
+  "$apksigner" sign "${sign[@]}" --v1-signing-enabled false --v4-signing-enabled false "$tmp/aligned.apk" \
+    || { rm -rf "$tmp"; fail "apksigner sign не подписал $(basename "$apk")"; }
+  "$apksigner" verify "$tmp/aligned.apk" || { rm -rf "$tmp"; fail "apksigner verify не прошёл после пережатия: $(basename "$apk")"; }
+  "$zipalign" -c -P 16 4 "$tmp/aligned.apk" || { rm -rf "$tmp"; fail "zipalign -c -P 16 не прошёл после пережатия: $(basename "$apk")"; }
+  unzip -v "$tmp/aligned.apk" | awk '$NF == "resources.arsc" && $2 == "Stored" { ok = 1 } END { exit !ok }' \
+    || { rm -rf "$tmp"; fail "$(basename "$apk"): resources.arsc больше не хранится без сжатия"; }
+  [ "$(unzip -Z1 "$tmp/aligned.apk" | sort | uniq -d | wc -l)" -eq 0 ] || { rm -rf "$tmp"; fail "$(basename "$apk"): дубликаты записей после пережатия"; }
+  cert_after="$("$apksigner" verify --print-certs "$tmp/aligned.apk" | grep 'certificate SHA-256 digest')"
+  [ "$cert_before" = "$cert_after" ] || { rm -rf "$tmp"; fail "$(basename "$apk"): сертификат подписи изменился при пережатии"; }
+  after="$(stat -c %s "$tmp/aligned.apk")"
+  if [ "$after" -lt "$before" ]; then
+    mv "$tmp/aligned.apk" "$apk"
+    echo "recompress $(basename "$apk"): $before -> $after байт (-$((before - after)))"
+  else
+    echo "recompress $(basename "$apk"): $before -> $after, не меньше, оставлен исходный"
+  fi
+  rm -rf "$tmp"
+}
+
+recompress() { # dir [abi...]
+  local dir="$1" abi; shift
+  local -a abis=("$@")
+  [ "${#abis[@]}" -gt 0 ] || abis=("${ALL_ABIS[@]}")
+  for abi in "${abis[@]}"; do recompress_one "$(find_apk "$dir" "$abi")"; done
+}
+
 signer() {
   local apk="$1" mode="${2:-release}" apksigner certs
   apksigner="$(sdk_tool apksigner "${APKSIGNER:-}")"
@@ -138,6 +200,7 @@ case "${1:-}" in
   find) find_apk "${2:?dir}" "${3:?abi}" ;;
   verify) verify "${2:?dir}" ;;
   stage) stage "${2:?srcdir}" "${3:?outdir}" "${4:-}" ;;
+  recompress) recompress "${2:?dir}" "${@:3}" ;;
   signer) signer "${2:?apk}" "${3:-release}" ;;
-  *) echo "usage: ci-apk.sh version|find|verify|stage|signer" >&2; exit 2 ;;
+  *) echo "usage: ci-apk.sh version|find|verify|stage|recompress|signer" >&2; exit 2 ;;
 esac
