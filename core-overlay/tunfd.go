@@ -26,5 +26,5 @@ func tunnelName(fd int32) (string, error) {
 	return unix.ByteSliceToString(ifr[:]), nil
 }
 
-// dupFd дублирует дескриптор: Kotlin остаётся владельцем исходного.
-func dupFd(fd int32) (int, error) { return syscall.Dup(int(fd)) }
+// closeFd закрывает дескриптор, которым владеет Go.
+func closeFd(fd int) { _ = syscall.Close(fd) }

@@ -56,6 +56,7 @@ type patchReport struct {
 	TunPatched        bool     // у tun-inbound заменены stack/mtu
 	StackForced       string   // стек из конфига, заменённый на gvisor ("" — замены не было или стек не задан)
 	RemovedExperiment []string // удалённые слушатели experimental
+	IPv4OnlyDNS       bool     // у DNS поставлена стратегия ipv4_only (в туннеле нет IPv6)
 }
 
 // processKeys — условия, привязанные к процессу рабочего стола.
@@ -90,6 +91,7 @@ func patchConfig(cfg []byte, p tunParams) ([]byte, patchReport, error) {
 	}
 	patchRoute(root, &rep)
 	patchDNS(root, &rep)
+	patchIPv6Off(root, &rep)
 	patchExperimental(root, &rep)
 	out, err := encodeObject(root)
 	if err != nil {
