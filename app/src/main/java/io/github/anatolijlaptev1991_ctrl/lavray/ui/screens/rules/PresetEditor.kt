@@ -61,7 +61,6 @@ fun PresetEditor(p: RoutingPreset, state: PresetsState, model: PresetsModel, onB
     }
     Column(Modifier.fillMaxSize()) {
         EditorBar(p, onBack)
-        RestartBanner()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             item(key = "head") {
                 Head(p, state, enabled = !state.busy, onApply = { model.activate(p.id) }, onCustomize = {

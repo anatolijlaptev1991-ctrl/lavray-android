@@ -78,7 +78,6 @@ fun DnsScreen() {
 @Composable
 private fun Content(state: DnsState, model: DnsModel) {
     Column(Modifier.fillMaxSize()) {
-        RestartBanner()
         LavScreenColumn(Modifier.weight(1f)) {
             ModesCard(state, model)
             AdvancedCard(state, model)
@@ -181,13 +180,14 @@ private fun DnsToasts(model: DnsModel) {
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(model) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            model.events.collect { e -> env.toast.show(dnsEventText(env.appContext, e)) }
+            model.events.collect { e -> env.toast.show(dnsEventText(env.appContext, e, env.restart.state.value.needed)) }
         }
     }
 }
 
-private fun dnsEventText(ctx: Context, e: DnsEvent): String = when (e) {
-    DnsEvent.Saved -> ctx.getString(R.string.toast_saved)
+/** [pending]: the running tunnel does not have the saved DNS yet, and the toast says so rather than "saved". */
+private fun dnsEventText(ctx: Context, e: DnsEvent, pending: Boolean): String = when (e) {
+    DnsEvent.Saved -> ctx.getString(savedOrPending(pending, R.string.toast_saved))
     DnsEvent.JsonValid -> ctx.getString(R.string.dns_jsonOk)
     is DnsEvent.Failed -> ctx.getString(e.kind.textRes())
 }

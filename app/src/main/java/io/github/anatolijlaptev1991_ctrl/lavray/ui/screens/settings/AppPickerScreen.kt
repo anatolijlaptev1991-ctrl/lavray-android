@@ -37,12 +37,13 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRo
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavTextField
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The app picker of the per-app tunnel. Apps load off the main thread, icons load only for rows that scroll into
- * view, and a tap saves the choice (several taps in a row become one save). The choice applies the next time the
- * tunnel is built.
+ * view, and a tap saves the choice at once (in order, newest wins, on the app's scope). Chosen packages that are not
+ * installed are listed too, so they can be removed. The choice applies the next time the tunnel is built; while a
+ * tunnel is up the shell offers the reconnect.
  */
 @Composable
 fun AppPickerScreen() {
@@ -51,7 +52,6 @@ fun AppPickerScreen() {
     var apps by remember { mutableStateOf<List<AppEntry>?>(null) }
     var selection by remember { mutableStateOf(AppSelection()) }
     var ready by remember { mutableStateOf(false) }
-    var dirty by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var showSystem by remember { mutableStateOf(false) }
 
@@ -62,13 +62,22 @@ fun AppPickerScreen() {
         runCatching { env.controller.appSelection() }.getOrNull()?.let { selection = it; ready = true }
         apps = AppCatalog.load(context.packageManager, context.packageName)
     }
-    LaunchedEffect(selection, dirty) {
-        if (!ready || !dirty) return@LaunchedEffect
-        delay(SAVE_DEBOUNCE_MS)
-        runCatching { env.controller.setAppSelection(selection) }
+    // A tap is saved at once, on the app's scope: leaving the picker right after it must not lose it. The saver writes
+    // in order and the newest choice wins, so a burst of taps is not a burst of lost updates.
+    val save = { next: AppSelection ->
+        selection = next
+        env.scope.launch {
+            if (!env.appSelection.save(next)) {
+                runCatching { env.controller.appSelection() }.getOrNull()?.let { selection = it }
+                env.toast.show(env.appContext.getString(R.string.apps_saveFailed))
+            }
+        }
+        Unit
     }
     val chosen = selection.packages
-    val list = remember(apps, query, showSystem, chosen) { apps?.let { AppFilter.visible(it, query, showSystem, chosen) } }
+    val list = remember(apps, query, showSystem, chosen) {
+        apps?.let { AppFilter.visible(AppFilter.withMissing(it, chosen), query, showSystem, chosen) }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -90,16 +99,13 @@ fun AppPickerScreen() {
                 items(shown, key = { it.packageName }, contentType = { "app" }) { app ->
                     val on = app.packageName in chosen
                     LavListRow(
-                        title = app.label, subtitle = app.packageName, selected = on,
+                        title = app.label,
+                        subtitle = if (app.missing) stringResource(R.string.apps_missing) else app.packageName,
+                        selected = on,
                         modifier = Modifier.fillMaxWidth(),
                         leading = { AppIcon(app.packageName) },
                         trailing = { if (on) LavIconView(LavIcon.Check, Lav.colors.accent, size = 22.dp) },
-                        onClick = {
-                            if (ready) {
-                                selection = selection.toggled(app.packageName)
-                                dirty = true
-                            }
-                        },
+                        onClick = { if (ready) save(selection.toggled(app.packageName)) },
                     )
                 }
             }
@@ -123,4 +129,3 @@ private fun AppIcon(packageName: String) {
     }
 }
 
-private const val SAVE_DEBOUNCE_MS = 250L

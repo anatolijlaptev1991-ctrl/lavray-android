@@ -83,7 +83,6 @@ private fun PresetList(state: PresetsState, model: PresetsModel, onNew: () -> Un
         )
     }
     Column(Modifier.fillMaxSize()) {
-        RestartBanner()
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             LavButton(stringResource(R.string.rt_new), onNew, variant = ButtonVariant.Primary, icon = LavIcon.Plus)
         }
@@ -157,17 +156,22 @@ private fun PresetToasts(model: PresetsModel) {
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(model) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            model.events.collect { e -> env.toast.show(presetEventText(env.appContext, e)) }
+            // The hub is told before the event is sent, so the state read here already includes this change.
+            model.events.collect { e -> env.toast.show(presetEventText(env.appContext, e, env.restart.state.value.needed)) }
         }
     }
 }
 
-private fun presetEventText(ctx: Context, e: PresetsEvent): String = when (e) {
-    PresetsEvent.Activated -> ctx.getString(R.string.toast_presetActivated)
-    PresetsEvent.Saved -> ctx.getString(R.string.toast_presetSaved)
-    PresetsEvent.Copied -> ctx.getString(R.string.toast_presetCopied)
-    PresetsEvent.Deleted -> ctx.getString(R.string.toast_presetDeleted)
-    PresetsEvent.Reset -> ctx.getString(R.string.toast_presetReset)
+/**
+ * [pending]: the core said the running tunnel does not have the change yet. The toast then says so instead of
+ * "applied" (the tunnel still runs the old preset until the restart).
+ */
+private fun presetEventText(ctx: Context, e: PresetsEvent, pending: Boolean): String = when (e) {
+    PresetsEvent.Activated -> ctx.getString(savedOrPending(pending, R.string.toast_presetActivated))
+    PresetsEvent.Saved -> ctx.getString(savedOrPending(pending, R.string.toast_presetSaved))
+    PresetsEvent.Copied -> ctx.getString(savedOrPending(pending, R.string.toast_presetCopied))
+    PresetsEvent.Deleted -> ctx.getString(savedOrPending(pending, R.string.toast_presetDeleted))
+    PresetsEvent.Reset -> ctx.getString(savedOrPending(pending, R.string.toast_presetReset))
     PresetsEvent.Exported -> ctx.getString(R.string.toast_presetExported)
     is PresetsEvent.Imported ->
         if (e.warnings > 0) ctx.getString(R.string.toast_presetImportedWarn, e.warnings.toString()) else ctx.getString(R.string.toast_presetImported)

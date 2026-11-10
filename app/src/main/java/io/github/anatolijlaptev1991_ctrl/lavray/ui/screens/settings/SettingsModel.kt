@@ -14,6 +14,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsSetSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,10 +30,13 @@ data class SettingsState(
     val available: Set<String> = SettingKeys.SHOWN.toSet(),
     val values: Map<String, SettingValue> = emptyMap(),
     val descriptors: Map<String, SettingDescriptor> = emptyMap(),
-    /** A saved setting that only takes effect when the tunnel is built again. */
-    val reconnectNeeded: Boolean = false,
     val error: ErrorKind? = null,
+    /** The settings could not be read: the screen shows the error and no values, never the built-in defaults as if they were saved. */
+    val readFailed: Boolean = false,
 ) {
+    /** The values on screen are the core's own. */
+    val ready: Boolean get() = loaded && !readFailed
+
     fun bool(key: String, fallback: Boolean = false): Boolean =
         SettingsMapper.bool(values[key], SettingsMapper.defaultBool(descriptors[key]) ?: fallback)
 
@@ -49,7 +54,11 @@ data class SettingsState(
  * defaults and whether they need a reconnect); values are read once and written one key at a time, each write on
  * the IO dispatcher. The new value is shown at once and put back if the core refuses it.
  */
-class SettingsModel(private val session: CoreSession, private val scope: CoroutineScope) {
+class SettingsModel(
+    private val session: CoreSession,
+    private val scope: CoroutineScope,
+    private val restart: RestartHub,
+) {
     private val mutable = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = mutable.asStateFlow()
 
@@ -63,10 +72,10 @@ class SettingsModel(private val session: CoreSession, private val scope: Corouti
                 is CoreResult.Ok -> mutable.update {
                     it.copy(
                         loaded = true, available = keys, values = read.value.values,
-                        descriptors = descriptors.associateBy { d -> d.key }, error = null,
+                        descriptors = descriptors.associateBy { d -> d.key }, error = null, readFailed = false,
                     )
                 }
-                is CoreResult.Fail -> mutable.update { it.copy(loaded = true, error = read.kind) }
+                is CoreResult.Fail -> mutable.update { it.copy(loaded = true, error = read.kind, readFailed = true) }
             }
         }
     }
@@ -82,12 +91,24 @@ class SettingsModel(private val session: CoreSession, private val scope: Corouti
         mutable.update { it.copy(values = it.values + (key to value), error = null) }
         scope.launch(Dispatchers.IO) {
             when (val r = session.call { settingsSetSettings(SetSettingsRequest(mapOf(key to value))) }) {
-                is CoreResult.Ok -> if (r.value.needsProfileRestart) mutable.update { it.copy(reconnectNeeded = true) }
-                is CoreResult.Fail -> mutable.update {
-                    val restored = if (before == null) it.values - key else it.values + (key to before)
-                    it.copy(values = restored, error = r.kind)
+                is CoreResult.Ok -> when (val outcome = SettingsWrite.outcome(key, r.value)) {
+                    is SettingsWrite.Outcome.Accepted -> noteRestart(key, outcome.coreAskedForRestart)
+                    // The core did not take the key (a version that does not know it): the screen must not keep showing it as saved.
+                    SettingsWrite.Outcome.Rejected -> mutable.update { putBack(it, key, before).copy(error = ErrorKind.InvalidInput) }
                 }
+                is CoreResult.Fail -> mutable.update { putBack(it, key, before).copy(error = r.kind) }
             }
+        }
+    }
+
+    private fun putBack(s: SettingsState, key: String, before: SettingValue?): SettingsState =
+        s.copy(values = if (before == null) s.values - key else s.values + (key to before))
+
+    /** A saved key that only the next tunnel reads is offered a reconnect, whatever the core flagged. */
+    private fun noteRestart(key: String, coreAskedForRestart: Boolean) {
+        when {
+            coreAskedForRestart -> restart.need(PendingReason.Tunnel)
+            SettingKeys.appliesOnNextTunnel(key) -> restart.needIfLive(PendingReason.Tunnel)
         }
     }
 
@@ -97,7 +118,9 @@ class SettingsModel(private val session: CoreSession, private val scope: Corouti
             val keys = mutable.value.available.toList()
             when (val r = session.call { settingsResetSettings(ResetSettingsRequest(keys)) }) {
                 is CoreResult.Ok -> {
-                    mutable.update { it.copy(values = emptyMap(), reconnectNeeded = it.reconnectNeeded || r.value.needsProfileRestart) }
+                    mutable.update { it.copy(values = emptyMap()) }
+                    // A reset changes every key of this screen, so what only the next tunnel reads is pending too.
+                    if (r.value.needsProfileRestart || keys.any(SettingKeys::appliesOnNextTunnel)) restart.needIfLive(PendingReason.Tunnel)
                     load()
                 }
                 is CoreResult.Fail -> mutable.update { it.copy(error = r.kind) }
@@ -105,6 +128,5 @@ class SettingsModel(private val session: CoreSession, private val scope: Corouti
         }
     }
 
-    fun dismissReconnect() = mutable.update { it.copy(reconnectNeeded = false) }
     fun dismissError() = mutable.update { it.copy(error = null) }
 }

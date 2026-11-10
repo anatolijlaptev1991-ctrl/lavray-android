@@ -19,10 +19,21 @@ import kotlinx.coroutines.withContext
 
 /** One installed app the picker offers. */
 @Immutable
-data class AppEntry(val packageName: String, val label: String, val system: Boolean)
+data class AppEntry(val packageName: String, val label: String, val system: Boolean, val missing: Boolean = false)
 
 /** Filter and order of the picker list: pure, so it is tested on the JVM. */
 object AppFilter {
+    /**
+     * The chosen packages the list does not know (uninstalled, or without a launcher entry) are added as [AppEntry.missing]
+     * rows. A person can then unchoose them: the choice would otherwise keep names nothing on screen can remove, and
+     * "only the chosen apps" with only such names builds a tunnel for no app at all.
+     */
+    fun withMissing(apps: List<AppEntry>, chosen: Set<String>): List<AppEntry> {
+        val known = apps.mapTo(HashSet()) { it.packageName }
+        val gone = chosen.filter { it !in known }.sorted().map { AppEntry(it, it, system = false, missing = true) }
+        return if (gone.isEmpty()) apps else apps + gone
+    }
+
     /**
      * Apps whose label or package contains [query], system apps only when [showSystem] is on (a chosen system app
      * always stays visible so it can be unchosen), the chosen ones first, then by label.

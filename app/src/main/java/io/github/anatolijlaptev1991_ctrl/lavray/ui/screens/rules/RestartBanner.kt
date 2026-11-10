@@ -20,50 +20,55 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ButtonVaria
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 
 /**
- * "The change applies after a core restart" with the restart and "later" buttons. Shown only while a tunnel
- * is up: with none, the next connect already uses the new settings, so the request is dropped. Toasts report
- * the outcome of the restart while the screen is on show.
+ * "The saved change is not in the running tunnel yet", with the restart and "later" buttons. One for the whole app:
+ * the shell shows it under the header on every screen, so a change made on Routes, DNS or Settings is offered the
+ * restart wherever the person is. After "later" it stays folded, and the Connection screen shows it again with
+ * [showWhenSnoozed] so the running config is never silently different from the saved one.
  */
 @Composable
-fun RestartBanner(modifier: Modifier = Modifier) {
-    val env = LocalEnv.current
-    val hub = env.restart
+fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = false) {
+    val hub = LocalEnv.current.restart
     val state by hub.state.collectAsStateWithLifecycle()
-    val vpn by env.vpn.status.collectAsStateWithLifecycle()
-    val phase = phaseOf(vpn.state)
-    val live = phase == Phase.On || phase == Phase.Connecting
-    LaunchedEffect(live) { if (!live) hub.clear() }
-    RestartToasts(hub)
-    if (!state.needed || !live) return
+    if (!state.needed || (state.snoozed && !showWhenSnoozed)) return
+    val reconnect = state.needsReconnect
+    val folded = state.snoozed
     LavBanner(
         tone = StatusTone.Connecting,
-        title = stringResource(R.string.dns_restart),
+        title = stringResource(
+            when {
+                folded -> R.string.cx_pending_t
+                reconnect -> R.string.set_reconnect
+                else -> R.string.dns_restart
+            },
+        ),
         modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        text = if (folded) stringResource(R.string.cx_pending_d) else null,
         actions = {
             LavButton(
-                stringResource(R.string.dns_restartBtn), { hub.restart() },
+                stringResource(if (reconnect) R.string.set_reconnect_now else R.string.dns_restartBtn), { hub.restart() },
                 variant = ButtonVariant.Primary, icon = LavIcon.Refresh, loading = state.busy,
             )
-            LavButton(stringResource(R.string.dns_restartLater), { hub.clear() }, variant = ButtonVariant.Ghost, enabled = !state.busy)
+            if (!folded) {
+                LavButton(stringResource(R.string.dns_restartLater), { hub.postpone() }, variant = ButtonVariant.Ghost, enabled = !state.busy)
+            }
         },
     )
 }
 
+/** Toasts for the outcome of a restart, shown while the app is in front. Composed once, by the shell. */
 @Composable
-private fun RestartToasts(hub: RestartHub) {
+fun RestartToasts() {
     val env = LocalEnv.current
     val owner = LocalLifecycleOwner.current
-    LaunchedEffect(hub) {
+    LaunchedEffect(env.restart) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            hub.events.collect { e ->
+            env.restart.events.collect { e ->
                 val ctx = env.appContext
                 env.toast.show(
                     when (e) {
-                        RestartEvent.Done -> ctx.getString(R.string.toast_coreRestarted)
+                        is RestartEvent.Done -> ctx.getString(if (e.tunnelRebuilt) R.string.toast_reconnected else R.string.toast_coreRestarted)
                         is RestartEvent.Failed -> ctx.getString(e.kind.textRes())
                     },
                 )

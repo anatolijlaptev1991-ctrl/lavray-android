@@ -132,7 +132,7 @@ class DnsModel(
                 is CoreResult.Ok -> {
                     r.value.applied?.let { dispatch(DnsAction.Applied(it)) }
                     if (closeEditor) dispatch(DnsAction.Advanced(false))
-                    if (r.value.needsProfileRestart) restart.need()
+                    if (r.value.needsProfileRestart) restart.need(PendingReason.Dns)
                     mutableEvents.tryEmit(DnsEvent.Saved)
                 }
             }

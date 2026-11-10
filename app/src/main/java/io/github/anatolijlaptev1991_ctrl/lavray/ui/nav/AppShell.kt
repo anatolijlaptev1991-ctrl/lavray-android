@@ -59,6 +59,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.NavItem
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ToastHost
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.lavClickable
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.ImportHost
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartBanner
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartToasts
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.CancellationException
@@ -116,6 +118,9 @@ fun AppShell() {
                 ),
             ) {
                 Header(state, navigator)
+                RestartToasts()
+                // The Connection screen shows this state itself, in its own place and also after "later".
+                if (pushedOpen || state.section != NavState.START_SECTION) RestartBanner()
                 Box(
                     Modifier.weight(1f).fillMaxWidth()
                         // Without the bottom bar (pushed screens, the rail, the keyboard) the content must clear the system gesture bar itself.

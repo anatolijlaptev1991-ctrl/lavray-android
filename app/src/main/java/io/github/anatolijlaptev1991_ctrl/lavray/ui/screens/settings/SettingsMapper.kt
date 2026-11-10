@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings
 
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SetSettingsResponse
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SettingDescriptor
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SettingValue
 
@@ -27,6 +28,17 @@ object SettingKeys {
         HEALTH_CHECK, TUN_MTU, TUN_IPV6, TUN_FAKE_DNS, TUN_EXCLUDE_ADDRESSES,
         MUX_PROTOCOL, MUX_CONCURRENCY, MUX_DEFAULT_ON, INSECURE_TLS,
     )
+
+    /**
+     * Keys read only when the tunnel or the outbounds are built. The core does not mark them (its descriptors set
+     * RequiresProfileRestart only for inbound, routing and log keys), so a change made while the tunnel is up is
+     * offered a reconnect here. The health check is read at the next connect too, but nothing visible depends on it.
+     */
+    val APPLY_ON_NEXT_TUNNEL: Set<String> = setOf(
+        TUN_MTU, TUN_IPV6, TUN_FAKE_DNS, TUN_EXCLUDE_ADDRESSES, MUX_PROTOCOL, MUX_CONCURRENCY, MUX_DEFAULT_ON, INSECURE_TLS,
+    )
+
+    fun appliesOnNextTunnel(key: String): Boolean = key in APPLY_ON_NEXT_TUNNEL
 
     /** Keys that DescribeSettings does not list are dropped, so a core without a setting never shows a dead row. */
     fun available(descriptors: List<SettingDescriptor>): Set<String> {
@@ -104,4 +116,18 @@ object SettingsMapper {
 
     /** The first line that is not an address or a network, or null when all are fine. */
     fun firstInvalidAddress(text: String): String? = lines(text).firstOrNull { !isAddressOrCidr(it) }
+}
+
+/** What the core's answer to one SetSettings says about the key that was sent. */
+object SettingsWrite {
+    sealed interface Outcome {
+        /** The core stored the key; [coreAskedForRestart] is its own needs_profile_restart. */
+        data class Accepted(val coreAskedForRestart: Boolean) : Outcome
+
+        /** The key is not in accepted_keys: the core did not take it (the desktop reverts the value too). */
+        data object Rejected : Outcome
+    }
+
+    fun outcome(key: String, response: SetSettingsResponse): Outcome =
+        if (key in response.acceptedKeys) Outcome.Accepted(response.needsProfileRestart) else Outcome.Rejected
 }
