@@ -122,7 +122,7 @@ private fun TotalCard(total: TrafficPair, fmt: UnitFormat) {
             if (total.total == 0L) {
                 LavText(stringResource(R.string.stats_none), style = Lav.type.small, color = Lav.colors.textSecondary)
             } else {
-                Cell(stringResource(R.string.conn_traffic), fmt.bytes(total.total), Modifier.fillMaxWidth())
+                Cell(stringResource(R.string.stats_total_traffic), fmt.bytes(total.total), Modifier.fillMaxWidth())
                 TwoCells(LavIcon.ArrowDown, stringResource(R.string.conn_down), fmt.bytes(total.downBytes), LavIcon.ArrowUp, stringResource(R.string.conn_up), fmt.bytes(total.upBytes))
             }
         }

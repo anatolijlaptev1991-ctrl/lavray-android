@@ -43,7 +43,7 @@ object ChecksMapper {
         CheckKind.CHECK_KIND_SERVER_REACHABLE -> R.string.chk_server_t
         CheckKind.CHECK_KIND_DNS_RESOLVES -> R.string.chk_dns_t
         CheckKind.CHECK_KIND_PROXY_ACTIVE -> R.string.chk_tunnel_t
-        CheckKind.CHECK_KIND_CLOCK_SKEW -> R.string.chk_time_t
+        CheckKind.CHECK_KIND_CLOCK_SKEW -> R.string.chk_time_phone
         CheckKind.CHECK_KIND_SUBSCRIPTION_OK -> R.string.chk_sub_t
         CheckKind.CHECK_KIND_IPV6 -> R.string.chk_ipv6_t
         CheckKind.CHECK_KIND_PORT_FREE, CheckKind.CHECK_KIND_UNSPECIFIED -> R.string.chk_port_t

@@ -117,7 +117,7 @@
     <string name="chk_sum_bad">Problemas encontrados: %1$s</string>
     <string name="chk_sum_ok">No se encontraron problemas</string>
     <string name="chk_sum_part">No se encontraron problemas, pero %1$s de %2$s sin comprobar</string>
-    <string name="chk_time_t">Reloj del equipo</string>
+    <string name="chk_time_phone">Reloj del teléfono</string>
     <string name="chk_title">¿Por qué no funciona?</string>
     <string name="chk_tunnel_t">El túnel deja pasar el tráfico</string>
     <string name="common_back">Atrás</string>
@@ -286,6 +286,7 @@
     <string name="log_pause">Pausa</string>
     <string name="log_resume">Reanudar</string>
     <string name="log_searchPh">Buscar en el registro…</string>
+    <string name="log_share">Compartir</string>
     <string name="main_auto_connect">Conectar al iniciar el teléfono</string>
     <string name="mux_concurrency">Flujos simultáneos</string>
     <string name="mux_concurrencyErr">Introduce -1 o un número de 1 a 1024</string>
@@ -497,6 +498,7 @@
     <string name="stats_sessions">Sesiones: %1$s</string>
     <string name="stats_title">Estadísticas</string>
     <string name="stats_total">Total acumulado</string>
+    <string name="stats_total_traffic">Tráfico total</string>
     <string name="stats_uploaded">Enviado</string>
     <string name="stub_soon">Esta sección aún está en desarrollo.</string>
     <string name="sub_confirm_t">¿Actualizar «%1$s»?</string>

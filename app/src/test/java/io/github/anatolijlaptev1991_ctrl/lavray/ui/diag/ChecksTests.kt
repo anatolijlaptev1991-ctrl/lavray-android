@@ -106,3 +106,10 @@ class ChecksTests {
         assertNull(RouteMapper.outboundName(Outbound.OUTBOUND_UNSPECIFIED))
     }
 }
+
+class ChecksTitleTest {
+    @Test
+    fun theClockCheckIsAboutThePhoneNotAComputer() {
+        assertEquals(R.string.chk_time_phone, ChecksMapper.title(CheckKind.CHECK_KIND_CLOCK_SKEW))
+    }
+}

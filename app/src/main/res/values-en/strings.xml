@@ -117,7 +117,7 @@
     <string name="chk_sum_bad">Problems found: %1$s</string>
     <string name="chk_sum_ok">No problems found</string>
     <string name="chk_sum_part">No problems found, but %1$s of %2$s not checked</string>
-    <string name="chk_time_t">Computer clock</string>
+    <string name="chk_time_phone">Phone clock</string>
     <string name="chk_title">Why isn’t it working?</string>
     <string name="chk_tunnel_t">Tunnel passes traffic</string>
     <string name="common_back">Back</string>
@@ -286,6 +286,7 @@
     <string name="log_pause">Pause</string>
     <string name="log_resume">Resume</string>
     <string name="log_searchPh">Search the log…</string>
+    <string name="log_share">Share</string>
     <string name="main_auto_connect">Connect when the phone starts</string>
     <string name="mux_concurrency">Concurrent streams</string>
     <string name="mux_concurrencyErr">Enter -1 or a number from 1 to 1024</string>
@@ -497,6 +498,7 @@
     <string name="stats_sessions">Sessions: %1$s</string>
     <string name="stats_title">Statistics</string>
     <string name="stats_total">All time</string>
+    <string name="stats_total_traffic">Total traffic</string>
     <string name="stats_uploaded">Sent</string>
     <string name="stub_soon">This section is still in development.</string>
     <string name="sub_confirm_t">Update “%1$s”?</string>

@@ -117,7 +117,7 @@
     <string name="chk_sum_bad">发现 %1$s 个问题</string>
     <string name="chk_sum_ok">未发现问题</string>
     <string name="chk_sum_part">未发现问题，但有 %1$s 项（共 %2$s 项）未检查</string>
-    <string name="chk_time_t">电脑时钟</string>
+    <string name="chk_time_phone">手机时钟</string>
     <string name="chk_title">为什么连不上？</string>
     <string name="chk_tunnel_t">隧道可正常传输流量</string>
     <string name="common_back">上一步</string>
@@ -286,6 +286,7 @@
     <string name="log_pause">暂停</string>
     <string name="log_resume">继续</string>
     <string name="log_searchPh">搜索日志…</string>
+    <string name="log_share">分享</string>
     <string name="main_auto_connect">手机启动时自动连接</string>
     <string name="mux_concurrency">并发流数量</string>
     <string name="mux_concurrencyErr">请输入 -1 或 1 到 1024 之间的数字</string>
@@ -493,6 +494,7 @@
     <string name="stats_sessions">会话数：%1$s</string>
     <string name="stats_title">统计</string>
     <string name="stats_total">累计</string>
+    <string name="stats_total_traffic">总流量</string>
     <string name="stats_uploaded">已发送</string>
     <string name="stub_soon">此部分仍在开发中。</string>
     <string name="sub_confirm_t">更新订阅“%1$s”？</string>

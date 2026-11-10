@@ -124,4 +124,12 @@ class GeneratedStringsTest {
             }
         }
     }
+
+    /** The desktop wording "Computer clock" reached the phone's checks screen; only the preset note may mention a computer. */
+    @Test
+    fun englishPhoneTextDoesNotSpeakOfAComputerExceptWhereItMeansTheDesktopApp() {
+        val computer = Regex("computer", RegexOption.IGNORE_CASE)
+        val named = all.getValue("en").strings.filter { computer.containsMatchIn(it.value) }.keys
+        assertTrue("computer wording in: $named", named.all { it == "ra_proc_note" })
+    }
 }

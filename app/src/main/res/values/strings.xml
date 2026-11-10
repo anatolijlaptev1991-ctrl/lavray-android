@@ -117,7 +117,7 @@
     <string name="chk_sum_bad">Найдено проблем: %1$s</string>
     <string name="chk_sum_ok">Проблем не найдено</string>
     <string name="chk_sum_part">Проблем не найдено, но не проверено: %1$s из %2$s</string>
-    <string name="chk_time_t">Часы компьютера</string>
+    <string name="chk_time_phone">Часы телефона</string>
     <string name="chk_title">Почему не работает?</string>
     <string name="chk_tunnel_t">Туннель пропускает трафик</string>
     <string name="common_back">Назад</string>
@@ -286,6 +286,7 @@
     <string name="log_pause">Пауза</string>
     <string name="log_resume">Продолжить</string>
     <string name="log_searchPh">Поиск в журнале…</string>
+    <string name="log_share">Поделиться</string>
     <string name="main_auto_connect">Подключаться при запуске телефона</string>
     <string name="mux_concurrency">Параллельных потоков</string>
     <string name="mux_concurrencyErr">Введите -1 или число от 1 до 1024</string>
@@ -505,6 +506,7 @@
     <string name="stats_sessions">Сессий: %1$s</string>
     <string name="stats_title">Статистика</string>
     <string name="stats_total">За всё время</string>
+    <string name="stats_total_traffic">Весь трафик</string>
     <string name="stats_uploaded">Отправлено</string>
     <string name="stub_soon">Этот раздел ещё в разработке.</string>
     <string name="sub_confirm_t">Обновить подписку «%1$s»?</string>
