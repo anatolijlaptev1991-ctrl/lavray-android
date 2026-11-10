@@ -77,7 +77,7 @@ class BackupHoldTest {
         val model = BackupModel(session { Conn(ByteArrayInputStream(ok)) }, Files(), scope, hold = hold()).picked(scope)
         log.clear()
         model.replace("Correct-Horse-1")!!.join()
-        assertEquals(listOf("begin:600000", "request", "end"), log.toList())
+        assertEquals(listOf("begin:180000", "request", "end"), log.toList())
         assertTrue(model.state.value.restored)
         scope.cancel()
     }
@@ -89,7 +89,7 @@ class BackupHoldTest {
         val model = BackupModel(session { Conn(ByteArrayInputStream(http)) }, Files(), scope, hold = hold()).picked(scope)
         log.clear()
         model.replace("Correct-Horse-1")!!.join()
-        assertEquals(listOf("begin:600000", "request", "end"), log.toList())
+        assertEquals(listOf("begin:180000", "request", "end"), log.toList())
         assertFalse(model.state.value.restored)
         scope.cancel()
     }

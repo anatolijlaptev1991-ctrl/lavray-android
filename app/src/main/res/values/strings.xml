@@ -380,6 +380,8 @@
     <string name="notif_busy">Выполняется операция…</string>
     <string name="notif_connected">Подключено</string>
     <string name="notif_connecting">Подключение…</string>
+    <string name="notif_core_stop_title">Ядро VPN перезапущено</string>
+    <string name="notif_crash_title">VPN останавливается снова и снова</string>
     <string name="notif_disconnecting">Отключение…</string>
     <string name="notif_error">Не удалось подключиться</string>
     <string name="notif_failure_apps_none">Ни одно из выбранных приложений не установлено. Выберите приложения заново в настройках.</string>

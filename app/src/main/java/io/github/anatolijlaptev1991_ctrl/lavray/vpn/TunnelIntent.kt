@@ -27,6 +27,12 @@ data class PersistedTunnel(
      * missing, constant, or not bumped by a fast-boot still tells one boot from the next by it.
      */
     val bootId: String? = null,
+    /**
+     * SystemClock.elapsedRealtime() at the last write (-1 unknown). Uptime only ever grows within a boot, so a smaller value
+     * now is a reboot, whatever the boot count and id say; it catches the first read after an update from a build that
+     * wrote no boot id.
+     */
+    val uptimeMs: Long = -1,
 )
 
 interface TunnelStore {
@@ -46,20 +52,19 @@ class TunnelIntent(
     private val store: TunnelStore,
     private val bootCount: () -> Int = { -1 },
     private val bootId: () -> String? = { null },
+    private val uptime: () -> Long = { -1 },
 ) {
     /** Read through on every use, and read as cleared when it was written under an earlier boot. */
     val snapshot: PersistedTunnel get() = synchronized(LOCK) { current() }
 
-    /** A new service process starts: a stale `true` is a death nobody decided. [exitReason] is read only then. */
+    /**
+     * A new service process starts: a stale `true` is a death nobody decided. [exitReason] is read only then, and only
+     * labels the stop for the UI (it never clears the wish: a record cannot tell a force-stop from a cleaner's kill or,
+     * before API 34, from an update, and a wrong "the person wanted it off" would leave the phone unprotected).
+     */
     fun onProcessStarted(exitReason: () -> String?) = update {
         if (it.wantConnected && !it.unexpectedStop) {
-            val reason = exitReason()
-            // A force-stop (or the person ending the process) is a deliberate act, like Disconnect: the wish ends with it.
-            if (ExitReasons.isDeliberate(reason)) {
-                it.copy(wantConnected = false, resumeAttempts = 0)
-            } else {
-                it.copy(unexpectedStop = true, stopReason = reason ?: REASON_PROCESS_DIED)
-            }
+            it.copy(unexpectedStop = true, stopReason = exitReason() ?: REASON_PROCESS_DIED)
         } else {
             it
         }
@@ -67,11 +72,16 @@ class TunnelIntent(
 
     /**
      * A start that carries the intent to connect (the user's tap, boot, the system's Always-on, a system restart): sets
-     * the wish and clears the old complaints, not [PersistedTunnel.unexpectedStop].
+     * the wish and clears the old complaints, including [PersistedTunnel.unexpectedStop]: the tunnel is on its way back, so
+     * "stopped unexpectedly" must not flash before a resume goes to CONNECTING, nor sit next to the error of a later failed
+     * attempt (a failed attempt says so itself, a lost tunnel writes it anew).
      * Only entry points that carry intent call it; a start that merely executes an earlier request must not.
      */
     fun onConnectRequested() = update {
-        it.copy(wantConnected = true, needsPermission = false, lastFailure = null, failureKind = null, failureReason = null)
+        it.copy(
+            wantConnected = true, needsPermission = false, lastFailure = null, failureKind = null, failureReason = null,
+            unexpectedStop = false, stopReason = null,
+        )
     }
 
     /**
@@ -124,11 +134,14 @@ class TunnelIntent(
         val saved = store.load()
         val boot = bootCount()
         val id = bootId()
-        val rebooted = (boot >= 0 && saved.bootCount != boot) || (id != null && saved.bootId != null && saved.bootId != id)
+        val now = uptime()
+        val rebooted = (boot >= 0 && saved.bootCount != boot) ||
+            (id != null && saved.bootId != null && saved.bootId != id) ||
+            (now >= 0 && saved.uptimeMs > now)
         if (rebooted) {
             return saved.copy(
                 wantConnected = false, unexpectedStop = false, stopReason = null, resumeAttempts = 0,
-                bootCount = if (boot >= 0) boot else saved.bootCount, bootId = id ?: saved.bootId,
+                bootCount = if (boot >= 0) boot else saved.bootCount, bootId = id ?: saved.bootId, uptimeMs = now,
             )
         }
         // First sight of an id: adopt it, nothing is cleared.
@@ -137,7 +150,9 @@ class TunnelIntent(
 
     private inline fun update(change: (PersistedTunnel) -> PersistedTunnel) = synchronized(LOCK) {
         val next = change(current())
-        if (next != store.load()) store.save(next)
+        val stored = store.load()
+        // The uptime stamp alone is no reason to write: it rides along with a real change.
+        if (next.copy(uptimeMs = stored.uptimeMs) != stored) store.save(next.copy(uptimeMs = uptime()))
     }
 
     companion object {

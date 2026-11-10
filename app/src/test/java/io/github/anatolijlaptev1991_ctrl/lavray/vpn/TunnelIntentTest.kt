@@ -22,10 +22,12 @@ class TunnelIntentTest {
 
     @Test
     fun userConnectSetsTheWishAndClearsComplaints() {
-        store.value = PersistedTunnel(needsPermission = true, lastFailure = "old", failureKind = "x", failureReason = "r")
+        store.value = PersistedTunnel(needsPermission = true, lastFailure = "old", failureKind = "x", failureReason = "r", unexpectedStop = true, stopReason = "low_memory")
         intent.onConnectRequested()
         val s = store.value
         assertTrue(s.wantConnected)
+        assertFalse("the tunnel is on its way back", s.unexpectedStop)
+        assertNull(s.stopReason)
         assertFalse(s.needsPermission)
         assertNull(s.lastFailure)
         assertNull(s.failureKind)
@@ -237,24 +239,48 @@ class TunnelIntentTest {
         assertEquals("boot-a", i.snapshot.bootId)
     }
 
-    // L-10: the person's own force-stop ends the wish like Disconnect; a crash does not.
+    // N2: an exit record only labels the stop. user_requested is a force-stop, a swipe, an OEM cleaner or (before API 34) an
+    // update: none of them may be read as "the person wants the tunnel off".
     @Test
-    fun aForceStopOrAUserEndedProcessClearsTheWish() {
-        for (reason in listOf("user_stopped", "user_requested")) {
+    fun noExitReasonClearsTheWish() {
+        for (reason in listOf("user_stopped", "user_requested", "low_memory", "crash_native", "signaled", null)) {
             store.value = PersistedTunnel(wantConnected = true)
             intent.onProcessStarted { reason }
-            assertFalse(reason, store.value.wantConnected)
-            assertFalse(reason, store.value.unexpectedStop)
+            assertTrue(reason.toString(), store.value.wantConnected)
+            assertTrue(reason.toString(), store.value.unexpectedStop)
+            assertEquals(reason ?: TunnelIntent.REASON_PROCESS_DIED, store.value.stopReason)
         }
     }
 
+    // N11: uptime only grows within a boot, so a smaller one now is a reboot even when no boot id was recorded before.
     @Test
-    fun otherExitsStillCountAsUnexpected() {
-        for (reason in listOf("low_memory", "crash_native", "signaled", null)) {
-            store.value = PersistedTunnel(wantConnected = true)
-            intent.onProcessStarted { reason }
-            assertTrue(reason.toString(), store.value.unexpectedStop)
-        }
+    fun aSmallerUptimeThanAtTheLastWriteIsARebootEvenWithoutAnId() {
+        var up = 5_000_000L
+        val i = TunnelIntent(store, { -1 }, { null }, { up })
+        i.onConnectRequested()
+        up += 1_000
+        assertTrue(i.snapshot.wantConnected)
+        up = 60_000L // the phone restarted: uptime started over
+        assertFalse(i.snapshot.wantConnected)
+    }
+
+    @Test
+    fun theUptimeStampAloneNeverCausesAWrite() {
+        var up = 1_000L
+        val i = TunnelIntent(store, { -1 }, { null }, { up })
+        i.onConnectRequested()
+        val saves = store.saves
+        up += 10_000
+        i.onUserDisconnect()
+        i.onUserDisconnect()
+        assertEquals(saves + 1, store.saves)
+    }
+
+    @Test
+    fun anUnknownUptimeDisablesTheClockCheck() {
+        val i = TunnelIntent(store, { -1 }, { null }, { -1 })
+        i.onConnectRequested()
+        assertTrue(i.snapshot.wantConnected)
     }
 
     @Test

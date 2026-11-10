@@ -380,6 +380,8 @@
     <string name="notif_busy">Trabajando…</string>
     <string name="notif_connected">Conectado</string>
     <string name="notif_connecting">Conectando…</string>
+    <string name="notif_core_stop_title">Núcleo de la VPN reiniciado</string>
+    <string name="notif_crash_title">La VPN se detiene repetidamente</string>
     <string name="notif_disconnecting">Desconectando…</string>
     <string name="notif_error">Error de conexión</string>
     <string name="notif_failure_apps_none">Ninguna de las apps seleccionadas está instalada. Vuelve a elegir las apps en Ajustes.</string>

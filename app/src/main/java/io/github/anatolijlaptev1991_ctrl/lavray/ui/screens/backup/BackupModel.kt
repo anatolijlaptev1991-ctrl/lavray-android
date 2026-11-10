@@ -253,19 +253,21 @@ class BackupModel(
     /** The service is held first and released in `finally`; without the hold nothing is replaced (it could be cut off halfway). */
     private suspend fun restore(data: ByteArray, password: String) {
         val token = "backup-restore-${holds.incrementAndGet()}"
-        val held = try {
-            hold.begin(token, RESTORE_HOLD_MS)
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            false
-        }
-        if (!held) {
-            mutable.update { it.copy(error = R.string.bk_err_hold) }
-            return
-        }
+        // The release is in the `finally` that also covers the begin: a begin that completed and was then cancelled still
+        // leaves a hold in force, and only its end by token clears it (ending a hold that was never accepted is a no-op).
         try {
+            val held = try {
+                hold.begin(token, RESTORE_HOLD_MS)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            if (!held) {
+                mutable.update { it.copy(error = R.string.bk_err_hold) }
+                return
+            }
             onBeforeReplace()
             when (val r = session.call { backupImportBackup(ImportBackupRequest(data, password, confirmReplace = true)) }) {
                 is CoreResult.Ok -> {
@@ -321,7 +323,11 @@ class BackupModel(
     }
 
     private companion object {
-        /** The service clamps a hold to 15 minutes; a restore is seconds, ten minutes is a ceiling for a forgotten release. */
-        const val RESTORE_HOLD_MS = 10 * 60 * 1000L
+        /**
+         * The core sets no limit on a restore. Opening the file is one Argon2id derivation plus the replacement of the data
+         * of at most 64 MiB: seconds on a current phone, tens of seconds on a slow 32-bit one. Three minutes is several times
+         * that, and a forgotten release then costs three minutes of a foreground notification, not the service's 15-minute cap.
+         */
+        const val RESTORE_HOLD_MS = 3 * 60 * 1000L
     }
 }

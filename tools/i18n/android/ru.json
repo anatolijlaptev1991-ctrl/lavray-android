@@ -134,6 +134,8 @@
   "notif_busy": "Выполняется операция…",
   "notif_connected": "Подключено",
   "notif_connecting": "Подключение…",
+  "notif_core_stop_title": "Ядро VPN перезапущено",
+  "notif_crash_title": "VPN останавливается снова и снова",
   "notif_disconnecting": "Отключение…",
   "notif_error": "Не удалось подключиться",
   "notif_failure_apps_none": "Ни одно из выбранных приложений не установлено. Выберите приложения заново в настройках.",

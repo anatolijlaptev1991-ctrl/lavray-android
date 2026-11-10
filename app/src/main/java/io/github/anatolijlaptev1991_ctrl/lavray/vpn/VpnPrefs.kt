@@ -35,6 +35,7 @@ class VpnPrefs(context: Context) : TunnelStore {
         resumeAttempts = prefs.getInt(KEY_RESUME_ATTEMPTS, 0),
         bootCount = prefs.getInt(KEY_BOOT_COUNT, -1),
         bootId = prefs.getString(KEY_BOOT_ID, null),
+        uptimeMs = prefs.getLong(KEY_UPTIME, -1),
     )
 
     override fun save(state: PersistedTunnel) {
@@ -49,6 +50,7 @@ class VpnPrefs(context: Context) : TunnelStore {
             .putInt(KEY_RESUME_ATTEMPTS, state.resumeAttempts)
             .putInt(KEY_BOOT_COUNT, state.bootCount)
             .putString(KEY_BOOT_ID, state.bootId)
+            .putLong(KEY_UPTIME, state.uptimeMs)
             .commit()
     }
 
@@ -66,6 +68,7 @@ class VpnPrefs(context: Context) : TunnelStore {
         const val KEY_RESUME_ATTEMPTS = "resume_attempts"
         const val KEY_BOOT_COUNT = "boot_count"
         const val KEY_BOOT_ID = "boot_id"
+        const val KEY_UPTIME = "uptime_ms"
     }
 }
 

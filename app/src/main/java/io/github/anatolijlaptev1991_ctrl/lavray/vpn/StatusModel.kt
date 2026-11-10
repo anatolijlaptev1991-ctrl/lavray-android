@@ -17,6 +17,7 @@ internal data class StatusInputs(
     val failureReason: String? = null,
     val warnings: List<String> = emptyList(),
     val coreEpoch: Int = 0,
+    val tunnelSeq: Int = 0,
     /** The core let go of an established tunnel and the grace period has not ended yet. */
     val inGrace: Boolean = false,
     /** A deliberate disconnect is waiting for the core. */
@@ -55,6 +56,7 @@ internal object StatusModel {
             failureReason = i.failureReason,
             warnings = if (shown.state == VpnState.CONNECTED) i.warnings else emptyList(),
             coreEpoch = i.coreEpoch,
+            tunnelSeq = i.tunnelSeq,
             skippedPackages = i.skippedPackages,
             blackholeUntilMs = i.blackholeUntilMs,
         )

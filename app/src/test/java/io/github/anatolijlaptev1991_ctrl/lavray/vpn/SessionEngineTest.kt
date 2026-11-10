@@ -477,15 +477,149 @@ internal class SessionEngineTest {
         assertFalse(engine.disconnecting)
     }
 
-    // ---- L-10: a force-stop is a deliberate act of the person
+    // ---- N2: an exit record never decides that the tunnel is unwanted
 
     @Test
-    fun aForceStopIsNotAnUnexpectedStopAndClearsTheWish() {
+    fun aRestartAfterAProcessEndedAsUserRequestedStillResumesAndSaysWhy() {
         store.value = PersistedTunnel(wantConnected = true)
-        engine.onCreated { "user_stopped" }
-        assertFalse(store.value.wantConnected)
-        assertFalse(store.value.unexpectedStop)
-        assertTrue(engine.onPoke().stops())
+        engine.onCreated { "user_requested" }
+        assertTrue(store.value.wantConnected)
+        assertEquals("user_requested", store.value.stopReason)
+        val effects = engine.onResume()
+        assertEquals(1, effects.started().size)
+        // L5: the tunnel is on its way back; "stopped unexpectedly" must not flash before the resume reaches CONNECTING.
+        assertFalse(effects.status().unexpectedStop)
+        assertEquals(VpnState.CONNECTING, effects.status().state)
+    }
+
+    @Test
+    fun aUiOnlyStartAfterAUserRequestedExitKeepsTheWishAndTellsTheUser() {
+        store.value = PersistedTunnel(wantConnected = true)
+        engine.onCreated { "user_requested" }
+        env.ui = true
+        val effects = engine.onPoke()
+        assertTrue(store.value.wantConnected)
+        assertTrue(effects.status().unexpectedStop)
+        assertEquals("user_requested", effects.status().stopReason)
+    }
+
+    // ---- L5: a stale unexpectedStop never sits next to a later outcome
+
+    @Test
+    fun aNewConnectRequestEndsAStaleUnexpectedStop() {
+        store.value = PersistedTunnel(wantConnected = true, unexpectedStop = true, stopReason = "low_memory")
+        val seq = userConnects()
+        val effects = engine.onConnect(StartSource.USER, 5, seq)
+        assertFalse(effects.status().unexpectedStop)
+        assertNull(effects.status().stopReason)
+    }
+
+    @Test
+    fun theErrorOfALaterFailedAttemptIsNotShownNextToAnOldStop() {
+        store.value = PersistedTunnel(wantConnected = true, unexpectedStop = true, stopReason = "crash_native")
+        val seq = userConnects()
+        val start = engine.onConnect(StartSource.USER, 5, seq).started().single()
+        val status = engine.onAttemptDone(start.generation, fail(permanent = true, kind = FailureKind.NO_SERVER)).status()
+        assertEquals(VpnState.ERROR, status.state)
+        assertFalse(status.unexpectedStop)
+    }
+
+    @Test
+    fun aTunnelThatIsLostLaterIsAnUnexpectedStopAnew() {
+        env.seq = 1
+        wish.onConnectRequested()
+        val start = engine.onConnect(StartSource.USER, 5, 1).started().single()
+        env.held = true
+        engine.onTunEstablished(1, emptyList())
+        engine.onAttemptDone(start.generation, ok())
+        val grace = engine.onCore(core(CoreState.CORE_STATE_ERROR)).filterIsInstance<SessionEffect.StartGrace>().single()
+        assertTrue(engine.onGraceElapsed(grace.token).status().unexpectedStop)
+    }
+
+    // ---- L2: every new tunnel gets a number, however short the gap
+
+    @Test
+    fun everyTransitionToConnectedBumpsTheTunnelNumber() {
+        val first = established()
+        assertEquals(1, engine.onPoke().status().tunnelSeq)
+        // A core-driven restart: the number moves even though a conflated state flow would show CONNECTED throughout.
+        engine.onCore(core(CoreState.CORE_STATE_DISCONNECTING))
+        engine.onCore(core(CoreState.CORE_STATE_IDLE))
+        engine.onCore(core(CoreState.CORE_STATE_CONNECTING))
+        assertEquals(1, engine.onPoke().status().tunnelSeq)
+        assertEquals(2, engine.onCore(core(CoreState.CORE_STATE_CONNECTED)).status().tunnelSeq)
+        assertEquals("a repeated CONNECTED is the same tunnel", 2, engine.onCore(core(CoreState.CORE_STATE_CONNECTED)).status().tunnelSeq)
+        assertTrue(first > 0)
+    }
+
+    @Test
+    fun theResultOfOurOwnAttemptAndTheStreamCountOnce() {
+        env.seq = 1
+        val start = engine.onConnect(StartSource.USER, 5, 1).started().single()
+        engine.onCore(core(CoreState.CORE_STATE_CONNECTED, profile = 5))
+        val status = engine.onAttemptDone(start.generation, ok()).status()
+        assertEquals(1, status.tunnelSeq)
+    }
+
+    @Test
+    fun aReconnectMakesANewTunnelNumber() {
+        val gen = established()
+        env.seq = 2
+        val again = engine.onReconnect(5, 2).started().single()
+        engine.onCore(core(CoreState.CORE_STATE_DISCONNECTING))
+        engine.onCore(core(CoreState.CORE_STATE_IDLE))
+        val status = engine.onAttemptDone(again.generation, ok()).status()
+        assertEquals(2, status.tunnelSeq)
+        assertTrue(gen > 0)
+    }
+
+    // ---- M2: warnings belong to the connect that made the tunnel
+
+    @Test
+    fun aRestartTheCoreDidOnItsOwnLeavesNoStaleWarnings() {
+        env.seq = 1
+        val start = engine.onConnect(StartSource.USER, 5, 1).started().single()
+        assertEquals(listOf("w"), engine.onAttemptDone(start.generation, ok("w")).status().warnings)
+        engine.onCore(core(CoreState.CORE_STATE_DISCONNECTING))
+        engine.onCore(core(CoreState.CORE_STATE_IDLE))
+        engine.onCore(core(CoreState.CORE_STATE_CONNECTING))
+        val status = engine.onCore(core(CoreState.CORE_STATE_CONNECTED)).status()
+        assertEquals(VpnState.CONNECTED, status.state)
+        assertTrue("the restart's own warnings went to its caller; unknown is shown as none", status.warnings.isEmpty())
+    }
+
+    // ---- N6: a busy restore is not sacrificed to the kill
+
+    @Test
+    fun theKillWaitsForABusyHoldAndThenComes() {
+        established()
+        env.busy = true
+        val held = engine.onCoreCutLoose(timedOut = true)
+        assertTrue(held.none { it == SessionEffect.KillProcess })
+        assertTrue(held.contains(SessionEffect.Alert(AlertKind.Failure(FailureKind.CORE_STOP_TIMEOUT, SessionEngine.STOP_TIMEOUT_MESSAGE))))
+        assertTrue(engine.onPoke().none { it == SessionEffect.KillProcess })
+        env.busy = false
+        val done = engine.onPoke()
+        assertEquals(SessionEffect.KillProcess, done.last())
+        assertTrue("only once", engine.onPoke().none { it == SessionEffect.KillProcess })
+    }
+
+    // A Connect written during the stuck Disconnect, then the kill, then the new process resumes it.
+    @Test
+    fun aConnectWrittenDuringAStuckDisconnectIsResumedByTheNextProcess() {
+        established()
+        env.seq = 2
+        engine.onDisconnect(2) // Disconnect(2) is stuck in the core
+        wish.onUserDisconnect()
+        env.seq = 3
+        wish.onConnectRequested() // the person taps Connect while the stop hangs
+        val effects = engine.onCoreCutLoose(timedOut = true)
+        assertEquals(SessionEffect.KillProcess, effects.last())
+        assertTrue("the wish survives the kill", store.value.wantConnected)
+        // The system restarts the service in a fresh process: null intent, same store.
+        val next = SessionEngine(FakeEnv(), TunnelIntent(store))
+        next.onCreated { "signaled" }
+        assertEquals(1, next.onResume().started().size)
     }
 
     // ---- foreground and stopping

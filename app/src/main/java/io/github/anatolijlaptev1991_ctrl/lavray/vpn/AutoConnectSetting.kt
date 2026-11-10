@@ -9,6 +9,12 @@ enum class WriteResult {
 
     /** The receiver could not be switched on: the preference was rolled back, so the switch must not show "on". */
     RECEIVER_FAILED,
+
+    /**
+     * The receiver could not be switched on and the rollback write failed too: the stored value is ON while the receiver
+     * may be off. The caller must keep reconciling (the service does), and the switch must not claim success.
+     */
+    ROLLBACK_FAILED,
 }
 
 /**
@@ -26,8 +32,7 @@ class AutoConnectSetting(
         if (!write(enabled)) return WriteResult.NOT_SAVED
         val outcome = switch.reconcile(enabled)
         if (enabled && outcome == SwitchOutcome.FAILED_STILL_DISABLED) {
-            write(previous)
-            return WriteResult.RECEIVER_FAILED
+            return if (write(previous)) WriteResult.RECEIVER_FAILED else WriteResult.ROLLBACK_FAILED
         }
         WriteResult.SAVED
     }

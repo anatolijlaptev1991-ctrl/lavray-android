@@ -20,6 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 
 // ---- BootLogic: both receivers, with fake actions
 
@@ -27,12 +28,11 @@ class BootLogicTest {
     private val store = MemoryTunnelStore()
     private var boot = 1
 
-    private class Actions(var consent: Boolean = true, var startFails: RuntimeException? = null, var exit: String? = null) : BootActions {
+    private class Actions(var consent: Boolean = true, var startFails: RuntimeException? = null) : BootActions {
         var starts = 0
         var permissionNotices = 0
         val failures = ArrayList<Pair<String, String?>>()
         override fun consentGranted() = consent
-        override fun lastExitReason() = exit
         override fun startService() {
             startFails?.let { throw it }
             starts++
@@ -77,22 +77,14 @@ class BootLogicTest {
         assertEquals(1, a.starts)
     }
 
-    // L-10: the person force-stopped the app, then an update arrived.
+    // N2: no exit record vetoes an update's restore (before API 34 the update kill reads as user_requested).
     @Test
-    fun updateAfterAForceStopDoesNotRestoreTheTunnel() {
+    fun updateRestoresAWantedTunnelWhateverTheLastExitSaid() {
         intent().onConnectRequested()
-        val a = Actions(exit = "user_stopped")
-        BootLogic.run(BootTrigger.UPDATE, autoConnect = false, intent = intent(), actions = a)
-        assertEquals(0, a.starts)
-        assertFalse(store.value.wantConnected)
-    }
-
-    @Test
-    fun updateThatKilledARunningTunnelStillRestoresIt() {
-        intent().onConnectRequested()
-        val a = Actions(exit = "package_updated")
+        val a = Actions()
         BootLogic.run(BootTrigger.UPDATE, autoConnect = false, intent = intent(), actions = a)
         assertEquals(1, a.starts)
+        assertTrue(store.value.wantConnected)
     }
 
     @Test
@@ -178,14 +170,27 @@ class CoreWatcherTest {
         assertEquals(listOf(10L, 20L, 40L, 50L, 50L, 50L), pauses.toList())
     }
 
+    // N12: one event and a close, over and over, is the same churn: the pause grows.
     @Test
-    fun anyEventResetsThePause() = runBlocking {
+    fun aStreamThatDeliversOneEventAndClosesStillGrowsThePause() = runBlocking {
         val pauses = CopyOnWriteArrayList<Long>()
         var current = true
         val one = flow { emit(st(CoreState.CORE_STATE_CONNECTED)) }
-        val idle = flow<CoreStatus> { }
-        val api = Api(st(CoreState.CORE_STATE_IDLE), listOf(idle, idle, one, idle))
+        val api = Api(st(CoreState.CORE_STATE_IDLE), listOf(one))
         CoreWatcher.keep(api, { }, { current }, retryMs = 10, maxRetryMs = 100, sleep = { pauses += it; if (pauses.size == 4) current = false })
+        assertEquals(listOf(10L, 20L, 40L, 80L), pauses.toList())
+    }
+
+    @Test
+    fun aStreamThatStayedOpenLongEnoughResetsThePause() = runBlocking {
+        val pauses = CopyOnWriteArrayList<Long>()
+        var current = true
+        var clock = 0L
+        val idle = flow<CoreStatus> { }
+        val long = flow<CoreStatus> { clock += 60_000 }
+        val api = Api(st(CoreState.CORE_STATE_IDLE), listOf(idle, idle, long, idle))
+        CoreWatcher.keep(api, { }, { current }, retryMs = 10, maxRetryMs = 100, healthyMs = 30_000, now = { clock },
+            sleep = { pauses += it; if (pauses.size == 4) current = false })
         assertEquals(listOf(10L, 20L, 10L, 10L), pauses.toList())
     }
 
@@ -265,6 +270,68 @@ class TunHandoffTest {
 
 // ---- BusyHold, AutoConnectSetting, SwitchRetry
 
+class BoundedStopTest {
+    @Test
+    fun aStopThatReturnsInTimeIsFinished() {
+        var ran = false
+        assertTrue(BoundedStop.run({ ran = true }, 2_000))
+        assertTrue(ran)
+    }
+
+    // N3: a stop that hangs in onDestroy is given up on, and the process goes.
+    @Test
+    fun aHungStopIsGivenUpOnAtTheBound() {
+        val hang = CountDownLatch(1)
+        val started = System.nanoTime()
+        assertFalse(BoundedStop.run({ hang.await() }, 200))
+        assertTrue("returned at the bound, not when the stop ended", (System.nanoTime() - started) / 1_000_000 < 3_000)
+        hang.countDown()
+    }
+
+    @Test
+    fun theProcessLeavesWhenNothingElseLivesOrTheStopHung() {
+        assertTrue(BoundedStop.shouldKillProcess(stopFinished = true, otherServicesAlive = false))
+        assertFalse(BoundedStop.shouldKillProcess(stopFinished = true, otherServicesAlive = true))
+        assertTrue("a hung runtime would block the next service's core too", BoundedStop.shouldKillProcess(stopFinished = false, otherServicesAlive = true))
+    }
+}
+
+// N8: the answer of onStartCommand reaches the Binder thread that asked for the hold.
+class ForegroundConfirmTest {
+    @Test
+    fun aRefusalReportedByTheStartIsReturned() {
+        val c = ForegroundConfirm()
+        c.arm()
+        Thread { Thread.sleep(50); c.report(false) }.start()
+        assertFalse(c.await(2_000))
+    }
+
+    @Test
+    fun anEnteredForegroundIsReturnedAsInForce() {
+        val c = ForegroundConfirm()
+        c.arm()
+        c.report(true)
+        assertTrue(c.await(2_000))
+    }
+
+    @Test
+    fun silenceCountsAsInForceBecauseTheHoldEndsByItsOwnDeadline() {
+        val c = ForegroundConfirm()
+        c.arm()
+        assertTrue(c.await(100))
+    }
+
+    @Test
+    fun aSecondRoundIsNotAnsweredByTheFirst() {
+        val c = ForegroundConfirm()
+        c.arm()
+        c.report(false)
+        assertFalse(c.await(100))
+        c.arm()
+        assertTrue("fresh round, no stale answer", c.await(50))
+    }
+}
+
 class BusyHoldTest {
     private val hold = BusyHold()
 
@@ -343,6 +410,16 @@ class AutoConnectSettingTest {
         val port = Port(BootSwitch.DISABLED, failOn = BootSwitch.DEFAULT)
         assertEquals(WriteResult.RECEIVER_FAILED, setting(port).apply(true))
         assertFalse("the stored value is the old one", stored)
+    }
+
+    // L11: the rollback write can fail too; the caller is told and the service keeps trying to switch the receiver on.
+    @Test
+    fun aRollbackThatFailsIsReportedAsSuch() {
+        val port = Port(BootSwitch.DISABLED, failOn = BootSwitch.DEFAULT)
+        var writes = 0
+        val s = AutoConnectSetting({ stored }, { v -> writes++; if (writes == 1) { stored = v; true } else false }, BootReceiverSwitch(port))
+        assertEquals(WriteResult.ROLLBACK_FAILED, s.apply(true))
+        assertTrue("the stored value stayed ON", stored)
     }
 
     @Test

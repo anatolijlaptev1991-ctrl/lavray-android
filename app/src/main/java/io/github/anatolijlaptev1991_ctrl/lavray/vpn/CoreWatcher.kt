@@ -16,7 +16,8 @@ import kotlin.coroutines.coroutineContext
  * the service believing the last state it saw (CONNECTED on a dead tunnel, never an IDLE to start the grace period),
  * so it is reopened and the state is re-seeded with a status call each time. A stream that delivers nothing before it
  * ends again is retried with a growing pause ([retryMs] doubling up to [maxRetryMs]), so a core that closes it at once
- * does not make the service re-seed and publish every couple of seconds; any event resets the pause.
+ * does not make the service re-seed and publish every couple of seconds. The pause is reset only by a stream that stayed
+ * open for [healthyMs]: one event and a close, over and over, is the same churn.
  */
 internal object CoreWatcher {
     suspend fun keep(
@@ -26,10 +27,13 @@ internal object CoreWatcher {
         retryMs: Long = RETRY_MS,
         maxRetryMs: Long = MAX_RETRY_MS,
         sleep: suspend (Long) -> Unit = { delay(it) },
+        healthyMs: Long = HEALTHY_MS,
+        now: () -> Long = { System.nanoTime() / 1_000_000 },
     ) {
         var pause = retryMs
         while (coroutineContext.isActive && isCurrent()) {
             val delivered = AtomicBoolean(false)
+            val openedAt = now()
             try {
                 coroutineScope {
                     // Subscribe first, then seed: a change between the two must not be lost.
@@ -49,12 +53,14 @@ internal object CoreWatcher {
                 // The core is gone or the socket broke: try again below.
             }
             if (!isCurrent()) return
-            val wait = if (delivered.get()) retryMs else pause
-            pause = if (delivered.get()) retryMs else minOf(pause * 2, maxRetryMs)
+            val healthy = now() - openedAt >= healthyMs
+            val wait = if (healthy) retryMs else pause
+            pause = if (healthy) retryMs else minOf(pause * 2, maxRetryMs)
             sleep(wait)
         }
     }
 
     const val RETRY_MS = 2_000L
     const val MAX_RETRY_MS = 30_000L
+    const val HEALTHY_MS = 30_000L
 }
