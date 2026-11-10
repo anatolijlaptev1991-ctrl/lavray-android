@@ -166,6 +166,22 @@ find_7z() {
   fail "нет 7-Zip (7zz, 7z или 7za; apt-get install p7zip-full)"
 }
 
+# The Android debug keystore of this machine. Where the Android Gradle plugin creates it depends on the environment
+# (ANDROID_USER_HOME, ANDROID_PREFS_ROOT, ANDROID_SDK_HOME, the home directory), so it is looked for, not assumed.
+# Prints the path, or nothing and returns 1 when there is none. DEBUG_KEYSTORE overrides the search.
+find_debug_keystore() {
+  local c
+  for c in "${DEBUG_KEYSTORE:-}" "${ANDROID_USER_HOME:-}/debug.keystore" "${ANDROID_PREFS_ROOT:-}/.android/debug.keystore"            "${ANDROID_SDK_HOME:-}/.android/debug.keystore" "${HOME:-}/.android/debug.keystore"; do
+    if [ -n "$c" ] && [ -f "$c" ]; then printf '%s' "$c"; return 0; fi
+  done
+  for c in "${HOME:-}" "${ANDROID_HOME:-}" "${GRADLE_USER_HOME:-}" "${RUNNER_TEMP:-}" "${GITHUB_WORKSPACE:-}" /tmp; do
+    [ -n "$c" ] && [ -d "$c" ] || continue
+    c="$(find "$c" -maxdepth 5 -type f -name debug.keystore 2>/dev/null | head -n1 || true)"
+    if [ -n "$c" ]; then printf '%s' "$c"; return 0; fi
+  done
+  return 1
+}
+
 recompress_one() { # apk
   local apk="$1" sz tmp entries zipalign apksigner before after cert_before cert_after
   local -a sign files
@@ -173,7 +189,10 @@ recompress_one() { # apk
   if [ -n "${LAVRAY_KEYSTORE_PATH:-}" ] && [ -n "${LAVRAY_KEYSTORE_PASSWORD:-}" ] && [ -n "${LAVRAY_KEY_ALIAS:-}" ] && [ -n "${LAVRAY_KEY_PASSWORD:-}" ]; then
     sign=(--ks "$LAVRAY_KEYSTORE_PATH" --ks-pass env:LAVRAY_KEYSTORE_PASSWORD --ks-key-alias "$LAVRAY_KEY_ALIAS" --key-pass env:LAVRAY_KEY_PASSWORD)
   else
-    sign=(--ks "${DEBUG_KEYSTORE:-$HOME/.android/debug.keystore}" --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android)
+    local debug_ks
+    debug_ks="$(find_debug_keystore)" || fail "нет отладочного хранилища ключей debug.keystore (искал в ANDROID_USER_HOME, ANDROID_PREFS_ROOT, ANDROID_SDK_HOME, HOME, ANDROID_HOME, GRADLE_USER_HOME, RUNNER_TEMP, GITHUB_WORKSPACE, /tmp); задайте DEBUG_KEYSTORE"
+    echo "recompress: отладочный ключ из $debug_ks"
+    sign=(--ks "$debug_ks" --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android)
   fi
   tmp="$(mktemp -d)"
   before="$(stat -c %s "$apk")"
