@@ -49,14 +49,16 @@ type tunParams struct {
 
 // patchReport — что именно сделал patchConfig (для журнала и тестов).
 type patchReport struct {
-	RemovedInbounds   []string // теги или типы удалённых inbound
-	DroppedRules      int      // правила, опустевшие после снятия process_*
-	StrippedConds     int      // снятые условия process_*
-	NeedsOwnerLookup  bool     // остались правила package_name, user, user_id или find_process
-	TunPatched        bool     // у tun-inbound заменены stack/mtu
-	StackForced       string   // стек из конфига, заменённый на gvisor ("" — замены не было или стек не задан)
-	RemovedExperiment []string // удалённые слушатели experimental
-	IPv4OnlyDNS       bool     // у DNS поставлена стратегия ipv4_only (в туннеле нет IPv6)
+	RemovedInbounds    []string // теги или типы удалённых inbound
+	DroppedRules       int      // правила, опустевшие после снятия process_*
+	StrippedConds      int      // снятые условия process_*
+	NeedsOwnerLookup   bool     // остались правила package_name, user, user_id или find_process
+	TunPatched         bool     // у tun-inbound заменены stack/mtu
+	StackForced        string   // стек из конфига, заменённый на gvisor ("" — замены не было или стек не задан)
+	RemovedExperiment  []string // удалённые слушатели experimental
+	IPv4OnlyDNS        bool     // у DNS поставлена стратегия ipv4_only (в туннеле нет IPv6)
+	IPv4OnlyDNSKept    string   // dns.strategy уже была задана и осталась (patch_ipv6.go)
+	IPv4OnlyDNSSkipped bool     // нет route.default_domain_resolver: ipv4_only не ставилась
 }
 
 // processKeys — условия, привязанные к процессу рабочего стола.
