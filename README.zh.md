@@ -47,9 +47,9 @@ APK 位于 [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/
 
 | 文件 | 适用设备 | 文件大小 |
 |---|---|---|
-| `LAVRay-<版本>-arm64-v8a.apk` | 几乎所有现代手机和平板 | 16.19 MB |
-| `LAVRay-<版本>-armeabi-v7a.apk` | 较老的 32 位设备 | 16.66 MB |
-| `LAVRay-<版本>-x86_64.apk` | 模拟器和 Chromebook | 17.26 MB |
+| `LAVRay-<版本>-arm64-v8a.apk` | 几乎所有现代手机和平板 | 16.21 MB |
+| `LAVRay-<版本>-armeabi-v7a.apk` | 较老的 32 位设备 | 16.68 MB |
+| `LAVRay-<版本>-x86_64.apk` | 模拟器和 Chromebook | 17.27 MB |
 | `SHA256SUMS` | 校验和 | — |
 
 不确定选哪个时，请选 `arm64-v8a`。文件大小取自 [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md)（俄语）。
@@ -140,7 +140,7 @@ Get-FileHash .\LAVRay-<版本>-arm64-v8a.apk -Algorithm SHA256   # Windows：与
 
 | 指标 | 数值（模拟器） |
 |---|---|
-| APK 大小：arm64-v8a / armeabi-v7a / x86_64 | 16.19 / 16.66 / 17.26 MB（取自构建产物，不是模拟器；0.9.3 为 20.65 / 21.24 / 21.97） |
+| APK 大小：arm64-v8a / armeabi-v7a / x86_64 | 16.21 / 16.68 / 17.27 MB（取自构建产物，不是模拟器；0.9.3 为 20.65 / 21.24 / 21.97） |
 | 界面冷启动，中位数 | 约 1.26 秒（1259.5 毫秒，16 次） |
 | `:vpn` 进程空闲时的内存（已连接、熄屏） | 约 63 MB PSS（0.9.3 约为 67） |
 | 空闲时的 wakelock、闹钟和任务 | 均没有 |

@@ -47,9 +47,9 @@ APKs are on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-and
 
 | File | For | File size |
 |---|---|---|
-| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 16.19 MB |
-| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 16.66 MB |
-| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 17.26 MB |
+| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 16.21 MB |
+| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 16.68 MB |
+| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 17.27 MB |
 | `SHA256SUMS` | checksums | — |
 
 If you are not sure, take `arm64-v8a`. Sizes are from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian), section 10; the file size on the release page may differ by a fraction of a megabyte.
@@ -140,7 +140,7 @@ All numbers come from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian) Sta
 
 | Metric | Value (emulator) |
 |---|---|
-| APK size: arm64-v8a / armeabi-v7a / x86_64 | 16.19 / 16.66 / 17.26 MB (from build artifacts, not from the emulator; 0.9.3 was 20.65 / 21.24 / 21.97) |
+| APK size: arm64-v8a / armeabi-v7a / x86_64 | 16.21 / 16.68 / 17.27 MB (from build artifacts, not from the emulator; 0.9.3 was 20.65 / 21.24 / 21.97) |
 | UI cold start, median | about 1.26 s (1259.5 ms, 16 runs) |
 | `:vpn` process memory when idle (connected, screen off) | about 63 MB PSS (0.9.3 was about 67) |
 | Wakelocks, alarms and jobs when idle | none |
