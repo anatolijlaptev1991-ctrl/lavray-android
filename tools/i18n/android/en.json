@@ -219,6 +219,7 @@
   "srv_sort_default": "Default order",
   "srv_view": "View",
   "state_disconnecting": "Disconnecting…",
+  "state_error": "Connection error",
   "state_needs_permission": "VPN permission needed",
   "state_waiting_network": "Waiting for network",
   "stats_by_route": "By route",

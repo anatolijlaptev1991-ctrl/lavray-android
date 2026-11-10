@@ -219,6 +219,7 @@
   "srv_sort_default": "По порядку",
   "srv_view": "Вид",
   "state_disconnecting": "Отключение…",
+  "state_error": "Ошибка подключения",
   "state_needs_permission": "Нужно разрешение VPN",
   "state_waiting_network": "Ожидание сети",
   "stats_by_route": "По маршрутам",

@@ -108,7 +108,7 @@ fun ConnectionScreen() {
     }
     // Remembered: a new object on every pass would make the state card recompose with each tick of the traffic card.
     val shown = remember(link, notices, noticeActions, nav) {
-        Shown(link, notices, ErrorDetail.clean(notices.failure.raw), noticeActions, onChooseServer = { nav.openSection("servers", "profiles") })
+        Shown(link, notices, ErrorDetail.detail(notices.failure.kind, notices.failure.raw), noticeActions, onChooseServer = { nav.openSection("servers", "profiles") })
     }
 
     LightField(markFor(phase, link), Modifier.fillMaxSize()) {
@@ -145,7 +145,7 @@ private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo,
     // Right after the app starts the service state has not arrived: "Disconnected" would be a guess, and Connect pressed on
     // a tunnel that is already up does nothing visible. Until the core was asked once, the card says it is reading.
     val reading = !info.loaded && phase == Phase.Off
-    val stateText = if (reading) stringResource(R.string.cx_state_reading) else stateLabel(phase)
+    val stateText = if (reading) stringResource(R.string.cx_state_reading) else stateLabel(phase, shown.notices.failure.kind)
     val noServer = info.loaded && info.server == null
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // A saved change the running tunnel does not have yet: here it is shown whether or not "later" was tapped.
@@ -219,7 +219,7 @@ private fun ConnectButton(phase: Phase, onConnect: () -> Unit, reading: Boolean)
 }
 
 @Composable
-private fun stateLabel(phase: Phase): String = stringResource(
+private fun stateLabel(phase: Phase, failureKind: String?): String = stringResource(
     when (phase) {
         Phase.Off -> R.string.conn_state_off
         Phase.Connecting -> R.string.conn_state_connecting
@@ -227,7 +227,7 @@ private fun stateLabel(phase: Phase): String = stringResource(
         Phase.On -> R.string.conn_state_on
         Phase.Disconnecting -> R.string.state_disconnecting
         Phase.NeedsPermission -> R.string.state_needs_permission
-        Phase.Error -> R.string.conn_state_err
+        Phase.Error -> ErrorDetail.titleRes(failureKind)
     },
 )
 

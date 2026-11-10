@@ -605,6 +605,7 @@
     <string name="st_ok">в порядке</string>
     <string name="st_warn">внимание</string>
     <string name="state_disconnecting">Отключение…</string>
+    <string name="state_error">Ошибка подключения</string>
     <string name="state_needs_permission">Нужно разрешение VPN</string>
     <string name="state_waiting_network">Ожидание сети</string>
     <string name="stats_by_route">По маршрутам</string>

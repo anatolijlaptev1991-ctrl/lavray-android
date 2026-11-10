@@ -593,6 +593,7 @@
     <string name="st_ok">正常</string>
     <string name="st_warn">注意</string>
     <string name="state_disconnecting">正在断开…</string>
+    <string name="state_error">连接出错</string>
     <string name="state_needs_permission">需要 VPN 权限</string>
     <string name="state_waiting_network">等待网络</string>
     <string name="stats_by_route">按路由</string>

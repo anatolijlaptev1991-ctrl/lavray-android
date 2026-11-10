@@ -597,6 +597,7 @@
     <string name="st_ok">in Ordnung</string>
     <string name="st_warn">Achtung</string>
     <string name="state_disconnecting">Trennen …</string>
+    <string name="state_error">Verbindungsfehler</string>
     <string name="state_needs_permission">VPN-Berechtigung erforderlich</string>
     <string name="state_waiting_network">Warten auf Netzwerk</string>
     <string name="stats_by_route">Nach Route</string>

@@ -45,6 +45,24 @@ class LinkHealthTest {
     private fun basis(enabled: Boolean = true, tunnel: Int = 1, started: Long = t0, seenAt: Long = t0 + 2_000) =
         HealthBasis.firstSight(tunnel, started, enabled, seenAt)
 
+    // Device check, V-04: "Core error" with an English line under it for a phone that lacks the chosen apps.
+    @Test fun aFailureThatIsNotTheCoresIsNotCalledACoreError() {
+        for (kind in listOf("apps_none", "no_server", "permission", "restricted_start", "protection_off", "repeated_crash")) {
+            assertEquals(kind, R.string.state_error, ErrorDetail.titleRes(kind))
+        }
+        for (kind in listOf("core_start", "connect_failed", "tunnel_lost", "core_stop_timeout", null, "something new")) {
+            assertEquals(kind, R.string.conn_state_err, ErrorDetail.titleRes(kind))
+        }
+    }
+
+    @Test fun theServicesOwnEnglishIsNotShownUnderASentenceThatSaysItAll() {
+        assertEquals(null, ErrorDetail.detail("apps_none", "none of the selected apps is installed"))
+        assertEquals(null, ErrorDetail.detail("permission", "VPN permission is not granted"))
+        assertEquals("what the system said stays", "not allowed", ErrorDetail.detail("restricted_start", "not allowed"))
+        assertEquals("what the core said stays", "dial tcp: timeout", ErrorDetail.detail("connect_failed", "dial tcp: timeout"))
+        assertEquals("dial tcp: timeout", ErrorDetail.detail(null, "dial tcp: timeout"))
+    }
+
     @Test fun aFailureReasonFromTheCoreIsShownWhateverElseIsUnknown() {
         assertEquals(LinkHealth.NoTraffic("refused"), HealthRules.of(signal("refused"), basis(), t0 + 3_000))
         assertEquals(LinkHealth.NoTraffic("x"), HealthRules.of(signal("x"), null, t0 + 60_000))

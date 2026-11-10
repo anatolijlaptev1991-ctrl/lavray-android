@@ -219,6 +219,7 @@
   "srv_sort_default": "默认顺序",
   "srv_view": "视图",
   "state_disconnecting": "正在断开…",
+  "state_error": "连接出错",
   "state_needs_permission": "需要 VPN 权限",
   "state_waiting_network": "等待网络",
   "stats_by_route": "按路由",

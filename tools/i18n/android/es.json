@@ -219,6 +219,7 @@
   "srv_sort_default": "Orden original",
   "srv_view": "Vista",
   "state_disconnecting": "Desconectando…",
+  "state_error": "Error de conexión",
   "state_needs_permission": "Se necesita permiso de VPN",
   "state_waiting_network": "Esperando la red",
   "stats_by_route": "Por ruta",

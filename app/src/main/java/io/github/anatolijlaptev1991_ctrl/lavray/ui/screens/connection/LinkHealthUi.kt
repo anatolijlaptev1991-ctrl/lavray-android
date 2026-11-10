@@ -83,6 +83,21 @@ object ErrorDetail {
         else -> null
     }
 
+    /**
+     * Failures that are not the core's: the phone lacks the chosen apps, no server is chosen, the permission is missing, the
+     * system refused the start, the hold ran out, the service keeps crashing. The headline "Core error" would blame the wrong
+     * part, and the raw text behind these kinds is the service's own English wording of what the sentence already says.
+     */
+    private val notTheCore = setOf("apps_none", "no_server", "permission", "restricted_start", "protection_off", "repeated_crash")
+    private val saidInFull = setOf("apps_none", "no_server", "permission", "protection_off", "repeated_crash")
+
+    /** The headline of the error state for a failure of [kind]. */
+    @StringRes
+    fun titleRes(kind: String?): Int = if (kind in notTheCore) R.string.state_error else R.string.conn_state_err
+
+    /** The cleaned raw line to show under the sentence of [kind]; null when the sentence says it all. */
+    fun detail(kind: String?, raw: String?): String? = if (kind in saidInFull) null else clean(raw)
+
     /** "Check your network" fits only a failure to reach the server, not a missing server, permission or crash loop. */
     fun suggestsNetworkCheck(kind: String?): Boolean = kind == null || kind == "connect_failed" || kind == "tunnel_lost"
 

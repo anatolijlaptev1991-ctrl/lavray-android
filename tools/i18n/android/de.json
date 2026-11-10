@@ -219,6 +219,7 @@
   "srv_sort_default": "Standardreihenfolge",
   "srv_view": "Ansicht",
   "state_disconnecting": "Trennen …",
+  "state_error": "Verbindungsfehler",
   "state_needs_permission": "VPN-Berechtigung erforderlich",
   "state_waiting_network": "Warten auf Netzwerk",
   "stats_by_route": "Nach Route",
