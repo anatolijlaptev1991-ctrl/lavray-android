@@ -39,7 +39,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavScreenCo
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavTextField
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.isLive
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.hasTunnel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.findActivity
 import kotlinx.coroutines.launch
@@ -54,11 +54,12 @@ import java.util.Date
 @Composable
 fun BackupScreen() {
     val env = LocalEnv.current
-    val context = LocalContext.current
-    val model = remember { BackupModel(env.session, context.contentResolver) }
+    // The model belongs to the app, not to this screen: a restore that is running goes on if the person leaves, and its
+    // result (and the "close the app" card) is still there when they come back.
+    val model = env.backup
     val state by model.state.collectAsStateWithLifecycle()
     val vpn by env.vpn.status.collectAsStateWithLifecycle()
-    val tunnelUp = phaseOf(vpn.state).isLive
+    val tunnelUp = phaseOf(vpn.state).hasTunnel
     DisposableEffect(model) { onDispose { model.release() } }
 
     LavScreenColumn {
@@ -103,6 +104,7 @@ private fun ExportCard(model: BackupModel, state: BackupState) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LavText(stringResource(R.string.bk_exportTitle), style = Lav.type.h2)
             LavText(stringResource(R.string.bk_hint), style = Lav.type.small, color = Lav.colors.textSecondary)
+            LavText(stringResource(R.string.bk_notIncluded), style = Lav.type.caption, color = Lav.colors.textTertiary)
             PasswordField(pw, { pw = it }, stringResource(R.string.bk_pw), pwError)
             PasswordField(repeat, { repeat = it }, stringResource(R.string.bk_pw2), if (repeat.isNotEmpty() && !matches) stringResource(R.string.bk_mismatch) else null)
             LavText(stringResource(R.string.bk_pwHint, BackupRules.MIN_PASSWORD_CHARS.toString()), style = Lav.type.caption, color = Lav.colors.textTertiary)
@@ -118,6 +120,7 @@ private fun ExportCard(model: BackupModel, state: BackupState) {
 
 @Composable
 private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolean) {
+    val env = LocalEnv.current
     val scope = rememberCoroutineScope()
     var pw by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf(false) }
@@ -156,7 +159,8 @@ private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolea
             title = stringResource(R.string.bk_confirmTitle),
             text = stringResource(R.string.bk_confirm_phone) + "\n\n" + stringResource(R.string.bk_restart_warn_d),
             confirmLabel = stringResource(R.string.bk_confirmOk), dismissLabel = stringResource(R.string.common_cancel),
-            onConfirm = { confirm = false; scope.launch { model.replace(pw); pw = "" } }, onDismiss = { confirm = false }, danger = true,
+            // On the app's scope: leaving the screen must not cancel a restore the core has already begun.
+            onConfirm = { confirm = false; env.scope.launch { model.replace(pw) }; pw = "" }, onDismiss = { confirm = false }, danger = true,
         )
     }
 }

@@ -36,14 +36,23 @@ data class BackupState(
     /** Restore finished: whether the core wants the app restarted. */
     val restored: Boolean = false,
     val needsRestart: Boolean = false,
-)
+) {
+    /** The state after the screen was left; see [BackupModel.release]. */
+    fun afterRelease(): BackupState =
+        if (busy || restored) this else copy(error = null, exportName = null, saved = false, pickedName = null, summary = null)
+}
 
 /**
  * Backup export and restore through the system file picker (no storage permission). The encrypted bytes live only in
  * this object while a save or a restore is under way and are dropped right after; the password is passed on and never
  * stored. Files are read and written on the IO dispatcher.
  */
-class BackupModel(private val session: CoreSession, private val resolver: ContentResolver) {
+class BackupModel(
+    private val session: CoreSession,
+    private val resolver: ContentResolver,
+    /** Called once after the core replaced all data, so what the app holds about the old data can be dropped. */
+    private val onRestored: () -> Unit = {},
+) {
     private val mutable = MutableStateFlow(BackupState())
     val state: StateFlow<BackupState> = mutable.asStateFlow()
 
@@ -117,6 +126,7 @@ class BackupModel(private val session: CoreSession, private val resolver: Conten
             is CoreResult.Ok -> {
                 picked = null
                 mutable.update { it.copy(busy = false, restored = true, needsRestart = r.value.needsAppRestart, summary = null, pickedName = null) }
+                onRestored()
             }
             is CoreResult.Fail -> mutable.update { it.copy(busy = false, error = BackupErrors.text(r.reason, r.kind)) }
         }
@@ -125,10 +135,15 @@ class BackupModel(private val session: CoreSession, private val resolver: Conten
     /** A new password means the earlier check no longer applies. */
     fun invalidateCheck() = mutable.update { it.copy(summary = null, error = null) }
 
-    /** Leaving the screen drops the file contents held in memory. */
+    /**
+     * Leaving the screen drops the file contents held in memory, and with them what the screen showed about them (the
+     * model outlives the screen, so a file name without its bytes would offer a check that cannot run). A restore that
+     * is running and a finished one are kept: that is the answer the person is waiting for.
+     */
     fun release() {
         exported = null
         picked = null
+        mutable.update { it.afterRelease() }
     }
 
     private sealed interface Read {

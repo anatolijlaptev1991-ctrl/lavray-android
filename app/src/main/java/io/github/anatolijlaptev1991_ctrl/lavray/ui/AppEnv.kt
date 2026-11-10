@@ -16,6 +16,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ConnectionModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.CoreProbeBackend
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ExitProbe
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.BackupModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
@@ -68,6 +69,18 @@ class AppEnv(
     }
     val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session)) }
     val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext)) }
+
+    /**
+     * Owned by the app, not by its screen, so a restore that is running outlives the screen and its result is kept.
+     * After a restore the server ids are different: the remembered choice would point at someone else's server.
+     */
+    val backup: BackupModel by lazy {
+        BackupModel(session, appContext.contentResolver) {
+            update { it.copy(selectedProfileId = 0L) }
+            servers.refresh()
+            connection.refresh(0L)
+        }
+    }
 
     /** Replaces the settings and saves them; the UI recomposes from the new immutable value. */
     fun update(change: (UiSettings) -> UiSettings) {

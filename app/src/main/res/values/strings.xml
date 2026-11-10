@@ -59,6 +59,7 @@
     <string name="bk_hint">Все данные одним файлом: настройки, серверы с их паролями, группы, подписки (с адресами) и свои наборы маршрутов. Файл шифруется паролем; без пароля его не открыть.</string>
     <string name="bk_mismatch">Пароли не совпадают</string>
     <string name="bk_noFile">Файл не выбран</string>
+    <string name="bk_notIncluded">В копию не входят выбор приложений для туннеля и автозапуск при включении телефона: они хранятся отдельно и после восстановления остаются как были.</string>
     <string name="bk_pw">Пароль для файла</string>
     <string name="bk_pw2">Повторите пароль</string>
     <string name="bk_pwHint">Не короче %1$s символов. Забытый пароль восстановить нельзя: без него копию не откроет никто.</string>
@@ -201,6 +202,7 @@
     <string name="cx_pending_d">Сохранённые изменения ещё не применены. Перезапустите, когда удобно.</string>
     <string name="cx_pending_t">Туннель работает со старыми настройками</string>
     <string name="cx_probe_fail">Эта проверка сейчас не завершилась.</string>
+    <string name="cx_state_reading">Читаю состояние…</string>
     <string name="da_json_invalid">Ядро не приняло этот JSON. Исправьте его и проверьте ещё раз.</string>
     <string name="dens_compact">Компактная</string>
     <string name="dens_normal">Обычная</string>
@@ -417,6 +419,7 @@
     <string name="rt_deleteConfirm">Удалить пресет «%1$s»? Это действие нельзя отменить.</string>
     <string name="rt_deletePreset">Удалить пресет</string>
     <string name="rt_duplicate">Дублировать</string>
+    <string name="rt_editRejected">Ядро не приняло эту запись. Проверьте, как она написана.</string>
     <string name="rt_empty_d">Ядро недоступно — пресеты появятся после подключения</string>
     <string name="rt_empty_t">Пресеты не загружены</string>
     <string name="rt_exportPreset">Экспорт пресета</string>

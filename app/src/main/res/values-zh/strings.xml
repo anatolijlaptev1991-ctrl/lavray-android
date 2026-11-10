@@ -59,6 +59,7 @@
     <string name="bk_hint">所有数据保存在一个文件中：设置、带密码的服务器、分组、订阅（含地址）以及自定义路由预设。文件使用密码加密，没有密码无法打开。</string>
     <string name="bk_mismatch">两次密码不一致</string>
     <string name="bk_noFile">未选择文件</string>
+    <string name="bk_notIncluded">备份不包含按应用分流的选择和开机自动连接：它们单独保存，恢复后保持原样。</string>
     <string name="bk_pw">文件密码</string>
     <string name="bk_pw2">再次输入密码</string>
     <string name="bk_pwHint">至少 %1$s 个字符。忘记的密码无法找回：没有密码，任何人都无法打开备份。</string>
@@ -201,6 +202,7 @@
     <string name="cx_pending_d">已保存的更改尚未生效。方便时请重启。</string>
     <string name="cx_pending_t">隧道仍在使用旧设置</string>
     <string name="cx_probe_fail">这项检查刚才没有完成。</string>
+    <string name="cx_state_reading">正在读取状态……</string>
     <string name="da_json_invalid">核心不接受此 JSON。请修正后重新检查。</string>
     <string name="dens_compact">紧凑</string>
     <string name="dens_normal">舒适</string>
@@ -405,6 +407,7 @@
     <string name="rt_deleteConfirm">删除预设“%1$s”？此操作无法撤销。</string>
     <string name="rt_deletePreset">删除预设</string>
     <string name="rt_duplicate">复制</string>
+    <string name="rt_editRejected">内核未接受此条目，请检查写法。</string>
     <string name="rt_empty_d">内核不可用 — 启动后将显示预设</string>
     <string name="rt_empty_t">预设未加载</string>
     <string name="rt_exportPreset">导出预设</string>

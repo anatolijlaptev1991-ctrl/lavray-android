@@ -59,6 +59,7 @@
     <string name="bk_hint">Alle Daten in einer Datei: Einstellungen, Server mit ihren Passwörtern, Gruppen, Abos (mit ihren Adressen) und eigene Routing-Presets. Die Datei wird mit einem Passwort verschlüsselt; ohne Passwort lässt sie sich nicht öffnen.</string>
     <string name="bk_mismatch">Passwörter stimmen nicht überein</string>
     <string name="bk_noFile">Keine Datei ausgewählt</string>
+    <string name="bk_notIncluded">Die Sicherung enthält weder die App-Auswahl für den Tunnel noch den Start beim Einschalten des Telefons: Beides wird getrennt gespeichert und bleibt nach der Wiederherstellung unverändert.</string>
     <string name="bk_pw">Datei-Passwort</string>
     <string name="bk_pw2">Passwort wiederholen</string>
     <string name="bk_pwHint">Mindestens %1$s Zeichen. Ein vergessenes Passwort lässt sich nicht wiederherstellen: Ohne es kann niemand die Sicherung öffnen.</string>
@@ -201,6 +202,7 @@
     <string name="cx_pending_d">Gespeicherte Änderungen sind noch nicht angewendet. Starte neu, wenn es passt.</string>
     <string name="cx_pending_t">Der Tunnel läuft mit den alten Einstellungen</string>
     <string name="cx_probe_fail">Diese Prüfung ist gerade nicht abgeschlossen worden.</string>
+    <string name="cx_state_reading">Lese den Zustand …</string>
     <string name="da_json_invalid">Der Kern hat dieses JSON nicht akzeptiert. Korrigieren Sie es und prüfen Sie erneut.</string>
     <string name="dens_compact">Kompakt</string>
     <string name="dens_normal">Normal</string>
@@ -409,6 +411,7 @@
     <string name="rt_deleteConfirm">Preset „%1$s“ löschen? Das lässt sich nicht rückgängig machen.</string>
     <string name="rt_deletePreset">Preset löschen</string>
     <string name="rt_duplicate">Duplizieren</string>
+    <string name="rt_editRejected">Der Kern hat diesen Eintrag nicht akzeptiert. Prüfe die Schreibweise.</string>
     <string name="rt_empty_d">Core nicht verfügbar — Presets erscheinen nach dem Start</string>
     <string name="rt_empty_t">Presets nicht geladen</string>
     <string name="rt_exportPreset">Preset exportieren</string>

@@ -59,6 +59,7 @@
     <string name="bk_hint">Todos los datos en un solo archivo: ajustes, servidores con sus contraseñas, grupos, suscripciones (con sus direcciones) y tus propios conjuntos de rutas. El archivo se cifra con una contraseña; sin ella no se puede abrir.</string>
     <string name="bk_mismatch">Las contraseñas no coinciden</string>
     <string name="bk_noFile">Ningún archivo elegido</string>
+    <string name="bk_notIncluded">La copia no incluye la selección de aplicaciones del túnel ni el inicio al encender el teléfono: se guardan aparte y siguen igual tras restaurar.</string>
     <string name="bk_pw">Contraseña del archivo</string>
     <string name="bk_pw2">Repite la contraseña</string>
     <string name="bk_pwHint">Al menos %1$s caracteres. Una contraseña olvidada no se puede recuperar: sin ella nadie podrá abrir la copia.</string>
@@ -201,6 +202,7 @@
     <string name="cx_pending_d">Los cambios guardados aún no se han aplicado. Reinicia cuando te convenga.</string>
     <string name="cx_pending_t">El túnel funciona con la configuración anterior</string>
     <string name="cx_probe_fail">Esta comprobación no se completó ahora.</string>
+    <string name="cx_state_reading">Leyendo el estado…</string>
     <string name="da_json_invalid">El núcleo no aceptó este JSON. Corrígelo y vuelve a comprobarlo.</string>
     <string name="dens_compact">Compacta</string>
     <string name="dens_normal">Normal</string>
@@ -409,6 +411,7 @@
     <string name="rt_deleteConfirm">¿Eliminar el preset «%1$s»? No se puede deshacer.</string>
     <string name="rt_deletePreset">Eliminar preset</string>
     <string name="rt_duplicate">Duplicar</string>
+    <string name="rt_editRejected">El núcleo no aceptó esta entrada. Revisa cómo está escrita.</string>
     <string name="rt_empty_d">Núcleo no disponible — los presets aparecerán al iniciarlo</string>
     <string name="rt_empty_t">Presets no cargados</string>
     <string name="rt_exportPreset">Exportar preset</string>

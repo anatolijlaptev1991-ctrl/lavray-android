@@ -59,6 +59,7 @@
     <string name="bk_hint">All your data in one file: settings, servers with their passwords, groups, subscriptions (with their URLs) and your own routing presets. The file is encrypted with a password; without it, it cannot be opened.</string>
     <string name="bk_mismatch">Passwords don’t match</string>
     <string name="bk_noFile">No file chosen</string>
+    <string name="bk_notIncluded">The backup does not include the per-app tunnel choice or starting at phone boot: they are stored separately and stay as they were after a restore.</string>
     <string name="bk_pw">File password</string>
     <string name="bk_pw2">Repeat the password</string>
     <string name="bk_pwHint">At least %1$s characters. A forgotten password cannot be recovered: nobody can open the backup without it.</string>
@@ -201,6 +202,7 @@
     <string name="cx_pending_d">Saved changes are not applied yet. Restart when it suits you.</string>
     <string name="cx_pending_t">The tunnel is running with the old settings</string>
     <string name="cx_probe_fail">This check did not complete just now.</string>
+    <string name="cx_state_reading">Reading the state…</string>
     <string name="da_json_invalid">The core did not accept this JSON. Fix it and check again.</string>
     <string name="dens_compact">Compact</string>
     <string name="dens_normal">Comfortable</string>
@@ -409,6 +411,7 @@
     <string name="rt_deleteConfirm">Delete the preset “%1$s”? This can’t be undone.</string>
     <string name="rt_deletePreset">Delete preset</string>
     <string name="rt_duplicate">Duplicate</string>
+    <string name="rt_editRejected">The core did not accept this entry. Check how it is written.</string>
     <string name="rt_empty_d">Core unavailable — presets will appear after it starts</string>
     <string name="rt_empty_t">Presets not loaded</string>
     <string name="rt_exportPreset">Export preset</string>
