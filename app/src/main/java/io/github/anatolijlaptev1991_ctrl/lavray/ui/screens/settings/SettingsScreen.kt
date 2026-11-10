@@ -91,25 +91,28 @@ fun AppearanceSection() {
     val env = LocalEnv.current
     val context = LocalContext.current
     val s = env.settings
-    LavListBlock(R.string.set_theme) {
-        LavChip(stringResource(R.string.theme_system), s.theme == ThemeMode.SYSTEM, { env.update { it.copy(theme = ThemeMode.SYSTEM) } })
-        LavChip(stringResource(R.string.theme_dark), s.theme == ThemeMode.DARK, { env.update { it.copy(theme = ThemeMode.DARK) } })
-        LavChip(stringResource(R.string.theme_light), s.theme == ThemeMode.LIGHT, { env.update { it.copy(theme = ThemeMode.LIGHT) } })
-    }
-    LavListBlock(R.string.set_accent) {
-        LavChip(stringResource(R.string.accent_auto), s.accent == AccentChoice.AUTO, { env.update { it.copy(accent = AccentChoice.AUTO) } })
-        LavChip(stringResource(R.string.accent_amber), s.accent == AccentChoice.AMBER, { env.update { it.copy(accent = AccentChoice.AMBER) } })
-        LavChip(stringResource(R.string.accent_sage), s.accent == AccentChoice.SAGE, { env.update { it.copy(accent = AccentChoice.SAGE) } })
-        LavChip(stringResource(R.string.accent_graphite), s.accent == AccentChoice.GRAPHITE, { env.update { it.copy(accent = AccentChoice.GRAPHITE) } })
-    }
-    val shown = remember(s.language) { AppLocale.systemChoice(context) ?: s.language }
-    LavListBlock(R.string.aria_lang) {
-        AppLanguage.entries.forEach { lang ->
-            val label = if (lang == AppLanguage.System) stringResource(R.string.theme_system) else lang.endonym
-            LavChip(label, shown == lang, {
-                env.update { it.copy(language = lang) }
-                context.findActivity()?.let { activity -> AppLocale.apply(activity, lang) }
-            })
+    // LavCard stacks its children, so the three blocks need a column of their own or they draw on top of each other.
+    androidx.compose.foundation.layout.Column {
+        LavListBlock(R.string.set_theme) {
+            LavChip(stringResource(R.string.theme_system), s.theme == ThemeMode.SYSTEM, { env.update { it.copy(theme = ThemeMode.SYSTEM) } })
+            LavChip(stringResource(R.string.theme_dark), s.theme == ThemeMode.DARK, { env.update { it.copy(theme = ThemeMode.DARK) } })
+            LavChip(stringResource(R.string.theme_light), s.theme == ThemeMode.LIGHT, { env.update { it.copy(theme = ThemeMode.LIGHT) } })
+        }
+        LavListBlock(R.string.set_accent) {
+            LavChip(stringResource(R.string.accent_auto), s.accent == AccentChoice.AUTO, { env.update { it.copy(accent = AccentChoice.AUTO) } })
+            LavChip(stringResource(R.string.accent_amber), s.accent == AccentChoice.AMBER, { env.update { it.copy(accent = AccentChoice.AMBER) } })
+            LavChip(stringResource(R.string.accent_sage), s.accent == AccentChoice.SAGE, { env.update { it.copy(accent = AccentChoice.SAGE) } })
+            LavChip(stringResource(R.string.accent_graphite), s.accent == AccentChoice.GRAPHITE, { env.update { it.copy(accent = AccentChoice.GRAPHITE) } })
+        }
+        val shown = remember(s.language) { AppLocale.systemChoice(context) ?: s.language }
+        LavListBlock(R.string.aria_lang) {
+            AppLanguage.entries.forEach { lang ->
+                val label = if (lang == AppLanguage.System) stringResource(R.string.theme_system) else lang.endonym
+                LavChip(label, shown == lang, {
+                    env.update { it.copy(language = lang) }
+                    context.findActivity()?.let { activity -> AppLocale.apply(activity, lang) }
+                })
+            }
         }
     }
 }
