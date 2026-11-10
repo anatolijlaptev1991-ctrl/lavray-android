@@ -9,7 +9,8 @@
 - Готово: замеры и оптимизация (`docs/MEASUREMENTS.md`, коммиты fd10095, f114849, d3975cc, b734617): APK 20,65 / 21,24 / 21,97 МБ, холодный старт −10,5%, gVisor + MTU 9000.
 - Готово: стек туннеля на Android всегда gVisor, выбор убран из настроек (a7eede1). System/mixed не передают данные, пока приложение исключено из своего VPN. Сделать их рабочими — опция для владельца (MEASUREMENTS, раздел 5).
 - `app/libs/lavray-core.aar` локально собран до a7eede1: для проверки на эмуляторе пересобрать `scripts/build-core.sh`; CI собирает сам.
-- Идёт: README на 5 языках, `docs/PHONE-CHECKLIST.md`, `docs/release-notes/v0.9.3.md` (агент Sonnet).
+- Готово: README на 5 языках, `docs/PHONE-CHECKLIST.md`, `docs/release-notes/v0.9.3.md`, дополнение `docs/NOT-PORTED.md` (5112b8f, ccef9d4).
+- Ждёт владельца: прямое разрешение на создание публичного репозитория и push; ключ подписи релиза (создаёт владелец по `docs/SIGNING.md` или разрешает создать) и секреты `LAVRAY_KEYSTORE_*`.
 - Дальше, после разрешения владельца: push, первый прогон CI, секреты подписи, тег `v0.9.3`, релиз с SHA256SUMS.
 - Решение по стеку: `docs/STACK.md`. Контракт: `docs/ARCHITECTURE.md`.
 - SDK: `%LOCALAPPDATA%\Android\Sdk`, NDK 28.2.13676358, образ android-36 google_apis x86_64, AVD `lvtest`.
