@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
+import io.github.anatolijlaptev1991_ctrl.lavray.R
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreRestartProfile
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
@@ -14,7 +16,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What was saved and is not in the running tunnel yet. */
@@ -23,6 +24,9 @@ enum class PendingReason {
     Routing,
     Dns,
 
+    /** Another setting the core read when it built its config (inbound, log level): a profile restart is enough. */
+    Core,
+
     /** A setting the tunnel is built from (MTU, IPv6, FakeIP, excluded addresses, mux, TLS). */
     Tunnel,
 
@@ -30,13 +34,16 @@ enum class PendingReason {
     Apps;
 
     /** True when restarting the core's profile is enough; the rest needs the tunnel itself to be built again. */
-    val coreRestartSuffices: Boolean get() = this == Routing || this == Dns
+    val coreRestartSuffices: Boolean get() = this == Routing || this == Dns || this == Core
 }
 
-/** The toast of a saved change: while the tunnel does not have it yet, "saved, applies after restart" rather than the plain text. */
-@androidx.annotation.StringRes
-fun savedOrPending(pending: Boolean, @androidx.annotation.StringRes plain: Int): Int =
-    if (pending) io.github.anatolijlaptev1991_ctrl.lavray.R.string.toast_savedRestart else plain
+/**
+ * The toast of a saved change. [needsRestart] is what THIS response said (the core's needs_profile_restart): only then
+ * does the toast say "applies after restart". A global "something is pending" flag must not decide it: an unrelated
+ * earlier change would make every later save claim a restart it does not need.
+ */
+@StringRes
+fun savedOrPending(needsRestart: Boolean, @StringRes plain: Int): Int = if (needsRestart) R.string.toast_savedRestart else plain
 
 @Immutable
 data class RestartState(
@@ -60,11 +67,13 @@ sealed interface RestartEvent {
 /**
  * "A saved change is not in the running tunnel yet", for the whole app: routes, DNS, tunnel settings and the per-app
  * choice raise it, the banner in the shell offers the restart, and the Connection screen keeps showing it after
- * "later". It lasts until the tunnel is restarted or goes down (the next connect starts with the saved settings), and
- * survives navigation because it lives as long as the app.
+ * "later". It lasts until the tunnel is restarted or a tunnel goes down or comes up (a tunnel built later starts from
+ * the saved settings, so anything recorded before it is moot), and survives navigation because it lives as long as
+ * the app.
  *
- * [live] says whether a tunnel is up or on its way up; [reconnect] rebuilds the tunnel and reports whether it came up.
- * Only one restart runs at a time: a second tap while one is under way does nothing.
+ * [live] says whether a tunnel is up or on its way up; [reconnect] rebuilds the tunnel and reports whether it really
+ * was rebuilt and came up. Only one restart runs at a time. All state changes happen under one lock, so a change
+ * recorded while a restart runs is never lost, and a second tap never starts a second restart.
  */
 class RestartHub(
     private val session: CoreSession,
@@ -72,19 +81,52 @@ class RestartHub(
     private val live: StateFlow<Boolean>,
     private val reconnect: suspend () -> Boolean,
 ) {
+    private class Slot(val reason: PendingReason, val baseline: Any?)
+
+    private val lock = Any()
     private val mutable = MutableStateFlow(RestartState())
     private val mutableEvents = MutableSharedFlow<RestartEvent>(extraBufferCapacity = 4)
+
+    private var explicit = emptySet<PendingReason>()
+    private val slots = LinkedHashMap<String, Slot>()
+    private var reissued = emptySet<PendingReason>()
+    private var snoozed = false
+    private var busy = false
 
     val state: StateFlow<RestartState> = mutable.asStateFlow()
     val events: SharedFlow<RestartEvent> = mutableEvents.asSharedFlow()
 
     init {
-        scope.launch { live.collect { up -> if (!up) tunnelWentDown() } }
+        // The starting value is taken here, not in the coroutine: a need recorded right after construction must not be
+        // taken for the edge "a tunnel came up" when the collector delivers the current value.
+        var wasUp = live.value
+        scope.launch {
+            live.collect { up ->
+                // A tunnel that went away or a new one that came up: what was recorded is moot (unless a restart of ours is running).
+                if (up != wasUp) synchronized(lock) { if (!busy) resetLocked() }
+                wasUp = up
+            }
+        }
+    }
+
+    private fun resetLocked() {
+        explicit = emptySet()
+        slots.clear()
+        reissued = emptySet()
+        snoozed = false
+        publishLocked()
+    }
+
+    private fun publishLocked() {
+        mutable.value = RestartState(reasons = explicit + slots.values.map { it.reason }, snoozed = snoozed, busy = busy)
     }
 
     /** The core said the change needs a profile restart (so a tunnel is running): always recorded. */
-    fun need(reason: PendingReason = PendingReason.Routing) {
-        mutable.update { it.copy(reasons = it.reasons + reason, snoozed = false) }
+    fun need(reason: PendingReason = PendingReason.Routing) = synchronized(lock) {
+        explicit = explicit + reason
+        if (busy) reissued = reissued + reason
+        snoozed = false
+        publishLocked()
     }
 
     /** The client knows the change is read only when the tunnel is built: recorded only while a tunnel is up. */
@@ -92,28 +134,62 @@ class RestartHub(
         if (live.value) need(reason)
     }
 
-    /** "Later": the banner folds away, the need stays. */
-    fun postpone() {
-        mutable.update { if (it.needed) it.copy(snoozed = true) else it }
+    /**
+     * A change to a value that is read when the tunnel is built, identified by [slot] (a setting key, "apps"). It is
+     * recorded relative to what the running tunnel was built with: the first change remembers [before], and a change
+     * back to that value withdraws the need again. Ignored while no tunnel is up.
+     */
+    fun noteTunnelChange(reason: PendingReason, slot: String, before: Any?, after: Any?) = synchronized(lock) {
+        if (!live.value) return@synchronized
+        val baseline = if (slot in slots) slots.getValue(slot).baseline else before
+        if (after == baseline) {
+            slots.remove(slot)
+        } else {
+            slots[slot] = Slot(reason, baseline)
+            if (busy) reissued = reissued + reason
+            snoozed = false
+        }
+        publishLocked()
     }
 
-    private fun tunnelWentDown() {
-        // A restart in progress takes the tunnel down on purpose; its own end settles the state.
-        mutable.update { if (it.busy) it else RestartState() }
+    /** "Later": the banner folds away, the need stays. */
+    fun postpone() = synchronized(lock) {
+        if (explicit.isNotEmpty() || slots.isNotEmpty()) {
+            snoozed = true
+            publishLocked()
+        }
     }
 
     /** Applies what is pending. The need is dropped only when the change really was applied. */
     fun restart() {
-        val before = mutable.value
-        if (before.busy || !before.needed) return
-        mutable.value = before.copy(busy = true)
+        val before = synchronized(lock) {
+            if (busy || mutable.value.reasons.isEmpty()) return
+            busy = true
+            publishLocked()
+            mutable.value
+        }
         scope.launch(Dispatchers.IO) {
             val outcome = if (before.needsReconnect) rebuildTunnel() else restartProfile()
-            // Changes made while this ran are not covered by it and stay pending.
-            mutable.update { s ->
-                val left = if (outcome is RestartEvent.Failed && !before.needsReconnect) s.reasons else s.reasons - before.reasons
-                // A tunnel that is down after the attempt starts from the saved settings next time: nothing is pending.
-                if (live.value) s.copy(reasons = left, busy = false, snoozed = false) else RestartState()
+            synchronized(lock) {
+                busy = false
+                when {
+                    // A tunnel that is down after the attempt starts from the saved settings next time: nothing is pending.
+                    !live.value -> resetLocked()
+                    // Applied: what the restart covered goes, what was raised again while it ran stays.
+                    outcome is RestartEvent.Done -> {
+                        explicit = (explicit - before.reasons) + reissued
+                        slots.entries.removeAll { it.value.reason in before.reasons && it.value.reason !in reissued }
+                        reissued = emptySet()
+                        snoozed = false
+                        publishLocked()
+                    }
+                    // Not applied and the tunnel is up: it still runs the old settings, so the need stays.
+                    else -> {
+                        reissued = emptySet()
+                        snoozed = false
+                        publishLocked()
+                    }
+                }
             }
             mutableEvents.tryEmit(outcome)
         }

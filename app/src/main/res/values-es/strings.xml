@@ -21,7 +21,7 @@
     <string name="apps_except">Todas menos las elegidas</string>
     <string name="apps_except_d">Todas las apps pasan por el túnel menos las elegidas, que usan tu conexión normal.</string>
     <string name="apps_hint">Elige qué apps usan la VPN.</string>
-    <string name="apps_missing">No se encuentra en este teléfono: desmárcala si ya no la necesitas</string>
+    <string name="apps_missing">No está entre las aplicaciones con icono de inicio (desinstalada o sin icono). Desmárcala si no la necesitas</string>
     <string name="apps_none">No se encontraron apps</string>
     <string name="apps_only">Solo las elegidas</string>
     <string name="apps_only_d">Solo las apps elegidas pasan por el túnel. Las demás usan tu conexión normal.</string>
@@ -228,7 +228,7 @@
     <string name="dns_tunnel">Por el túnel</string>
     <string name="dns_tunnel_d">El DNS cifrado viaja dentro del túnel del proxy: privacidad máxima.</string>
     <string name="dns_validate">Comprobar</string>
-    <string name="dns_warn_phone">El cambio de modo se aplica tras reiniciar el núcleo: la propuesta aparece en la parte superior de la pantalla. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
+    <string name="dns_warn_phone">El cambio de modo se aplica tras reiniciar el núcleo. Mientras haya un túnel activo, aparecerá en pantalla la propuesta de reiniciar. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
     <string name="dns_warn_t">Compatibilidad</string>
     <string name="ed_t_chain">Cadena</string>
     <string name="ed_t_json">JSON propio</string>
@@ -238,6 +238,14 @@
     <string name="err_precondition">Esta acción no está disponible ahora</string>
     <string name="err_retry">Reintentar</string>
     <string name="err_unimplemented">Esta función aún no está disponible</string>
+    <string name="fail_apps_none">Ninguna de las aplicaciones elegidas está en este teléfono</string>
+    <string name="fail_connect_failed">No se pudo conectar</string>
+    <string name="fail_core_start">El núcleo no arrancó</string>
+    <string name="fail_no_server">No hay ningún servidor seleccionado</string>
+    <string name="fail_permission">Falta el permiso de VPN</string>
+    <string name="fail_protection_off">La protección está desactivada: el sistema desconectó la VPN</string>
+    <string name="fail_restricted_start">El sistema no permitió iniciar el túnel en segundo plano</string>
+    <string name="fail_tunnel_lost">Se perdió la conexión</string>
     <string name="filter_all">Todos</string>
     <string name="filter_down">Inaccesibles</string>
     <string name="filter_fast">Rápidos</string>
@@ -311,6 +319,7 @@
     <string name="lic_title">Licencias y componentes</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Desplazamiento automático</string>
+    <string name="log_copiedTruncated">Solo se copiaron las últimas líneas: %1$s de %2$s</string>
     <string name="log_copy">Copiar</string>
     <string name="log_exportD">Las contraseñas, UUID, tokens y direcciones de suscripción se sustituirán por ••••.</string>
     <string name="log_noMatch">Nada coincide con los filtros</string>
@@ -320,6 +329,7 @@
     <string name="log_searchPh">Buscar en el registro…</string>
     <string name="log_share">Compartir</string>
     <string name="log_shareFailed">No se pudo compartir el registro. Puedes copiarlo.</string>
+    <string name="log_shareTruncated">Solo se compartieron las últimas líneas: %1$s de %2$s</string>
     <string name="main_auto_connect">Conectar al iniciar el teléfono</string>
     <string name="mux_concurrency">Flujos simultáneos</string>
     <string name="mux_concurrencyErr">Introduce -1 o un número de 1 a 1024</string>

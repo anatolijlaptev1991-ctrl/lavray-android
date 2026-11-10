@@ -24,7 +24,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 sealed interface DnsEvent {
-    data object Saved : DnsEvent
+    /** [needsRestart]: the core said the running tunnel does not have this DNS yet. */
+    data class Saved(val needsRestart: Boolean) : DnsEvent
     data object JsonValid : DnsEvent
     data class Failed(val kind: ErrorKind) : DnsEvent
 }
@@ -133,7 +134,7 @@ class DnsModel(
                     r.value.applied?.let { dispatch(DnsAction.Applied(it)) }
                     if (closeEditor) dispatch(DnsAction.Advanced(false))
                     if (r.value.needsProfileRestart) restart.need(PendingReason.Dns)
-                    mutableEvents.tryEmit(DnsEvent.Saved)
+                    mutableEvents.tryEmit(DnsEvent.Saved(r.value.needsProfileRestart))
                 }
             }
         } finally {

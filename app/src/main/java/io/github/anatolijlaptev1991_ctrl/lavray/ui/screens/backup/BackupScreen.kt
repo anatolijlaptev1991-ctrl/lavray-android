@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +41,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.hasTunnel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.findActivity
-import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
@@ -60,7 +58,10 @@ fun BackupScreen() {
     val state by model.state.collectAsStateWithLifecycle()
     val vpn by env.vpn.status.collectAsStateWithLifecycle()
     val tunnelUp = phaseOf(vpn.state).hasTunnel
-    DisposableEffect(model) { onDispose { model.release() } }
+    DisposableEffect(model) {
+        model.attach()
+        onDispose { model.release() }
+    }
 
     LavScreenColumn {
         state.error?.let { LavBanner(StatusTone.Error, stringResource(it)) }
@@ -72,22 +73,19 @@ fun BackupScreen() {
 @Composable
 private fun ExportCard(model: BackupModel, state: BackupState) {
     val env = LocalEnv.current
-    val scope = rememberCoroutineScope()
     var pw by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
     var ack by remember { mutableStateOf(false) }
     val savedText = stringResource(R.string.bk_saved)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(MIME_BINARY)) { uri: Uri? ->
-        if (uri == null) {
-            model.cancelExport()
-        } else {
-            scope.launch {
-                model.saveTo(uri)
-                if (model.state.value.saved) {
-                    pw = ""; repeat = ""; ack = false
-                    env.toast.show(savedText)
-                }
-            }
+        // The write runs on the app's scope inside the model; this screen only hears that it finished.
+        if (uri == null) model.cancelExport() else model.saveTo(FileTarget(uri))
+    }
+    LaunchedEffect(state.saved) {
+        if (state.saved) {
+            pw = ""; repeat = ""; ack = false
+            env.toast.show(savedText)
+            model.acknowledgeSaved()
         }
     }
     LaunchedEffect(state.exportName) { state.exportName?.let { launcher.launch(it) } }
@@ -110,7 +108,7 @@ private fun ExportCard(model: BackupModel, state: BackupState) {
             LavText(stringResource(R.string.bk_pwHint, BackupRules.MIN_PASSWORD_CHARS.toString()), style = Lav.type.caption, color = Lav.colors.textTertiary)
             LavSwitchRow(stringResource(R.string.bk_ack), ack, { ack = it })
             LavButton(
-                stringResource(R.string.bk_exportBtn), { scope.launch { model.createBackup(pw) } },
+                stringResource(R.string.bk_exportBtn), { model.createBackup(pw) },
                 variant = ButtonVariant.Primary, icon = LavIcon.Download, loading = state.busy && state.exportName == null,
                 enabled = issue == null && matches && ack && !state.busy,
             )
@@ -120,12 +118,10 @@ private fun ExportCard(model: BackupModel, state: BackupState) {
 
 @Composable
 private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolean) {
-    val env = LocalEnv.current
-    val scope = rememberCoroutineScope()
     var pw by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) scope.launch { model.pick(uri) }
+        if (uri != null) model.pick(FileTarget(uri))
     }
     LavCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -139,7 +135,7 @@ private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolea
                 PasswordField(pw, { pw = it; model.invalidateCheck() }, stringResource(R.string.bk_pwRestore), null)
                 if (state.summary == null) {
                     LavButton(
-                        stringResource(if (state.busy) R.string.bk_checking else R.string.bk_check), { scope.launch { model.check(pw) } },
+                        stringResource(if (state.busy) R.string.bk_checking else R.string.bk_check), { model.check(pw) },
                         variant = ButtonVariant.Primary, loading = state.busy, enabled = pw.isNotEmpty() && !state.busy,
                     )
                 }
@@ -159,8 +155,8 @@ private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolea
             title = stringResource(R.string.bk_confirmTitle),
             text = stringResource(R.string.bk_confirm_phone) + "\n\n" + stringResource(R.string.bk_restart_warn_d),
             confirmLabel = stringResource(R.string.bk_confirmOk), dismissLabel = stringResource(R.string.common_cancel),
-            // On the app's scope: leaving the screen must not cancel a restore the core has already begun.
-            onConfirm = { confirm = false; env.scope.launch { model.replace(pw) }; pw = "" }, onDismiss = { confirm = false }, danger = true,
+            // The password is read here, on the calling thread, before the field is cleared; the model runs on the app's scope.
+            onConfirm = { confirm = false; model.replace(pw); pw = "" }, onDismiss = { confirm = false }, danger = true,
         )
     }
 }

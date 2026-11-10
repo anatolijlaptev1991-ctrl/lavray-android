@@ -180,14 +180,14 @@ private fun DnsToasts(model: DnsModel) {
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(model) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            model.events.collect { e -> env.toast.show(dnsEventText(env.appContext, e, env.restart.state.value.needed)) }
+            model.events.collect { e -> env.toast.show(dnsEventText(env.appContext, e)) }
         }
     }
 }
 
-/** [pending]: the running tunnel does not have the saved DNS yet, and the toast says so rather than "saved". */
-private fun dnsEventText(ctx: Context, e: DnsEvent, pending: Boolean): String = when (e) {
-    DnsEvent.Saved -> ctx.getString(savedOrPending(pending, R.string.toast_saved))
+/** The toast follows the core's answer to this save (needsRestart), not any global state. */
+private fun dnsEventText(ctx: Context, e: DnsEvent): String = when (e) {
+    is DnsEvent.Saved -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_saved))
     DnsEvent.JsonValid -> ctx.getString(R.string.dns_jsonOk)
     is DnsEvent.Failed -> ctx.getString(e.kind.textRes())
 }

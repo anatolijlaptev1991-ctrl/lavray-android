@@ -79,16 +79,18 @@ private fun PerAppBlock() {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
     var selection by remember { mutableStateOf<AppSelection?>(null) }
-    LaunchedEffect(Unit) { selection = runCatching { env.controller.appSelection() }.getOrNull() }
+    LaunchedEffect(Unit) { selection = env.appSelection.current() }
     val current = selection ?: AppSelection()
     val choose = { mode: AppMode ->
         // Until the saved choice was read nothing is written: a failed read must not replace it with the default.
         val next = current.with(mode)
         if (selection != null && next != current) {
             selection = next
+            val saved = env.appSelection.submit(next, env.scope)
             env.scope.launch {
-                if (!env.appSelection.save(next)) {
-                    selection = current
+                val result = saved.await()
+                if (result is AppSelectionSaver.Result.Failed) {
+                    selection = result.stored ?: current
                     env.toast.show(env.appContext.getString(R.string.apps_saveFailed))
                 }
             }

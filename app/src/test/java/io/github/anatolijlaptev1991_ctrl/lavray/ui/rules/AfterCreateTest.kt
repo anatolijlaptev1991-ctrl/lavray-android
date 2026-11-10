@@ -31,12 +31,13 @@ class AfterCreateTest {
         assertEquals(listOf("copy-2"), undone)
     }
 
-    @Test fun aFailingUndoDoesNotHideTheOriginalFailure() = runBlocking {
+    @Test fun aFailingUndoDoesNotHideTheOriginalFailureAndIsAttachedToIt() = runBlocking {
         try {
             afterCreate("copy-3", { throw IOException("delete failed") }) { throw IllegalStateException("first") }
             fail("expected a failure")
         } catch (e: IllegalStateException) {
             assertEquals("first", e.message)
+            assertEquals("the copy that could not be removed is on record", "delete failed", e.suppressed.single().message)
         }
     }
 

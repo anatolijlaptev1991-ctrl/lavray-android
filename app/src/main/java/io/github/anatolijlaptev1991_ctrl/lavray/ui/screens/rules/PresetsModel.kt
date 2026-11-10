@@ -46,11 +46,12 @@ import kotlinx.coroutines.sync.withLock
 
 /** One-shot results the screen turns into a toast. */
 sealed interface PresetsEvent {
-    data object Activated : PresetsEvent
-    data object Saved : PresetsEvent
-    data object Copied : PresetsEvent
-    data object Deleted : PresetsEvent
-    data object Reset : PresetsEvent
+    /** [needsRestart] is the core's answer to THIS change: the running tunnel does not have it yet. */
+    data class Activated(val needsRestart: Boolean) : PresetsEvent
+    data class Saved(val needsRestart: Boolean) : PresetsEvent
+    data class Copied(val needsRestart: Boolean) : PresetsEvent
+    data class Deleted(val needsRestart: Boolean) : PresetsEvent
+    data class Reset(val needsRestart: Boolean) : PresetsEvent
     data object Exported : PresetsEvent
     data class Imported(val warnings: Int) : PresetsEvent
     data object Unreadable : PresetsEvent
@@ -129,7 +130,7 @@ class PresetsModel(
             dispatch(PresetsAction.Active(id))
             if (r.needsProfileRestart) restart.need()
             load()
-            PresetsEvent.Activated
+            PresetsEvent.Activated(r.needsProfileRestart)
         }
     }
 
@@ -143,7 +144,7 @@ class PresetsModel(
             known = known + (id to saved)
             dispatch(PresetsAction.Replace(saved))
             if (r.needsProfileRestart) restart.need()
-            PresetsEvent.Saved
+            PresetsEvent.Saved(r.needsProfileRestart)
         }
         if (outcome is PresetsEvent.Failed && outcome.kind == ErrorKind.InvalidInput) PresetsEvent.EditRejected else outcome
     }
@@ -154,7 +155,7 @@ class PresetsModel(
             if (made.needsRestart) restart.need()
             if (activateIt) { activeId = made.preset.id; dispatch(PresetsAction.Active(made.preset.id)) }
             load()
-            PresetsEvent.Copied
+            PresetsEvent.Copied(made.needsRestart)
         }
     }
 
@@ -189,7 +190,7 @@ class PresetsModel(
             activeId = made.preset.id
             dispatch(PresetsAction.Active(made.preset.id))
             load()
-            PresetsEvent.Saved
+            PresetsEvent.Saved(made.needsRestart)
         }
     }
 
@@ -197,7 +198,7 @@ class PresetsModel(
         exec({ routingDeletePreset(DeletePresetRequest(id)) }) { r ->
             if (r.needsProfileRestart) restart.need()
             load()
-            PresetsEvent.Deleted
+            PresetsEvent.Deleted(r.needsProfileRestart)
         }
     }
 
@@ -210,7 +211,7 @@ class PresetsModel(
         }) { needsRestart ->
             if (needsRestart) restart.need()
             load()
-            PresetsEvent.Reset
+            PresetsEvent.Reset(needsRestart)
         }
     }
 

@@ -21,7 +21,7 @@
     <string name="apps_except">Alle außer ausgewählten</string>
     <string name="apps_except_d">Alle Apps laufen durch den Tunnel, außer den ausgewählten; diese nutzen Ihre normale Verbindung.</string>
     <string name="apps_hint">Wählen Sie, welche Apps das VPN nutzen.</string>
-    <string name="apps_missing">Auf diesem Telefon nicht gefunden: Häkchen entfernen, wenn es nicht mehr gebraucht wird</string>
+    <string name="apps_missing">Nicht unter den Apps mit Startsymbol (entfernt oder ohne Symbol). Häkchen entfernen, wenn es nicht gebraucht wird</string>
     <string name="apps_none">Keine Apps gefunden</string>
     <string name="apps_only">Nur ausgewählte</string>
     <string name="apps_only_d">Nur die ausgewählten Apps laufen durch den Tunnel. Alle anderen nutzen Ihre normale Verbindung.</string>
@@ -228,7 +228,7 @@
     <string name="dns_tunnel">Durch den Tunnel</string>
     <string name="dns_tunnel_d">Verschlüsseltes DNS läuft innerhalb des Proxy-Tunnels — maximale Privatsphäre.</string>
     <string name="dns_validate">Prüfen</string>
-    <string name="dns_warn_phone">Ein Moduswechsel wird nach dem Neustart des Kerns wirksam: Der Hinweis erscheint oben auf dem Bildschirm. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
+    <string name="dns_warn_phone">Ein Moduswechsel wird nach dem Neustart des Kerns wirksam. Solange ein Tunnel aktiv ist, erscheint auf dem Bildschirm der Hinweis zum Neustart. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
     <string name="dns_warn_t">Kompatibilität</string>
     <string name="ed_t_chain">Kette</string>
     <string name="ed_t_json">Eigenes JSON</string>
@@ -238,6 +238,14 @@
     <string name="err_precondition">Diese Aktion ist derzeit nicht verfügbar</string>
     <string name="err_retry">Erneut versuchen</string>
     <string name="err_unimplemented">Diese Funktion ist noch nicht verfügbar</string>
+    <string name="fail_apps_none">Keine der gewählten Apps ist auf diesem Telefon</string>
+    <string name="fail_connect_failed">Verbindung fehlgeschlagen</string>
+    <string name="fail_core_start">Der Kern ist nicht gestartet</string>
+    <string name="fail_no_server">Kein Server ausgewählt</string>
+    <string name="fail_permission">VPN-Erlaubnis fehlt</string>
+    <string name="fail_protection_off">Der Schutz ist aus: Das System hat das VPN getrennt</string>
+    <string name="fail_restricted_start">Das System hat den Tunnelstart im Hintergrund nicht erlaubt</string>
+    <string name="fail_tunnel_lost">Die Verbindung ging verloren</string>
     <string name="filter_all">Alle</string>
     <string name="filter_down">Unerreichbar</string>
     <string name="filter_fast">Schnelle</string>
@@ -311,6 +319,7 @@
     <string name="lic_title">Lizenzen und Komponenten</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Autoscroll</string>
+    <string name="log_copiedTruncated">Nur die letzten Zeilen wurden kopiert: %1$s von %2$s</string>
     <string name="log_copy">Kopieren</string>
     <string name="log_exportD">Passwörter, UUIDs, Tokens und Abo-Adressen werden durch •••• ersetzt.</string>
     <string name="log_noMatch">Nichts passt zu den Filtern</string>
@@ -320,6 +329,7 @@
     <string name="log_searchPh">Protokoll durchsuchen…</string>
     <string name="log_share">Teilen</string>
     <string name="log_shareFailed">Das Protokoll konnte nicht geteilt werden. Du kannst es kopieren.</string>
+    <string name="log_shareTruncated">Nur die letzten Zeilen wurden geteilt: %1$s von %2$s</string>
     <string name="main_auto_connect">Beim Start des Telefons verbinden</string>
     <string name="mux_concurrency">Gleichzeitige Streams</string>
     <string name="mux_concurrencyErr">Geben Sie -1 oder eine Zahl von 1 bis 1024 ein</string>

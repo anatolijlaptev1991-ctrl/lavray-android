@@ -47,6 +47,9 @@ data class SettingsState(
         SettingsMapper.string(values[key], SettingsMapper.defaultString(descriptors[key]) ?: fallback)
 
     fun has(key: String): Boolean = key in available
+
+    /** What the core uses for [key]: the stored value, else the descriptor default (so "never set" equals "set to the default"). */
+    fun effective(key: String): SettingValue? = values[key] ?: SettingsMapper.defaultValue(descriptors[key])
 }
 
 /**
@@ -87,12 +90,15 @@ class SettingsModel(
     fun setString(key: String, value: String) = write(key, SettingValue(stringValue = value))
 
     private fun write(key: String, value: SettingValue) {
-        val before = mutable.value.values[key]
+        // Read on the caller's thread, before anything is changed.
+        val snapshot = mutable.value
+        val before = snapshot.values[key]
+        val effectiveBefore = snapshot.effective(key)
         mutable.update { it.copy(values = it.values + (key to value), error = null) }
         scope.launch(Dispatchers.IO) {
             when (val r = session.call { settingsSetSettings(SetSettingsRequest(mapOf(key to value))) }) {
                 is CoreResult.Ok -> when (val outcome = SettingsWrite.outcome(key, r.value)) {
-                    is SettingsWrite.Outcome.Accepted -> noteRestart(key, outcome.coreAskedForRestart)
+                    is SettingsWrite.Outcome.Accepted -> noteRestart(key, outcome.coreAskedForRestart, effectiveBefore, value)
                     // The core did not take the key (a version that does not know it): the screen must not keep showing it as saved.
                     SettingsWrite.Outcome.Rejected -> mutable.update { putBack(it, key, before).copy(error = ErrorKind.InvalidInput) }
                 }
@@ -104,23 +110,32 @@ class SettingsModel(
     private fun putBack(s: SettingsState, key: String, before: SettingValue?): SettingsState =
         s.copy(values = if (before == null) s.values - key else s.values + (key to before))
 
-    /** A saved key that only the next tunnel reads is offered a reconnect, whatever the core flagged. */
-    private fun noteRestart(key: String, coreAskedForRestart: Boolean) {
-        when {
-            coreAskedForRestart -> restart.need(PendingReason.Tunnel)
-            SettingKeys.appliesOnNextTunnel(key) -> restart.needIfLive(PendingReason.Tunnel)
+    /**
+     * A saved key that only the next tunnel reads is recorded against what the running tunnel was built with, so a change
+     * back withdraws the need. A key the core flagged that the tunnel does not read at build time needs only a profile restart.
+     */
+    private fun noteRestart(key: String, coreAskedForRestart: Boolean, before: SettingValue?, after: SettingValue) {
+        if (SettingKeys.appliesOnNextTunnel(key)) {
+            restart.noteTunnelChange(PendingReason.Tunnel, key, before, after)
+        } else if (coreAskedForRestart) {
+            restart.need(PendingReason.Core)
         }
     }
 
     /** Puts every setting of this screen back to the core's default. */
     fun resetAll() {
         scope.launch(Dispatchers.IO) {
-            val keys = mutable.value.available.toList()
+            val snapshot = mutable.value
+            val keys = snapshot.available.toList()
             when (val r = session.call { settingsResetSettings(ResetSettingsRequest(keys)) }) {
                 is CoreResult.Ok -> {
                     mutable.update { it.copy(values = emptyMap()) }
-                    // A reset changes every key of this screen, so what only the next tunnel reads is pending too.
-                    if (r.value.needsProfileRestart || keys.any(SettingKeys::appliesOnNextTunnel)) restart.needIfLive(PendingReason.Tunnel)
+                    // Only a key that really changes (its value is not already the default) is pending for the next tunnel.
+                    keys.filter(SettingKeys::appliesOnNextTunnel).forEach { key ->
+                        val current = snapshot.effective(key)
+                        restart.noteTunnelChange(PendingReason.Tunnel, key, current, SettingsMapper.defaultValue(snapshot.descriptors[key]))
+                    }
+                    if (r.value.needsProfileRestart) restart.need(PendingReason.Core)
                     load()
                 }
                 is CoreResult.Fail -> mutable.update { it.copy(error = r.kind) }

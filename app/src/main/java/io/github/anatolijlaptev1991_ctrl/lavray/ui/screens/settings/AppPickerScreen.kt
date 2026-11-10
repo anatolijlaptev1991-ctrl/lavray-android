@@ -59,16 +59,20 @@ fun AppPickerScreen() {
     DisposableEffect(Unit) { onDispose { AppIcons.clear() } }
     LaunchedEffect(Unit) {
         // A failed read leaves the saved choice alone: nothing is written until it was read.
-        runCatching { env.controller.appSelection() }.getOrNull()?.let { selection = it; ready = true }
+        env.appSelection.current()?.let { selection = it; ready = true }
         apps = AppCatalog.load(context.packageManager, context.packageName)
     }
     // A tap is saved at once, on the app's scope: leaving the picker right after it must not lose it. The saver writes
     // in order and the newest choice wins, so a burst of taps is not a burst of lost updates.
     val save = { next: AppSelection ->
         selection = next
+        // submit() records the choice here, on the tapping thread, so the order of taps is the order that is saved.
+        val saved = env.appSelection.submit(next, env.scope)
         env.scope.launch {
-            if (!env.appSelection.save(next)) {
-                runCatching { env.controller.appSelection() }.getOrNull()?.let { selection = it }
+            val result = saved.await()
+            if (result is AppSelectionSaver.Result.Failed) {
+                // The saver has already re-read what the service has, under its own lock.
+                result.stored?.let { selection = it }
                 env.toast.show(env.appContext.getString(R.string.apps_saveFailed))
             }
         }

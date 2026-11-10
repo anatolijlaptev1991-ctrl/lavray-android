@@ -21,7 +21,7 @@
     <string name="apps_except">除所选之外的应用</string>
     <string name="apps_except_d">除所选应用外，其他应用都通过隧道；所选应用使用普通网络连接。</string>
     <string name="apps_hint">选择哪些应用使用 VPN。</string>
-    <string name="apps_missing">此手机上未找到：不再需要时请取消勾选</string>
+    <string name="apps_missing">不在带启动图标的应用中（已卸载或没有图标）。不需要时请取消勾选</string>
     <string name="apps_none">未找到应用</string>
     <string name="apps_only">仅所选应用</string>
     <string name="apps_only_d">只有所选应用通过隧道，其他应用使用普通网络连接。</string>
@@ -228,7 +228,7 @@
     <string name="dns_tunnel">经隧道</string>
     <string name="dns_tunnel_d">加密 DNS 在代理隧道内传输——隐私最佳。</string>
     <string name="dns_validate">检查</string>
-    <string name="dns_warn_phone">切换模式需要重启内核后才会生效：屏幕顶部会出现提示。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
+    <string name="dns_warn_phone">切换模式需要重启内核后才会生效。隧道开启时，屏幕上会出现重启提示。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
     <string name="dns_warn_t">兼容性</string>
     <string name="ed_t_chain">链式</string>
     <string name="ed_t_json">自定义 JSON</string>
@@ -238,6 +238,14 @@
     <string name="err_precondition">当前无法执行此操作</string>
     <string name="err_retry">重试</string>
     <string name="err_unimplemented">此功能尚未实现</string>
+    <string name="fail_apps_none">所选应用在此手机上均不存在</string>
+    <string name="fail_connect_failed">连接失败</string>
+    <string name="fail_core_start">内核未能启动</string>
+    <string name="fail_no_server">未选择服务器</string>
+    <string name="fail_permission">缺少 VPN 授权</string>
+    <string name="fail_protection_off">保护已关闭：系统断开了 VPN</string>
+    <string name="fail_restricted_start">系统不允许在后台启动隧道</string>
+    <string name="fail_tunnel_lost">连接已中断</string>
     <string name="filter_all">全部</string>
     <string name="filter_down">不可达</string>
     <string name="filter_fast">低延迟</string>
@@ -311,6 +319,7 @@
     <string name="lic_title">许可与组件</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">自动滚动</string>
+    <string name="log_copiedTruncated">只复制了最新的行：%1$s/%2$s</string>
     <string name="log_copy">复制</string>
     <string name="log_exportD">密码、UUID、令牌与订阅地址将替换为 ••••。</string>
     <string name="log_noMatch">没有符合筛选的记录</string>
@@ -320,6 +329,7 @@
     <string name="log_searchPh">搜索日志…</string>
     <string name="log_share">分享</string>
     <string name="log_shareFailed">无法分享日志，可以改为复制。</string>
+    <string name="log_shareTruncated">只分享了最新的行：%1$s/%2$s</string>
     <string name="main_auto_connect">手机启动时自动连接</string>
     <string name="mux_concurrency">并发流数量</string>
     <string name="mux_concurrencyErr">请输入 -1 或 1 到 1024 之间的数字</string>

@@ -30,15 +30,14 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
  * [showWhenSnoozed] so the running config is never silently different from the saved one.
  */
 @Composable
-fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = false) {
+fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = false, padded: Boolean = true) {
     val env = LocalEnv.current
     val hub = env.restart
     val state by hub.state.collectAsStateWithLifecycle()
     val vpn by env.vpn.status.collectAsStateWithLifecycle()
     // Without a tunnel there is nothing to restart: the next connect starts with the saved settings.
     val phase = phaseOf(vpn.state)
-    val tunnel = phase == Phase.On || phase == Phase.Connecting || phase == Phase.WaitingNetwork
-    if (!tunnel || !state.needed || (state.snoozed && !showWhenSnoozed)) return
+    if (!RestartBannerRules.visible(state, phase, showWhenSnoozed)) return
     val reconnect = state.needsReconnect
     val folded = state.snoozed
     LavBanner(
@@ -50,7 +49,7 @@ fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = fals
                 else -> R.string.dns_restart
             },
         ),
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = if (padded) modifier.padding(horizontal = 16.dp, vertical = 8.dp) else modifier,
         text = if (folded) stringResource(R.string.cx_pending_d) else null,
         actions = {
             LavButton(
@@ -62,6 +61,19 @@ fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = fals
             }
         },
     )
+}
+
+/** When the banner is shown. Pure, so the rule is tested. */
+object RestartBannerRules {
+    /** A tunnel that can be restarted: up, on its way up, or waiting for the network. */
+    fun hasRestartableTunnel(phase: Phase): Boolean = phase == Phase.On || phase == Phase.Connecting || phase == Phase.WaitingNetwork
+
+    /**
+     * Without a tunnel there is nothing to restart (the next connect starts with the saved settings); a folded banner
+     * ("later") comes back only where [showWhenSnoozed] says so (the Connection screen).
+     */
+    fun visible(state: RestartState, phase: Phase, showWhenSnoozed: Boolean): Boolean =
+        hasRestartableTunnel(phase) && state.needed && (!state.snoozed || showWhenSnoozed)
 }
 
 /** Toasts for the outcome of a restart, shown while the app is in front. Composed once, by the shell. */

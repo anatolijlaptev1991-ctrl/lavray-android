@@ -4,23 +4,23 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.rules
 import io.github.anatolijlaptev1991_ctrl.lavray.api.Connection
 import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
 import io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient
-import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartBannerRules
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartEvent
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.upOrFailed
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -34,7 +34,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicInteger
 
-/** E-04, E-22: the "saved, not yet in the running tunnel" state is global, outlives "later", and ends with the tunnel. */
+/** E-04, E-22 and review M3/L6/L8: the "saved, not yet in the running tunnel" state is global and never lies. */
 class RestartHubTest {
     private class Conn(override val input: InputStream) : Connection {
         override val output: OutputStream = ByteArrayOutputStream()
@@ -83,6 +83,17 @@ class RestartHubTest {
         scope.cancel()
     }
 
+    @Test fun aNeedRecordedWhileTheTunnelWasStoppingIsDroppedWhenTheNextTunnelComesUp() = runBlocking {
+        // The core can answer "needs restart" while it is already stopping: the flag is down, so there is no later down-edge.
+        val live = MutableStateFlow(false)
+        val hub = hub(live)
+        hub.need(PendingReason.Routing)
+        assertTrue(hub.state.value.needed)
+        live.value = true
+        withTimeout(5_000) { hub.state.first { !it.needed } }
+        scope.cancel()
+    }
+
     @Test fun aClientSideNeedIsRecordedOnlyWhileATunnelIsUp() {
         val down = hub(MutableStateFlow(false))
         down.needIfLive(PendingReason.Tunnel)
@@ -98,9 +109,9 @@ class RestartHubTest {
         val hub = hub(MutableStateFlow(true), reconnect = { calls.incrementAndGet(); true })
         hub.need(PendingReason.Routing)
         hub.need(PendingReason.Dns)
+        hub.need(PendingReason.Core)
         assertFalse(hub.state.value.needsReconnect)
-        val event = hub.restartAndAwait()
-        assertEquals(RestartEvent.Done(false), event)
+        assertEquals(RestartEvent.Done(false), hub.restartAndAwait())
         assertFalse(hub.settled().needed)
         assertEquals("the tunnel was not rebuilt", 0, calls.get())
         scope.cancel()
@@ -128,6 +139,24 @@ class RestartHubTest {
         scope.cancel()
     }
 
+    @Test fun aRebuildThatDidNotHappenKeepsTheNeedWhileTheTunnelStillRunsTheOldSettings() = runBlocking {
+        val hub = hub(MutableStateFlow(true), reconnect = { false })
+        hub.need(PendingReason.Tunnel)
+        assertTrue(hub.restartAndAwait() is RestartEvent.Failed)
+        val s = hub.settled()
+        assertEquals("the tunnel is up and was not rebuilt: the need must stay", setOf(PendingReason.Tunnel), s.reasons)
+        scope.cancel()
+    }
+
+    @Test fun aRebuildThatFailedAndLeftNoTunnelClearsTheNeed() = runBlocking {
+        val live = MutableStateFlow(true)
+        val hub = hub(live, reconnect = { live.value = false; false })
+        hub.need(PendingReason.Tunnel)
+        assertTrue(hub.restartAndAwait() is RestartEvent.Failed)
+        assertFalse(hub.settled().needed)
+        scope.cancel()
+    }
+
     @Test fun aSecondTapWhileOneRestartRunsDoesNothing() = runBlocking {
         val gate = CompletableDeferred<Boolean>()
         val calls = AtomicInteger()
@@ -149,25 +178,67 @@ class RestartHubTest {
         hub.restart()
         hub.need(PendingReason.Apps)
         gate.complete(true)
-        val s = hub.settled()
-        assertEquals(setOf(PendingReason.Apps), s.reasons)
+        assertEquals(setOf(PendingReason.Apps), hub.settled().reasons)
         scope.cancel()
     }
 
-    @Test fun aRebuildThatDidNotComeUpIsReportedAsFailed() = runBlocking {
-        val hub = hub(MutableStateFlow(true), reconnect = { false })
+    @Test fun theSameReasonRaisedAgainDuringARestartIsNotDropped() = runBlocking {
+        val gate = CompletableDeferred<Boolean>()
+        val hub = hub(MutableStateFlow(true), reconnect = { gate.await() })
         hub.need(PendingReason.Tunnel)
-        assertTrue(hub.restartAndAwait() is RestartEvent.Failed)
+        hub.restart()
+        hub.need(PendingReason.Tunnel) // a second change of the same kind while the first is being applied
+        gate.complete(true)
+        assertEquals(setOf(PendingReason.Tunnel), hub.settled().reasons)
         scope.cancel()
     }
 
-    @Test fun aReconnectEndsWhenTheTunnelIsUpOrFailsToStart() = runBlocking {
-        assertTrue(flowOf(VpnState.IDLE, VpnState.CONNECTING, VpnState.CONNECTED).upOrFailed())
-        assertTrue(flowOf(VpnState.IDLE, VpnState.CONNECTED).upOrFailed())
-        assertFalse(flowOf(VpnState.IDLE, VpnState.CONNECTING, VpnState.IDLE).upOrFailed())
-        assertFalse(flowOf(VpnState.IDLE, VpnState.CONNECTING, VpnState.ERROR).upOrFailed())
-        assertFalse(flowOf(VpnState.IDLE, VpnState.NEEDS_PERMISSION).upOrFailed())
-        // The IDLE before the attempt is not a failure.
-        assertTrue(flowOf(VpnState.IDLE, VpnState.IDLE, VpnState.CONNECTING, VpnState.CONNECTED).upOrFailed())
+    @Test fun aChangeThatIsChangedBackWithdrawsTheNeed() {
+        val hub = hub(MutableStateFlow(true))
+        hub.noteTunnelChange(PendingReason.Apps, "apps", before = "all", after = "only a.b")
+        assertTrue(hub.state.value.needed)
+        hub.noteTunnelChange(PendingReason.Apps, "apps", before = "only a.b", after = "all")
+        assertFalse("back to what the tunnel was built with", hub.state.value.needed)
+        scope.cancel()
+    }
+
+    @Test fun theBaselineIsTheValueTheTunnelWasBuiltWithNotTheLastOne() {
+        val hub = hub(MutableStateFlow(true))
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", before = 9000L, after = 1400L)
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", before = 1400L, after = 1300L)
+        assertTrue(hub.state.value.needed)
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", before = 1300L, after = 9000L)
+        assertFalse(hub.state.value.needed)
+        scope.cancel()
+    }
+
+    @Test fun oneChangedBackStillLeavesTheOtherPending() {
+        val hub = hub(MutableStateFlow(true))
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", 9000L, 1400L)
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.ipv6", false, true)
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", 1400L, 9000L)
+        assertTrue(hub.state.value.needed)
+        scope.cancel()
+    }
+
+    @Test fun aTunnelChangeIsIgnoredWhileNoTunnelIsUp() {
+        val hub = hub(MutableStateFlow(false))
+        hub.noteTunnelChange(PendingReason.Tunnel, "tun.mtu", 9000L, 1400L)
+        assertFalse(hub.state.value.needed)
+        scope.cancel()
+    }
+
+    @Test fun theBannerIsShownOnlyWithARestartableTunnelAndAnUnfoldedNeed() {
+        val pending = RestartState(reasons = setOf(PendingReason.Routing))
+        val folded = pending.copy(snoozed = true)
+        listOf(Phase.On, Phase.Connecting, Phase.WaitingNetwork).forEach { phase ->
+            assertTrue("$phase", RestartBannerRules.visible(pending, phase, showWhenSnoozed = false))
+        }
+        listOf(Phase.Off, Phase.Disconnecting, Phase.Error, Phase.NeedsPermission).forEach { phase ->
+            assertFalse("$phase", RestartBannerRules.visible(pending, phase, showWhenSnoozed = true))
+        }
+        assertFalse("nothing pending", RestartBannerRules.visible(RestartState(), Phase.On, true))
+        assertFalse("folded by Later", RestartBannerRules.visible(folded, Phase.On, showWhenSnoozed = false))
+        assertTrue("the Connection screen shows it again", RestartBannerRules.visible(folded, Phase.On, showWhenSnoozed = true))
     }
 }

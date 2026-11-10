@@ -21,7 +21,7 @@
     <string name="apps_except">Все, кроме выбранных</string>
     <string name="apps_except_d">Все приложения работают через туннель, кроме выбранных: они используют обычное подключение.</string>
     <string name="apps_hint">Выберите, какие приложения работают через VPN.</string>
-    <string name="apps_missing">Не найдено на этом телефоне: снимите отметку, если приложение больше не нужно</string>
+    <string name="apps_missing">Нет среди приложений с запуском (удалено или без значка). Снимите отметку, если не нужно</string>
     <string name="apps_none">Приложения не найдены</string>
     <string name="apps_only">Только выбранные</string>
     <string name="apps_only_d">Через туннель работают только выбранные приложения. Остальные используют обычное подключение.</string>
@@ -228,7 +228,7 @@
     <string name="dns_tunnel">Через туннель</string>
     <string name="dns_tunnel_d">Шифрованный DNS идёт внутри прокси-туннеля — максимум приватности.</string>
     <string name="dns_validate">Проверить</string>
-    <string name="dns_warn_phone">Смена режима применяется после перезапуска ядра: предложение появится вверху экрана. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
+    <string name="dns_warn_phone">Смена режима применяется после перезапуска ядра. Пока туннель включён, предложение перезапустить появится на экране. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
     <string name="dns_warn_t">Совместимость</string>
     <string name="ed_t_chain">Цепочка</string>
     <string name="ed_t_json">Свой JSON</string>
@@ -238,6 +238,14 @@
     <string name="err_precondition">Сейчас это действие недоступно</string>
     <string name="err_retry">Повторить</string>
     <string name="err_unimplemented">Функция пока не реализована</string>
+    <string name="fail_apps_none">Ни одного из выбранных приложений нет на телефоне</string>
+    <string name="fail_connect_failed">Подключиться не удалось</string>
+    <string name="fail_core_start">Ядро не запустилось</string>
+    <string name="fail_no_server">Не выбран сервер</string>
+    <string name="fail_permission">Нет согласия на VPN</string>
+    <string name="fail_protection_off">Защита выключена: система отключила VPN</string>
+    <string name="fail_restricted_start">Система не разрешила запустить туннель в фоне</string>
+    <string name="fail_tunnel_lost">Связь потеряна</string>
     <string name="filter_all">Все</string>
     <string name="filter_down">Недоступные</string>
     <string name="filter_fast">Быстрые</string>
@@ -311,6 +319,7 @@
     <string name="lic_title">Лицензии и компоненты</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Автопрокрутка</string>
+    <string name="log_copiedTruncated">Скопированы только последние строки: %1$s из %2$s</string>
     <string name="log_copy">Копировать</string>
     <string name="log_exportD">Пароли, UUID, токены и адреса подписок будут заменены на ••••.</string>
     <string name="log_noMatch">Ничего не найдено по фильтрам</string>
@@ -320,6 +329,7 @@
     <string name="log_searchPh">Поиск в журнале…</string>
     <string name="log_share">Поделиться</string>
     <string name="log_shareFailed">Не удалось поделиться журналом. Его можно скопировать.</string>
+    <string name="log_shareTruncated">Отправлены только последние строки: %1$s из %2$s</string>
     <string name="main_auto_connect">Подключаться при запуске телефона</string>
     <string name="mux_concurrency">Параллельных потоков</string>
     <string name="mux_concurrencyErr">Введите -1 или число от 1 до 1024</string>

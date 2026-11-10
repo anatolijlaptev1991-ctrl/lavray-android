@@ -80,6 +80,12 @@ object SettingsMapper {
         else -> null
     }
 
+    /** The descriptor's default as a value, so "never set" and "set to the default" compare equal. Null when it is not a bool, a number or a string. */
+    fun defaultValue(d: SettingDescriptor?): SettingValue? =
+        defaultBool(d)?.let { SettingValue(boolValue = it) }
+            ?: defaultInt(d)?.let { SettingValue(intValue = it) }
+            ?: defaultString(d)?.let { SettingValue(stringValue = it) }
+
     fun parseMtu(text: String): NumberInput = parseNumber(text, MTU_MIN, MTU_MAX)
 
     /** Concurrent streams: -1 keeps the core's own choice, otherwise 1..1024. */
