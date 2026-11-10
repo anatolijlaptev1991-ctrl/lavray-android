@@ -91,9 +91,10 @@ func Stop() {
 // Version — версия ядра LAVRay.
 func Version() string { return version.Version }
 
-// SetTun задаёт stack ("system", "gvisor", "mixed") и MTU туннеля из настроек
-// приложения; значения применяются при следующем подключении. Пустой stack и
-// mtu <= 0 оставляют значения из настроек ядра.
+// SetTun задаёт MTU туннеля из настроек приложения; значение применяется при
+// следующем подключении, mtu <= 0 оставляет MTU из настроек ядра. stack
+// принимается ради совместимости контракта и не действует: на Android стек
+// всегда gvisor (patch.go, androidStack).
 func SetTun(stack string, mtu int32) {
 	tunSettings.Store(&tunParams{Stack: stack, MTU: int(mtu)})
 }

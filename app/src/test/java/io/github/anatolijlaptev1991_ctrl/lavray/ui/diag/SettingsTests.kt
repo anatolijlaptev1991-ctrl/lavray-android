@@ -17,7 +17,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.NumberInput
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingKeys
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingsMapper
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingsState
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.TunStack
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.TunOptions
@@ -29,13 +28,11 @@ import org.junit.Test
 import java.util.Base64
 
 class SettingsTests {
-    @Test fun stackFollowsTheCoreMapping() {
-        assertEquals(TunStack.System, TunStack.fromImpl(2))
-        assertEquals(TunStack.Mixed, TunStack.fromImpl(3))
-        assertEquals(TunStack.GVisor, TunStack.fromImpl(1))
-        assertEquals(TunStack.GVisor, TunStack.fromImpl(null))
-        assertEquals(TunStack.GVisor, TunStack.fromImpl(0))
-        assertEquals(listOf(1L, 2L, 3L), TunStack.entries.map { it.impl })
+    @Test fun stackIsNotOffered() {
+        // System and mixed pass no data on a phone; the core forces gVisor (core-overlay/patch.go).
+        assertFalse(SettingKeys.TUN_STACK in SettingKeys.SHOWN)
+        val listed = listOf(SettingDescriptor(key = SettingKeys.TUN_STACK), SettingDescriptor(key = SettingKeys.TUN_MTU))
+        assertFalse(SettingKeys.TUN_STACK in SettingKeys.available(listed))
     }
 
     @Test fun mtuIsCheckedAgainstTheCoreRange() {

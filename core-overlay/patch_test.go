@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -92,19 +93,23 @@ func TestPatchInbounds(t *testing.T) {
 
 func TestPatchTun(t *testing.T) {
 	tests := []struct {
-		name      string
-		p         tunParams
-		wantStack string
-		wantMTU   string
+		name       string
+		in         string
+		p          tunParams
+		wantMTU    string
+		wantForced string
 	}{
-		{"из конфига", tunParams{}, "gvisor", "9000"},
-		{"stack и mtu из настроек", tunParams{Stack: "system", MTU: 1500}, "system", "1500"},
-		{"только stack", tunParams{Stack: "mixed"}, "mixed", "9000"},
-		{"только mtu", tunParams{MTU: 1400}, "gvisor", "1400"},
+		{"из конфига", tunIn, tunParams{}, "9000", ""},
+		{"stack из настроек не действует, mtu действует", tunIn, tunParams{Stack: "system", MTU: 1500}, "1500", ""},
+		{"только stack", tunIn, tunParams{Stack: "mixed"}, "9000", ""},
+		{"только mtu", tunIn, tunParams{MTU: 1400}, "1400", ""},
+		{"system из конфига заменён", strings.Replace(tunIn, `"gvisor"`, `"system"`, 1), tunParams{}, "9000", "system"},
+		{"mixed из конфига заменён", strings.Replace(tunIn, `"gvisor"`, `"mixed"`, 1), tunParams{}, "9000", "mixed"},
+		{"stack не задан", strings.Replace(tunIn, `"stack":"gvisor",`, ``, 1), tunParams{}, "9000", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			out, _, err := patchConfig([]byte(`{"inbounds":[`+tunIn+`]}`), tc.p)
+			out, rep, err := patchConfig([]byte(`{"inbounds":[`+tc.in+`]}`), tc.p)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -112,8 +117,11 @@ func TestPatchTun(t *testing.T) {
 			if _, has := tun["interface_name"]; has {
 				t.Error("interface_name не удалён")
 			}
-			if tun["stack"] != tc.wantStack {
-				t.Errorf("stack = %v, ждали %s", tun["stack"], tc.wantStack)
+			if tun["stack"] != "gvisor" {
+				t.Errorf("stack = %v, ждали gvisor", tun["stack"])
+			}
+			if rep.StackForced != tc.wantForced {
+				t.Errorf("StackForced = %q, ждали %q", rep.StackForced, tc.wantForced)
 			}
 			if got := tun["mtu"].(json.Number).String(); got != tc.wantMTU {
 				t.Errorf("mtu = %s, ждали %s", got, tc.wantMTU)

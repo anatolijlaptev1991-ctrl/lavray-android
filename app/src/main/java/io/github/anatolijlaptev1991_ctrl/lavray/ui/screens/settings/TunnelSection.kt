@@ -38,14 +38,13 @@ import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import kotlinx.coroutines.launch
 
-/** The tunnel: which apps use it, the stack, the MTU, IPv6, FakeIP and the addresses kept out of it. */
+/** The tunnel: which apps use it, the MTU, IPv6, FakeIP and the addresses kept out of it. The stack is fixed to gVisor. */
 @Composable
 fun TunnelSection(settings: SettingsState, model: SettingsModel) {
     LavSectionLabel(stringResource(R.string.sec_tunnel))
     LavCard(Modifier.fillMaxWidth()) {
         Column {
             PerAppBlock()
-            if (settings.has(SettingKeys.TUN_STACK)) StackBlock(settings, model)
             if (settings.has(SettingKeys.TUN_MTU)) {
                 NumberSettingRow(
                     stringResource(R.string.tun_mtu), stringResource(R.string.tun_mtu_d), settings.int(SettingKeys.TUN_MTU, 1500),
@@ -68,21 +67,6 @@ fun TunnelSection(settings: SettingsState, model: SettingsModel) {
         }
     }
     if (settings.reconnectNeeded) ReconnectHint(onDismiss = model::dismissReconnect)
-}
-
-@Composable
-private fun StackBlock(settings: SettingsState, model: SettingsModel) {
-    val current = TunStack.fromImpl(settings.int(SettingKeys.TUN_STACK, 1))
-    ChoiceBlock(stringResource(R.string.tun_stack), stringResource(R.string.tun_stack_d)) {
-        TunStack.entries.forEach { s ->
-            val label = when (s) {
-                TunStack.GVisor -> "gVisor"
-                TunStack.System -> stringResource(R.string.tun_stack_sys)
-                TunStack.Mixed -> stringResource(R.string.tun_stack_mixed)
-            }
-            LavChip(label, current == s, { model.setInt(SettingKeys.TUN_STACK, s.impl) })
-        }
-    }
 }
 
 @Composable

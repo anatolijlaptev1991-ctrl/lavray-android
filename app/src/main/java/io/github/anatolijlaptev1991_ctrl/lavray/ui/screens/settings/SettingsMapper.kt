@@ -7,6 +7,11 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SettingValue
 /** Keys of the core settings that have a meaning on a phone. Everything else of the desktop catalog is hidden. */
 object SettingKeys {
     const val HEALTH_CHECK = "connect.health_check"
+
+    /**
+     * Not shown: on a phone the core always uses gVisor (core-overlay/patch.go, androidStack).
+     * The system and mixed stacks pass no data while the app is excluded from its own VPN.
+     */
     const val TUN_STACK = "tun.impl"
     const val TUN_MTU = "tun.mtu"
     const val TUN_IPV6 = "tun.ipv6"
@@ -19,7 +24,7 @@ object SettingKeys {
 
     /** The keys this screen reads, in the order they are shown. */
     val SHOWN: List<String> = listOf(
-        HEALTH_CHECK, TUN_STACK, TUN_MTU, TUN_IPV6, TUN_FAKE_DNS, TUN_EXCLUDE_ADDRESSES,
+        HEALTH_CHECK, TUN_MTU, TUN_IPV6, TUN_FAKE_DNS, TUN_EXCLUDE_ADDRESSES,
         MUX_PROTOCOL, MUX_CONCURRENCY, MUX_DEFAULT_ON, INSECURE_TLS,
     )
 
@@ -28,19 +33,6 @@ object SettingKeys {
         if (descriptors.isEmpty()) return SHOWN.toSet()
         val known = descriptors.mapTo(HashSet()) { it.key }
         return SHOWN.filterTo(HashSet()) { it in known }
-    }
-}
-
-/** The stack of the TUN (core setting `tun.impl`: 2 system, 3 mixed, anything else gVisor). */
-enum class TunStack(val impl: Long) {
-    GVisor(1), System(2), Mixed(3);
-
-    companion object {
-        fun fromImpl(value: Long?): TunStack = when (value) {
-            2L -> System
-            3L -> Mixed
-            else -> GVisor
-        }
     }
 }
 

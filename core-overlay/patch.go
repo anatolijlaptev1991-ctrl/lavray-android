@@ -18,7 +18,8 @@ package mobile
 //     в котором после этого не осталось условий, удаляется целиком, остальные
 //     правила не затрагиваются;
 //   - у inbound типа tun убирает interface_name (имя берётся из
-//     дескриптора платформы) и подставляет stack и mtu из настроек приложения;
+//     дескриптора платформы), ставит stack gvisor (см. androidStack) и
+//     подставляет mtu из настроек приложения;
 //   - убирает route.default_interface и route.default_mark: имя интерфейса
 //     рабочего стола и метка SO_MARK на телефоне недействительны;
 //   - не трогает route.auto_detect_interface (см. platform.go: с платформой он
@@ -53,6 +54,7 @@ type patchReport struct {
 	StrippedConds     int      // снятые условия process_*
 	NeedsOwnerLookup  bool     // остались правила package_name, user, user_id или find_process
 	TunPatched        bool     // у tun-inbound заменены stack/mtu
+	StackForced       string   // стек из конфига, заменённый на gvisor ("" — замены не было или стек не задан)
 	RemovedExperiment []string // удалённые слушатели experimental
 }
 
@@ -180,11 +182,19 @@ func inboundLabel(in map[string]any) string {
 	return typ
 }
 
+// androidStack — единственный стек туннеля, который работает на телефоне. Приложение
+// исключено из своего VPN (addDisallowedApplication), поэтому ответы системного
+// TCP-слушателя стеков system и mixed уходят мимо tun0 и соединения висят до тайм-аута
+// (docs/MEASUREMENTS.md, 3.5). Стек из конфига или настроек (например, из резервной
+// копии рабочего стола) заменяется, иначе туннель поднимается, но не передаёт данные.
+const androidStack = "gvisor"
+
 func patchTun(in map[string]any, p tunParams, rep *patchReport) {
 	delete(in, "interface_name")
-	if p.Stack != "" {
-		in["stack"] = p.Stack
+	if stack, _ := in["stack"].(string); stack != androidStack {
+		in["stack"] = androidStack
 		rep.TunPatched = true
+		rep.StackForced = stack
 	}
 	if p.MTU > 0 {
 		in["mtu"] = json.Number(fmt.Sprint(p.MTU))

@@ -56,7 +56,7 @@ type Options struct {
 func Start(o *Options, p Platform) error // синхронно: возвращается, когда API готов
 func Stop()                              // корректное завершение, идемпотентно
 func Version() string
-func SetTun(stack string, mtu int32) // stack и MTU из настроек приложения, действуют со следующего подключения
+func SetTun(stack string, mtu int32) // MTU со следующего подключения; stack не действует, на Android всегда gvisor
 ```
 
 Не ожидайте от `Start` режима «системный прокси»: ядро запускается только с tun-inbound (подключение `CONNECT_MODE_TUN`), иначе Connect вернёт ошибку.
@@ -66,7 +66,7 @@ func SetTun(stack string, mtu int32) // stack и MTU из настроек пр�
 Обёртка раннера над `inst.SingBoxRunner` приводит конфиг к правилам Android перед стартом:
 - удаляется `mixed-in` и любой слушатель на localhost: другие приложения на телефоне не должны видеть локальный прокси;
 - из правил убираются условия `process_name` и `process_path` (на телефоне они ничего не выбирают, а поиск владельца соединения стоит вызова Binder);
-- у `tun-in` убирается `interface_name`, значения `stack` и `mtu` берутся из `Mobile.setTun`;
+- у `tun-in` убирается `interface_name`, `stack` всегда `gvisor` (стеки `system` и `mixed` не передают данные, пока приложение исключено из своего VPN: ответы TCP-слушателя ядра уходят мимо tun0), `mtu` берётся из `Mobile.setTun`;
 - также убираются `experimental.clash_api` и `experimental.v2ray_api` (локальные слушатели), `route.default_interface` и `route.default_mark`; `auto_detect_interface` остаётся: при платформе он включает `Protect(fd)` на каждый исходящий сокет, а к интерфейсу не привязывает;
 - правило, оставшееся без условий после снятия `process_*`, удаляется;
 - поиск владельца соединения (`FindOwnerUid`) выполняется, только если в конфиге есть `package_name`, `user`, `user_id` или `find_process`; иначе Binder не вызывается.
