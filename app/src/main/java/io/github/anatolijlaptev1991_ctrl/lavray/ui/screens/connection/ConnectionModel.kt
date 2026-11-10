@@ -150,10 +150,12 @@ class ConnectionModel(
                 val basis = basisFor(tunnel)
                 // A newer tunnel may have come up while the readings were under way: they describe the older one.
                 if (sight.tunnel == tunnel) {
-                    mutableBasis.value = basis
                     memory.remember(basis)
                     // The same core run as the one whose notes were closed (the Activity was recreated): they stay closed.
+                    // Before the basis is published: whoever sees the basis of this tunnel must find its notes already
+                    // closed, or the closed banner shows for a moment (and a test that waits for the basis fails by chance).
                     if (basis.startedAtMs != null && basis.startedAtMs == memory.warningsClosedFor) memory.update { it.withWarnings(tunnel) }
+                    mutableBasis.value = basis
                 }
             }
         }
