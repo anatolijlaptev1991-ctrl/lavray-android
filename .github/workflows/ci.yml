@@ -16,10 +16,11 @@ permissions:
   contents: read
 
 env:
-  # Бюджет размера APK на ABI, МБ (1 МБ = 1000000 байт). Замер 0.9.3 со сжатыми .so (docs/MEASUREMENTS.md):
-  # 20.65 / 21.24 / 21.97 МБ; до сжатия было 52.96 / 53.65 / 56.42 МБ.
+  # Бюджет размера APK на ABI, МБ (1 МБ = 1000000 байт): замер, умноженный на 1,1 и округлённый вверх.
+  # Замер после оптимизации размера (docs/MEASUREMENTS.md, раздел 10; APK без пережатия deflate):
+  # 16.74 / 17.24 / 17.81 МБ. Было (0.9.3): 20.65 / 21.24 / 21.97 МБ, до сжатия .so 52.96 / 53.65 / 56.42 МБ.
   # Держите в одном значении с release.yml.
-  APK_BUDGET_MB: "arm64-v8a=23 armeabi-v7a=24 x86_64=25"
+  APK_BUDGET_MB: "arm64-v8a=19 armeabi-v7a=19 x86_64=20"
 
 defaults:
   run:
@@ -83,6 +84,14 @@ jobs:
 
       - name: "Gradle: assembleRelease, assembleDebug, testDebugUnitTest, lintDebug"
         run: ./gradlew --stacktrace assembleRelease assembleDebug testDebugUnitTest lintDebug
+
+      # Репетиция пережатия из release.yml (docs/MEASUREMENTS.md, 10.6) на одном ABI и отладочном ключе:
+      # конвейер 7-Zip -> zipalign -> apksigner проверяется до дня релиза. Бюджет ниже рассчитан на
+      # непережатые APK, поэтому для двух других ABI он остаётся верхней границей.
+      - name: "APK: пережатие deflate (arm64-v8a, отладочный ключ)"
+        run: |
+          command -v 7zz > /dev/null || command -v 7z > /dev/null || sudo apt-get install -y --no-install-recommends p7zip-full
+          bash scripts/ci-apk.sh recompress app/build/outputs/apk/release arm64-v8a
 
       - name: "APK: размер и выравнивание 16 КБ"
         run: bash scripts/ci-apk.sh verify app/build/outputs/apk/release

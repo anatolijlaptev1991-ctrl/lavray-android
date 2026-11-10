@@ -80,6 +80,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // The app ships ru (default), en, de, es, zh (res/values-*, xml/locales_config.xml). Every other
+    // locale config in resources.arsc comes from androidx libraries (appcompat, compose autofill text):
+    // 83 extra configs cost ~0.25 MB in a table that is stored, not deflated (docs/MEASUREMENTS.md, 10.5).
+    androidResources {
+        localeFilters += setOf("ru", "en", "de", "es", "zh")
+    }
+
     packaging {
         jniLibs {
             // Compressed in the APK and extracted at install: the APK that every update downloads is 61% smaller
@@ -88,7 +95,17 @@ android {
             // mapped from the APK) for comparison.
             useLegacyPackaging = providers.gradleProperty("lavray.legacyJni").map { it.toBoolean() }.getOrElse(true)
         }
-        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin", "kotlin-tooling-metadata.json")
+        // kotlin_builtins are read only by kotlin-reflect (not used); META-INF/androidx licence texts are four
+        // identical 10 KB copies; META-INF/*.version are androidx dependency markers that nothing reads at run time.
+        resources.excludes += setOf(
+            "/META-INF/{AL2.0,LGPL2.1}",
+            "DebugProbesKt.bin",
+            "kotlin-tooling-metadata.json",
+            "kotlin/**/*.kotlin_builtins",
+            "kotlin/*.kotlin_builtins",
+            "META-INF/androidx/**",
+            "META-INF/*.version",
+        )
     }
 
     testOptions {
@@ -105,6 +122,11 @@ android {
         sourceSets.getByName("release").manifest.srcFile("src/debug/AndroidManifest.xml")
     }
 }
+
+// camera-view declares appcompat (75 drawables, 12 animations, 240 classes) but neither its classes nor its
+// resources reference it, and the app does not use it either (R8 and aapt2 pass; no reference in the
+// camera-view-1.4.1 classes.jar or res). -0.22 MB per APK (docs/MEASUREMENTS.md, 10.7).
+configurations.configureEach { exclude(group = "androidx.appcompat") }
 
 dependencies {
     if (!useCoreStub) {

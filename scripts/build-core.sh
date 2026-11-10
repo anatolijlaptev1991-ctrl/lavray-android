@@ -12,7 +12,12 @@
 #   OUT_AAR          путь результата (по умолчанию app/libs/lavray-core.aar)
 #   ANDROID_API      -androidapi (по умолчанию 26)
 #   ANDROID_NDK_HOME каталог NDK (по умолчанию <SDK>/ndk/28.2.13676358)
-#   EXTRA_TAGS       теги сверх core/BUILD_TAGS (по умолчанию with_low_memory)
+#   EXTRA_TAGS       теги сверх core/BUILD_TAGS (по умолчанию пусто; with_low_memory снят: он ставит
+#                    UDP-буфер 8 КиБ при MTU tun 9000, см. docs/MEASUREMENTS.md, раздел 10)
+#   SINGBOX_DROP     протоколы sing-box, убираемые из реестра сверх обязательного набора
+#                    (по умолчанию tor; для замеров: "tor ssh snell anytls shadowtls")
+#   GOMOBILE_EXTRA   доп. флаги gomobile bind для замеров (например -v: вывод компоновщика)
+#   GO_LDFLAGS_EXTRA доп. флаги go link для замеров (например -dumpdep), по умолчанию пусто
 #   EXT_LDFLAGS      доп. флаги компоновщика через запятую (по умолчанию --pack-dyn-relocs=android:
 #                    -5 МБ на ABI; пустое значение отключает)
 #   STAGE            prepare | test | bind | all (по умолчанию all)
@@ -24,12 +29,13 @@ SRC="$ROOT/third_party/lavray/core"
 BUILD="$ROOT/build/go"
 COPY="$BUILD/core"
 LIBC="$BUILD/libc"
+SINGBOX="$BUILD/sing-box"
 BIN="$BUILD/bin"
 
 ABIS="${ABIS:-android/arm64,android/arm,android/amd64}"
 OUT_AAR="${OUT_AAR:-$ROOT/app/libs/lavray-core.aar}"
 ANDROID_API="${ANDROID_API:-26}"
-EXTRA_TAGS="${EXTRA_TAGS-with_low_memory}"
+EXTRA_TAGS="${EXTRA_TAGS-}"
 EXT_LDFLAGS="${EXT_LDFLAGS---pack-dyn-relocs=android}"
 STAGE="${STAGE:-all}"
 GOMOBILE_VERSION="${GOMOBILE_VERSION:-v0.1.12}"
@@ -68,6 +74,74 @@ patch_libc() {
     echo "syscall_musl.go: остались прямые unix.Syscall" >&2; exit 1
   fi
   (cd "$COPY" && GOFLAGS=-mod=mod go mod edit -replace "modernc.org/libc=$(native_path "$LIBC")")
+}
+
+# Реестр sing-box (include/registry.go) регистрирует ВСЕ протоколы и службы без условий сборки,
+# поэтому линкуется то, чем приложение не пользуется: gRPC-сервер service/api (grpc, daemon,
+# x/net/trace -> text/template и html/template), ssmapi, origin_ca (certmagic, zap, acmez),
+# resolved (godbus), bridge (nftables/netlink), Tor (нужен внешний бинарь tor, на Android
+# невозможен). Модуль sing-box копируется из кэша в build/go/sing-box, регистрации удаляются,
+# ядро указывает на копию через replace (как libc). Нулевой допуск: если ожидаемой строки нет
+# (пин sing-box обновлён), сборка падает, а не пропускает патч молча.
+#
+# SINGBOX_DROP — дополнительные протоколы (имена пакетов protocol/<имя>), для замеров размера:
+# SINGBOX_DROP="ssh snell anytls shadowtls". По умолчанию только tor; остальные доступны через
+# пользовательский JSON, их удаление решает владелец (docs/MEASUREMENTS.md).
+SINGBOX_DROP="${SINGBOX_DROP-tor}"
+SB_PKG='github.com/sagernet/sing-box'
+
+# drop_exact <файл> <строка>: удаляет строку, равную <строке> целиком; ровно одно совпадение.
+drop_exact() {
+  local f="$1" line="$2" n
+  n="$(grep -cxF -- "$line" "$f" || true)"
+  [ "$n" = 1 ] || {
+    echo "patch_singbox: в $(basename "$f") ожидалась ровно одна строка «${line#"${line%%[![:space:]]*}"}», найдено $n (пин sing-box обновлён? обновите patch_singbox)" >&2
+    exit 1
+  }
+  grep -vxF -- "$line" "$f" > "$f.new"
+  mv "$f.new" "$f"
+}
+
+# drop_register <файл> <пакет>: удаляет строки <пакет>.Register*(registry) (одну и более).
+drop_register() {
+  local f="$1" pkg="$2" n
+  n="$(grep -cE "^[[:space:]]*${pkg}\\.Register[A-Za-z]*\\(registry\\)\$" "$f" || true)"
+  [ "$n" -ge 1 ] || { echo "patch_singbox: в $(basename "$f") нет регистраций ${pkg}.Register*" >&2; exit 1; }
+  sed -i -E "/^[[:space:]]*${pkg}\\.Register[A-Za-z]*\\(registry\\)\$/d" "$f"
+}
+
+patch_singbox() {
+  local src reg tab=$'\t' p
+  (cd "$COPY" && GOFLAGS=-mod=mod go mod download "$SB_PKG")
+  src="$(cd "$COPY" && GOFLAGS=-mod=mod go list -m -f '{{.Dir}}' "$SB_PKG")"
+  [ -f "$src/include/registry.go" ] || { echo "нет include/registry.go в $src (sing-box обновлён?)" >&2; exit 1; }
+  rm -rf "$SINGBOX"
+  cp -r "$src" "$SINGBOX"
+  chmod -R u+w "$SINGBOX"
+  reg="$SINGBOX/include/registry.go"
+  sed -i 's/\r$//' "$reg"
+
+  drop_exact "$reg" "${tab}\"$SB_PKG/service/api\""
+  drop_exact "$reg" "${tab}originca \"$SB_PKG/service/origin_ca\""
+  drop_exact "$reg" "${tab}\"$SB_PKG/service/resolved\""
+  drop_exact "$reg" "${tab}\"$SB_PKG/service/ssmapi\""
+  drop_exact "$reg" "${tab}\"$SB_PKG/protocol/bridge\""
+  drop_exact "$reg" "${tab}api.RegisterService(registry)"
+  drop_exact "$reg" "${tab}resolved.RegisterService(registry)"
+  drop_exact "$reg" "${tab}resolved.RegisterTransport(registry)"
+  drop_exact "$reg" "${tab}ssmapi.RegisterService(registry)"
+  drop_exact "$reg" "${tab}bridge.RegisterOutbound(registry)"
+  drop_exact "$reg" "${tab}originca.RegisterCertificateProvider(registry)"
+  for p in $SINGBOX_DROP; do
+    drop_exact "$reg" "${tab}\"$SB_PKG/protocol/$p\""
+    drop_register "$reg" "$p"
+  done
+
+  if grep -nE '\b(api|resolved|ssmapi|originca|bridge)\.Register' "$reg" >/dev/null; then
+    echo "patch_singbox: в registry.go остались регистрации удалённых служб" >&2; exit 1
+  fi
+  (cd "$COPY" && GOFLAGS=-mod=mod go mod edit -replace "$SB_PKG=$(native_path "$SINGBOX")")
+  echo "==> sing-box: из реестра убраны api, ssmapi, origin_ca, resolved, bridge${SINGBOX_DROP:+, $SINGBOX_DROP}"
 }
 
 # Патчи ядра: core-overlay/patches/*.patch применяются к копии (build/go/core), субмодуль
@@ -109,6 +183,7 @@ prepare() {
     go build -o "$BIN/gobind$(go env GOEXE)" github.com/sagernet/gomobile/cmd/gobind
   )
   patch_libc
+  patch_singbox
 }
 
 tags() {
@@ -141,12 +216,38 @@ bind() {
     cd "$COPY"
     export GOFLAGS=-mod=mod
     # 16 KB: max-page-size для Android 15+ (NDK r28 делает это сам, флаг закрепляет).
-    gomobile bind -target "$ABIS" -androidapi "$ANDROID_API" -javapkg=lavray.core \
+    gomobile bind ${GOMOBILE_EXTRA:-} -target "$ABIS" -androidapi "$ANDROID_API" -javapkg=lavray.core \
       -tags "$(tags)" -trimpath \
-      -ldflags "-s -w -buildid= -extldflags=-Wl,-z,max-page-size=16384${EXT_LDFLAGS:+,$EXT_LDFLAGS}" \
+      -ldflags "-s -w -buildid= ${GO_LDFLAGS_EXTRA:+$GO_LDFLAGS_EXTRA }-extldflags=-Wl,-z,max-page-size=16384${EXT_LDFLAGS:+,$EXT_LDFLAGS}" \
       -o "$(native_path "$OUT_AAR")" ./mobile
   )
   report_sizes
+}
+
+# Охрана от возврата: если в линковку попадает функция, вызывающая reflect Method/MethodByName с
+# непостоянным именем (text/template, godbus, ...), компоновщик Go перестаёт вырезать неиспользуемые
+# методы, и библиотека растёт на 6,4 МБ (arm64, замер docs/MEASUREMENTS.md, раздел 10.2). Имена
+# функций остаются в .gopclntab и после -s -w; пробы ниже — экспортируемые методы стандартной
+# библиотеки, которые ядро не вызывает: они есть в библиотеке, только когда вырезание выключено.
+# Падаем, если присутствуют минимум три из четырёх. Отключение: SKIP_DCE_CHECK=1.
+DCE_PROBES=('net/http.(*Cookie).Valid' 'log.(*Logger).Panicln' 'log.(*Logger).Fatalln' 'bufio.(*Writer).AvailableBuffer')
+
+check_method_dce() { # каталог распакованного AAR
+  local so p n
+  [ "${SKIP_DCE_CHECK:-0}" = 1 ] && return 0
+  for so in "$1"/jni/*/libgojni.so; do
+    n=0
+    for p in "${DCE_PROBES[@]}"; do
+      if grep -a -q -F -- "$p" "$so"; then n=$((n + 1)); fi
+    done
+    if [ "$n" -ge 3 ]; then
+      echo "ВЫРЕЗАНИЕ МЕТОДОВ ВЫКЛЮЧЕНО в ${so#"$1"/jni/}: найдено $n из ${#DCE_PROBES[@]} неиспользуемых методов std." >&2
+      echo "Что-то в линковке вызывает reflect Method/MethodByName с непостоянным именем; найдите его:" >&2
+      echo "  GOMOBILE_EXTRA=-v GO_LDFLAGS_EXTRA=-dumpdep ABIS=android/arm64 STAGE=bind bash scripts/build-core.sh 2> dump.txt; grep -a '<ReflectMethod>' dump.txt" >&2
+      exit 1
+    fi
+  done
+  echo "==> вырезание методов Go включено"
 }
 
 report_sizes() {
@@ -157,6 +258,7 @@ report_sizes() {
   for so in "$tmp"/jni/*/*.so; do
     echo "    ${so#"$tmp"/jni/}: $(wc -c < "$so") байт"
   done
+  check_method_dce "$tmp"
 }
 
 case "$STAGE" in

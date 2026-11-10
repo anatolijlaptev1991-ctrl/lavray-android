@@ -19,8 +19,9 @@ permissions:
   contents: read
 
 env:
-  # Держите в одном значении с ci.yml.
-  APK_BUDGET_MB: "arm64-v8a=23 armeabi-v7a=24 x86_64=25"
+  # Держите в одном значении с ci.yml (там же расчёт: замер без пережатия x 1,1, вверх; релизные APK
+  # после пережатия deflate ещё примерно на 4 % меньше).
+  APK_BUDGET_MB: "arm64-v8a=19 armeabi-v7a=19 x86_64=20"
 
 defaults:
   run:
@@ -132,6 +133,19 @@ jobs:
         # Без кэша сборки и кэша конфигурации: подписанные результаты и значения секретов не должны
         # попасть ни в какой кэш.
         run: ./gradlew --stacktrace --no-build-cache --no-configuration-cache assembleRelease testDebugUnitTest
+
+      # Лучший deflate (7-Zip) для libgojni.so и classes.dex: около -4 % на APK (docs/MEASUREMENTS.md, 10.6).
+      # 7-Zip сбрасывает выравнивание и подпись, поэтому дальше zipalign и подпись тем же ключом
+      # (LAVRAY_KEYSTORE_PATH уже в окружении); скрипт сверяет сертификат до и после, apksigner verify,
+      # zipalign -c -P 16, хранение resources.arsc без сжатия и оставляет исходный APK, если результат не меньше.
+      - name: "APK: пережатие deflate и подпись тем же ключом"
+        env:
+          LAVRAY_KEYSTORE_PASSWORD: ${{ secrets.LAVRAY_KEYSTORE_PASSWORD }}
+          LAVRAY_KEY_ALIAS: ${{ secrets.LAVRAY_KEY_ALIAS }}
+          LAVRAY_KEY_PASSWORD: ${{ secrets.LAVRAY_KEY_PASSWORD }}
+        run: |
+          command -v 7zz > /dev/null || command -v 7z > /dev/null || sudo apt-get install -y --no-install-recommends p7zip-full
+          bash scripts/ci-apk.sh recompress app/build/outputs/apk/release
 
       - name: "Ключ: удаление временного файла"
         if: always()
