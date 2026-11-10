@@ -74,3 +74,69 @@ class CoreSessionTest {
         assertEquals(1, asked.get())
     }
 }
+
+/** The service restarts the Go core from below and says so in VpnStatus.coreEpoch; the session must not keep the old endpoint. */
+class CoreEpochTest {
+    private class Conn(override val input: InputStream) : Connection {
+        override val output: OutputStream = ByteArrayOutputStream()
+        override fun abort() = Unit
+        override fun close() = Unit
+    }
+
+    private val okBody = "{}".toByteArray()
+    private val okHttp = ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${okBody.size}\r\n\r\n").toByteArray() + okBody
+
+    private fun session(asked: AtomicInteger, built: MutableList<String>) = CoreSession(
+        { CoreEndpoint("/s", "t${asked.incrementAndGet()}") },
+        { ep ->
+            built += ep.token
+            LavrayClient(ep.token, { Conn(ByteArrayInputStream(okHttp)) }, Dispatchers.IO)
+        },
+    )
+
+    @Test
+    fun aNewEpochMakesTheNextCallAskTheServiceForTheEndpointAgain() = runBlocking {
+        val asked = AtomicInteger()
+        val built = mutableListOf<String>()
+        val session = session(asked, built)
+        session.call { coreConnect() }
+        session.call { coreConnect() }
+        assertEquals("one client serves calls while nothing changed", listOf("t1"), built)
+
+        session.onCoreEpoch(1)
+        session.call { coreConnect() }
+        assertEquals(listOf("t1", "t2"), built)
+        assertEquals(2, asked.get())
+    }
+
+    @Test
+    fun theSameEpochAgainKeepsTheClient() = runBlocking {
+        val asked = AtomicInteger()
+        val built = mutableListOf<String>()
+        val session = session(asked, built)
+        session.onCoreEpoch(0)
+        session.call { coreConnect() }
+        session.onCoreEpoch(0)
+        session.call { coreConnect() }
+        assertEquals(listOf("t1"), built)
+    }
+
+    @Test
+    fun anEndpointFetchedBeforeTheEpochMovedIsNotKept() = runBlocking {
+        val asked = AtomicInteger()
+        val built = mutableListOf<String>()
+        lateinit var session: CoreSession
+        session = CoreSession(
+            {
+                val n = asked.incrementAndGet()
+                // The service restarts the core while the endpoint is being fetched.
+                if (n == 1) session.onCoreEpoch(1)
+                CoreEndpoint("/s", "t$n")
+            },
+            { ep -> built += ep.token; LavrayClient(ep.token, { Conn(ByteArrayInputStream(okHttp)) }, Dispatchers.IO) },
+        )
+        session.call { coreConnect() }
+        session.call { coreConnect() }
+        assertEquals("the first client is not cached, the second is", listOf("t1", "t2"), built)
+    }
+}

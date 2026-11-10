@@ -68,9 +68,14 @@ fun interface EndpointSource {
 class CoreSession(private val source: EndpointSource, private val factory: (CoreEndpoint) -> LavrayClient = ::LavrayClient) {
     private val lock = Mutex()
     @Volatile private var cached: LavrayClient? = null
+    @Volatile private var epoch = 0
 
     suspend fun client(): LavrayClient = cached ?: lock.withLock {
-        cached ?: factory(endpointOrUnavailable()).also { cached = it }
+        cached ?: run {
+            val seen = epoch
+            // An endpoint fetched before the epoch moved on belongs to the old core: use it once, but do not keep it.
+            factory(endpointOrUnavailable()).also { if (epoch == seen) cached = it }
+        }
     }
 
     // The service reports a core that failed to start as an exception; to the UI that is simply "core unavailable".
@@ -80,6 +85,17 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
         throw e
     } catch (e: Exception) {
         throw ApiException(ConnectCode.UNAVAILABLE, "core endpoint is not available", cause = e)
+    }
+
+    /**
+     * The service reports how many times it cut the Go core loose and started it anew (VpnStatus.coreEpoch). A change means
+     * the token and maybe the socket are different now: the client is dropped and the next call asks the service for the
+     * endpoint again, instead of first failing against the old one. The same value again changes nothing.
+     */
+    fun onCoreEpoch(value: Int) {
+        if (value == epoch) return
+        epoch = value
+        cached = null
     }
 
     private fun drop(error: Throwable) {

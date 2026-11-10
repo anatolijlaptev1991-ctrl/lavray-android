@@ -3,8 +3,8 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.connection
 
 import io.github.anatolijlaptev1991_ctrl.lavray.R
 import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreStatus
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.MarkState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ConnectionModel
@@ -13,7 +13,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.FailureInf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.HealthBasis
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.HealthRules
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.HealthSignal
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.HealthSource
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelSight
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.LinkHealth
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.markFor
@@ -21,10 +21,9 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.stateSubRe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -41,11 +40,11 @@ import org.junit.Test
  */
 class LinkHealthTest {
     private val t0 = 1_000_000L
-    private fun signal(error: String? = null, connected: Boolean = true, started: Long = t0) = HealthSignal(connected, error, started)
+    private fun signal(error: String? = null, connected: Boolean = true, tunnel: Int = 1) = HealthSignal(connected, error, tunnel)
 
-    /** The tunnel was first seen connected 2 s after it started, with the setting [enabled]. */
-    private fun basis(enabled: Boolean = true, started: Long = t0, seenAt: Long = t0 + 2_000) =
-        HealthBasis.firstSight(signal(started = started), enabled, seenAt)
+    /** Tunnel [tunnel] was first seen connected 2 s after the core started it, with the setting [enabled]. */
+    private fun basis(enabled: Boolean = true, tunnel: Int = 1, started: Long = t0, seenAt: Long = t0 + 2_000) =
+        HealthBasis.firstSight(tunnel, started, enabled, seenAt)
 
     @Test fun aFailureReasonFromTheCoreIsShownWhateverElseIsUnknown() {
         assertEquals(LinkHealth.NoTraffic("refused"), HealthRules.of(signal("refused"), basis(), t0 + 3_000))
@@ -67,17 +66,19 @@ class LinkHealthTest {
     }
 
     @Test fun aBasisOfAnotherTunnelDoesNotVerifyThisOne() {
-        val old = basis(started = t0 - 90_000, seenAt = t0 - 88_000)
-        assertEquals(LinkHealth.NotChecked, HealthRules.of(signal(started = t0), old, t0 + 600_000))
+        val old = basis(tunnel = 1, started = t0 - 90_000, seenAt = t0 - 88_000)
+        assertEquals(LinkHealth.NotChecked, HealthRules.of(signal(tunnel = 2), old, t0 + 600_000))
         assertEquals(LinkHealth.NotChecked, HealthRules.of(signal(), null, t0 + 600_000))
     }
 
     @Test fun aTunnelFirstSeenLongAfterItStartedIsNotVerifiedBecauseTheSettingMayHaveChanged() {
-        val late = HealthBasis.firstSight(signal(), checkEnabled = true, nowMs = t0 + HealthRules.TRUST_MS + 1)
+        val late = HealthBasis.firstSight(1, startedAtMs = t0, checkEnabled = true, nowMs = t0 + HealthRules.TRUST_MS + 1)
         assertFalse(late.trusted)
         assertEquals(LinkHealth.NotChecked, HealthRules.of(signal(), late, t0 + 600_000))
         assertTrue(basis().trusted)
-        assertFalse("no start time, no trust", HealthBasis.firstSight(signal(started = 0), true, t0).trusted)
+        assertFalse("no start time, no trust", HealthBasis.firstSight(1, null, true, t0).trusted)
+        assertFalse("a start time of 0 is no start time", HealthBasis.firstSight(1, 0L, true, t0).trusted)
+        assertFalse("an unreadable setting is no reading", HealthBasis.firstSight(1, t0, null, t0 + 1).trusted)
     }
 
     @Test fun withoutATunnelOrAFrameNothingIsKnown() {
@@ -119,7 +120,7 @@ class LinkHealthTest {
         assertEquals(R.string.fail_protection_off, ErrorDetail.kindText("protection_off"))
         assertEquals(R.string.conn_state_err_sub, stateSubRes(Phase.Error, LinkHealth.Unknown, FailureInfo(null, "something")))
         assertEquals(R.string.conn_state_err_sub, stateSubRes(Phase.Error, LinkHealth.Unknown, FailureInfo("brand_new_kind", null)))
-        listOf("no_server", "core_start", "apps_none", "permission", "connect_failed", "restricted_start", "tunnel_lost", "protection_off")
+        listOf("no_server", "core_start", "apps_none", "permission", "connect_failed", "restricted_start", "tunnel_lost", "protection_off", "core_stop_timeout", "repeated_crash")
             .forEach { assertNotNull(it, ErrorDetail.kindText(it)) }
     }
 
@@ -135,56 +136,102 @@ class LinkHealthTest {
         assertNull("nothing but an address is no detail", ErrorDetail.clean("203.0.113.5:443"))
     }
 
+    private fun model(
+        status: MutableStateFlow<VpnStatus>, scope: CoroutineScope,
+        enabled: suspend () -> Boolean? = { true }, startedAt: suspend () -> Long? = { 5_000L }, now: Long = 6_000L,
+    ) = ConnectionModel(CoreSession({ CoreEndpoint("/x", "t") }), scope, status, enabled, startedAt, clock = { now })
+
+    private fun up(error: String? = null) = VpnStatus(VpnState.CONNECTED, healthError = error)
+
     @Test fun theModelFixesTheBasisOfATunnelWhenItIsFirstSeenConnected() = runBlocking {
-        val frames = listOf(HealthSignal(true, null, 5_000L), HealthSignal(true, "timeout", 5_000L))
-        val source = HealthSource { flow { frames.forEach { emit(it) }; awaitCancellation() } }
+        val status = MutableStateFlow(VpnStatus.IDLE)
         val reads = java.util.concurrent.atomic.AtomicInteger()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model = ConnectionModel(
-            CoreSession({ CoreEndpoint("/x", "t") }), scope, source,
-            healthCheckReader = { reads.incrementAndGet(); false },
-            clock = { 6_000L },
-        )
-        val job = scope.launch { model.watchHealth() }
-        withTimeout(5_000) { model.health.first { it.healthError == "timeout" } }
+        val model = model(status, scope, enabled = { reads.incrementAndGet(); false })
+        status.value = up()
         val basis = withTimeout(5_000) { model.healthBasis.first { it != null } }!!
-        assertEquals(HealthBasis(5_000L, checkEnabled = false, readyAtMs = 6_000L, trusted = true), basis)
-        assertEquals("the setting is read once per tunnel, not once per frame", 1, reads.get())
-        job.cancel()
+        assertEquals(HealthBasis(1, checkEnabled = false, readyAtMs = 6_000L, trusted = true), basis)
+        status.value = up("timeout")
+        withTimeout(5_000) { model.health.first { it.healthError == "timeout" } }
+        assertEquals("the setting is read once per tunnel, not once per status", 1, reads.get())
         scope.cancel()
     }
 
-    @Test fun anUnreadableSettingMakesTheBasisUntrusted() = runBlocking {
-        val source = HealthSource { flow { emit(HealthSignal(true, null, 5_000L)); awaitCancellation() } }
+    @Test fun aRebuiltTunnelIsANewOneAndGetsItsOwnBasis() = runBlocking {
+        val status = MutableStateFlow(VpnStatus.IDLE)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model = ConnectionModel(CoreSession({ CoreEndpoint("/x", "t") }), scope, source, healthCheckReader = { null }, clock = { 6_000L })
-        val job = scope.launch { model.watchHealth() }
-        val basis = withTimeout(5_000) { model.healthBasis.first { it != null } }!!
+        val model = model(status, scope)
+        status.value = up()
+        withTimeout(5_000) { model.healthBasis.first { it?.tunnel == 1 } }
+        // The service shows CONNECTING while it rebuilds, so the next CONNECTED is another tunnel.
+        status.value = VpnStatus(VpnState.CONNECTING)
+        withTimeout(5_000) { model.health.first { !it.connected } }
+        status.value = up()
+        val second = withTimeout(5_000) { model.healthBasis.first { it?.tunnel == 2 } }
+        assertEquals(2, model.health.value.tunnel)
+        assertEquals(LinkHealth.Checking, HealthRules.of(model.health.value, second, 6_001L))
+        scope.cancel()
+    }
+
+    @Test fun aFailureReasonOfTheServiceReachesTheSignalWithoutAnyCoreStream() = runBlocking {
+        val status = MutableStateFlow(up("refused"))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model = model(status, scope)
+        val signal = withTimeout(5_000) { model.health.first { it.healthError != null } }
+        assertEquals(HealthSignal(true, "refused", 1), signal)
+        scope.cancel()
+    }
+
+    @Test fun anUnreadableSettingOrStartTimeMakesTheBasisUntrusted() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val noSetting = MutableStateFlow(up())
+        assertFalse(withTimeout(5_000) { model(noSetting, scope, enabled = { null }).healthBasis.first { it != null } }!!.trusted)
+        val noStart = MutableStateFlow(up())
+        assertFalse(withTimeout(5_000) { model(noStart, scope, startedAt = { null }).healthBasis.first { it != null } }!!.trusted)
+        scope.cancel()
+    }
+
+    @Test fun aTunnelThatWasAlreadyOldWhenTheAppSawItIsNotTrusted() = runBlocking {
+        // The app process started while the tunnel had been up for ten minutes: the setting may have changed since.
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val status = MutableStateFlow(up())
+        val m = model(status, scope, startedAt = { 5_000L }, now = 5_000L + 600_000L)
+        val basis = withTimeout(5_000) { m.healthBasis.first { it != null } }!!
         assertFalse(basis.trusted)
-        job.cancel()
+        assertEquals(LinkHealth.NotChecked, HealthRules.of(m.health.value, basis, 5_000L + 700_000L))
         scope.cancel()
     }
 
-    @Test fun leavingTheScreenKeepsTheLastFrameAndTheTunnelGoingAwayClearsIt() = runBlocking {
-        val source = HealthSource { flow { emit(HealthSignal(true, "timeout", 5_000L)); awaitCancellation() } }
+    @Test fun theTunnelGoingAwayClearsTheSignal() = runBlocking {
+        val status = MutableStateFlow(up("timeout"))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model = ConnectionModel(CoreSession({ CoreEndpoint("/x", "t") }), scope, source, healthCheckReader = { true }, clock = { 6_000L })
-        val job = scope.launch { model.watchHealth() }
-        withTimeout(5_000) { model.health.first { it.healthError == "timeout" } }
-        job.cancel()
-        job.join()
-        assertEquals("the screen was left: the last frame stays until a fresh one arrives", "timeout", model.health.value.healthError)
-        model.resetHealth()
-        assertEquals(HealthSignal.None, model.health.value)
+        val m = model(status, scope)
+        withTimeout(5_000) { m.health.first { it.healthError == "timeout" } }
+        status.value = VpnStatus(VpnState.IDLE)
+        val cleared = withTimeout(5_000) { m.health.first { !it.connected } }
+        assertEquals(null, cleared.healthError)
         scope.cancel()
     }
 
-    @Test fun aCoreStatusBecomesASignal() {
-        val failing = CoreStatus(state = CoreState.CORE_STATE_CONNECTED, healthError = " reset ", startedAtMs = 7L)
-        assertEquals(HealthSignal(true, "reset", 7L), HealthSignal.of(failing))
-        assertEquals(HealthSignal(true, null, 7L), HealthSignal.of(failing.copy(healthError = "  ")))
-        assertEquals(HealthSignal(true, null, 0L), HealthSignal.of(CoreStatus(state = CoreState.CORE_STATE_CONNECTED)))
-        // A reason that outlived a disconnect is not shown for a tunnel that is not connected.
-        assertEquals(false, HealthSignal.of(failing.copy(state = CoreState.CORE_STATE_IDLE)).connected)
+    @Test fun tunnelsAreCountedOnlyWhenTheyComeUp() {
+        var sight = TunnelSight()
+        sight = sight.next(VpnState.CONNECTING)
+        assertEquals(0, sight.tunnel)
+        sight = sight.next(VpnState.CONNECTED)
+        assertEquals(1, sight.tunnel)
+        sight = sight.next(VpnState.CONNECTED)
+        assertEquals("the same tunnel", 1, sight.tunnel)
+        sight = sight.next(VpnState.CONNECTING).next(VpnState.CONNECTED)
+        assertEquals(2, sight.tunnel)
+        assertEquals(3, sight.next(VpnState.IDLE).next(VpnState.CONNECTED).tunnel)
     }
+
+    @Test fun aStatusBecomesASignalAndAReasonOutsideConnectedIsNotShown() {
+        assertEquals(HealthSignal(true, "reset", 2), HealthSignal.of(up(" reset "), 2))
+        assertEquals(HealthSignal(true, null, 2), HealthSignal.of(up("  "), 2))
+        assertEquals(HealthSignal(true, null, 2), HealthSignal.of(up(), 2))
+        // A reason that outlived the tunnel is not shown for a tunnel that is not connected.
+        assertEquals(HealthSignal(false, null, 2), HealthSignal.of(VpnStatus(VpnState.CONNECTING, healthError = "reset"), 2))
+    }
+
 }

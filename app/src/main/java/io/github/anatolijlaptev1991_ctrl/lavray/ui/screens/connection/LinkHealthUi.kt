@@ -20,21 +20,26 @@ import kotlinx.coroutines.delay
 
 /**
  * Why a connection attempt failed, as far as the service says. [kind] is the service's failure code (null until the
- * service reports one); [raw] is its short text, which is untranslated and may name addresses. The screen words the
- * kind, and shows [raw] only as a sanitised secondary line ([ErrorDetail]).
+ * service reports one); [reason] is the core's own reason code for a refused connect (ErrorInfo.reason, for example
+ * "no_server"); [raw] is the short text, which is untranslated and may name addresses. The screen words the kind (or,
+ * failing that, the reason), and shows [raw] only as a sanitised secondary line ([ErrorDetail]).
  */
 @Immutable
-data class FailureInfo(val kind: String?, val raw: String?) {
+data class FailureInfo(val kind: String?, val raw: String?, val reason: String? = null) {
     companion object {
         val None = FailureInfo(null, null)
     }
 }
 
-/** The line under the state title. Pure, so the wording of each state is tested. */
+/**
+ * The line under the state title. Pure, so the wording of each state is tested. [held]: the service keeps traffic blocked
+ * on purpose while it rebuilds the tunnel; the line then says so, so that it is not taken for a slow connection.
+ */
 @StringRes
-fun stateSubRes(phase: Phase, link: LinkHealth, failure: FailureInfo = FailureInfo.None): Int = when (phase) {
-    Phase.Off, Phase.WaitingNetwork -> R.string.conn_state_off_sub
-    Phase.Connecting, Phase.Disconnecting -> R.string.conn_state_connecting_sub
+fun stateSubRes(phase: Phase, link: LinkHealth, failure: FailureInfo = FailureInfo.None, held: Boolean = false): Int = when (phase) {
+    Phase.Off, Phase.WaitingNetwork -> if (held) R.string.nt_held_sub else R.string.conn_state_off_sub
+    Phase.Connecting -> if (held) R.string.nt_held_sub else R.string.conn_state_connecting_sub
+    Phase.Disconnecting -> R.string.conn_state_connecting_sub
     Phase.On -> when (link) {
         LinkHealth.Verified -> R.string.conn_state_on_sub
         LinkHealth.Checking -> R.string.cx_health_checking
@@ -42,7 +47,8 @@ fun stateSubRes(phase: Phase, link: LinkHealth, failure: FailureInfo = FailureIn
         // Not asked, or the core has not answered: nothing is claimed about the traffic.
         LinkHealth.NotChecked, LinkHealth.Unknown -> R.string.cx_health_unknown_sub
     }
-    Phase.NeedsPermission, Phase.Error -> ErrorDetail.kindText(failure.kind) ?: R.string.conn_state_err_sub
+    Phase.NeedsPermission -> ErrorDetail.kindText(failure.kind, failure.reason) ?: R.string.fail_permission
+    Phase.Error -> ErrorDetail.kindText(failure.kind, failure.reason) ?: R.string.conn_state_err_sub
 }
 
 /** The mark: a tunnel that is up but passes nothing is not drawn as healthy. */
@@ -53,9 +59,16 @@ fun markFor(phase: Phase, link: LinkHealth): MarkState =
 object ErrorDetail {
     const val MAX = 160
 
-    /** Failure codes of the service (docs/ARCHITECTURE.md, "service status for the interface") and their dictionary text. */
+    /**
+     * The sentence for a failure: by the service's [kind], or, when the kind is missing or unknown, by the core's own
+     * [reason] (the codes overlap: the core refuses a connect with "no_server" too). Null when neither has words.
+     */
     @StringRes
-    fun kindText(kind: String?): Int? = when (kind) {
+    fun kindText(kind: String?, reason: String? = null): Int? = kindRes(kind) ?: kindRes(reason)
+
+    /** Failure codes of the service (docs/ARCHITECTURE.md, "Статус службы для интерфейса") and their dictionary text. */
+    @StringRes
+    private fun kindRes(kind: String?): Int? = when (kind) {
         "no_server" -> R.string.fail_no_server
         "core_start" -> R.string.fail_core_start
         "apps_none" -> R.string.fail_apps_none
@@ -64,8 +77,13 @@ object ErrorDetail {
         "restricted_start" -> R.string.fail_restricted_start
         "tunnel_lost" -> R.string.fail_tunnel_lost
         "protection_off" -> R.string.fail_protection_off
+        "core_stop_timeout" -> R.string.fail_core_stop_timeout
+        "repeated_crash" -> R.string.fail_repeated_crash
         else -> null
     }
+
+    /** "Check your network" fits only a failure to reach the server, not a missing server, permission or crash loop. */
+    fun suggestsNetworkCheck(kind: String?): Boolean = kind == null || kind == "connect_failed" || kind == "tunnel_lost"
 
     private val ipv6InBrackets = Regex("""\[[0-9A-Fa-f:.]+](:\d{1,5})?""")
     private val ipv6Bare = Regex("""(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])""")

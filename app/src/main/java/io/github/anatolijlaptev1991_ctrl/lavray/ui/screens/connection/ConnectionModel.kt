@@ -18,11 +18,11 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.routingGetActivePreset
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.settingsGetSettings
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.statsSubscribe
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.subscriptionListSubscriptions
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.StreamFailure
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.StreamBackoff
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 
@@ -81,16 +82,20 @@ fun TrafficReading.apply(snapshot: StatsSnapshot): TrafficReading {
 }
 
 /**
- * Loads the current server, active route preset and start time for the connection screen. [traffic] is a cold
- * stream: it opens the stats socket when collected and closes it when the collector goes away, so it only
- * runs while the screen is visible and the tunnel is up.
+ * Loads the current server, active route preset and start time for the connection screen, and follows the service's
+ * status for the tunnel's health ([health], [healthBasis]). [traffic] is a cold stream: it opens the stats socket when
+ * collected and closes it when the collector goes away, so it only runs while the screen is visible and the tunnel is up.
+ * The status itself is not a core stream: the service delivers it to the app anyway, following it costs nothing.
  */
 class ConnectionModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
-    private val healthSource: HealthSource = CoreHealthSource(session),
+    /** The service's status; its `healthError` is the health source (see [HealthSignal]). */
+    status: StateFlow<VpnStatus>,
     /** The "check the link after connecting" setting as it is now; null when it cannot be read. */
     private val healthCheckReader: suspend () -> Boolean? = { readHealthSetting(session) },
+    /** When the core started the tunnel it runs now (epoch millis); null when it cannot be read. */
+    private val startedAtReader: suspend () -> Long? = { readStartedAt(session) },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val mutable = MutableStateFlow(ConnectionInfo())
@@ -98,13 +103,56 @@ class ConnectionModel(
 
     private val mutableHealth = MutableStateFlow(HealthSignal.None)
 
-    /** The last status frame of the core's event stream; [HealthSignal.None] while the stream is closed or broken. */
+    /** The health the service reports for the tunnel it shows now; [HealthSignal.None] while no tunnel is up. */
     val health: StateFlow<HealthSignal> = mutableHealth.asStateFlow()
 
     private val mutableBasis = MutableStateFlow<HealthBasis?>(null)
 
     /** What is known about the health check of the tunnel that [health] describes; null until a tunnel was seen connected. */
     val healthBasis: StateFlow<HealthBasis?> = mutableBasis.asStateFlow()
+
+    @Volatile private var sight = TunnelSight()
+
+    private val mutableDismissed = MutableStateFlow(Dismissed())
+
+    /** Notices the person closed; each is forgotten when its cause ends, so the next one is shown again. */
+    val dismissed: StateFlow<Dismissed> = mutableDismissed.asStateFlow()
+
+    fun dismissStop() = mutableDismissed.update { it.withStop() }
+
+    fun dismissFailure(kind: String) = mutableDismissed.update { it.withFailure(kind) }
+
+    /** The core's notes are shown once per connection: this closes them for the tunnel that is up now. */
+    fun dismissWarnings() = mutableDismissed.update { it.withWarnings(sight.tunnel) }
+
+    init {
+        scope.launch { status.collect(::onStatus) }
+    }
+
+    /**
+     * One status of the service. A tunnel coming up fixes its [healthBasis] right then (the core reads the setting when it
+     * connects); the signal always follows the latest status.
+     */
+    private fun onStatus(status: VpnStatus) {
+        val before = sight
+        sight = before.next(status.state)
+        mutableHealth.value = HealthSignal.of(status, sight.tunnel)
+        mutableDismissed.update { it.after(status) }
+        if (sight.tunnel != before.tunnel) {
+            val tunnel = sight.tunnel
+            scope.launch {
+                val basis = basisFor(tunnel)
+                // A newer tunnel may have come up while the readings were under way: they describe the older one.
+                if (sight.tunnel == tunnel) mutableBasis.value = basis
+            }
+        }
+    }
+
+    private suspend fun basisFor(tunnel: Int): HealthBasis {
+        val enabled = healthCheckReader()
+        val startedAt = startedAtReader()
+        return HealthBasis.firstSight(tunnel, startedAt, enabled, clock())
+    }
 
     private var refreshJob: Job? = null
 
@@ -136,38 +184,6 @@ class ConnectionModel(
         }
     }
 
-    /**
-     * Follows the core's status frames and keeps the latest in [health]. It suspends for as long as it is collected
-     * (the screen runs it only while visible and the tunnel is up) and reopens the stream after a break. The frame
-     * that first shows a tunnel connected also fixes its [healthBasis]: the setting is read right then, because the core
-     * reads it when it connects. The last frame is kept when the screen is left (the next visit starts from it and gets
-     * a fresh one at once); [resetHealth] clears it when the tunnel is gone.
-     */
-    suspend fun watchHealth() {
-        StreamBackoff.run(
-            open = { healthSource.frames() },
-            onError = { mutableHealth.value = HealthSignal.None },
-            onFrame = { frame ->
-                mutableHealth.value = frame
-                if (frame.connected && frame.startedAtMs > 0 && mutableBasis.value?.startedAtMs != frame.startedAtMs) {
-                    mutableBasis.value = basisFor(frame)
-                }
-            },
-        )
-    }
-
-    private suspend fun basisFor(frame: HealthSignal): HealthBasis {
-        val enabled = healthCheckReader()
-        val seen = HealthBasis.firstSight(frame, enabled ?: false, clock())
-        // A setting that could not be read is no reading: nothing is claimed about the check.
-        return if (enabled == null) seen.copy(trusted = false) else seen
-    }
-
-    /** The tunnel is gone: what the last frame said no longer describes anything. */
-    fun resetHealth() {
-        mutableHealth.value = HealthSignal.None
-    }
-
     private suspend fun loadServer(id: Long): ServerSummary? {
         if (id <= 0) return null
         val r = session.call { profileGetProfile(GetProfileRequest(id)) }
@@ -190,6 +206,9 @@ class ConnectionModel(
 
     private companion object {
         const val STATS_INTERVAL_MS = 1000
+
+        suspend fun readStartedAt(session: CoreSession): Long? =
+            (session.call { coreGetStatus() } as? CoreResult.Ok)?.value?.startedAtMs?.takeIf { it > 0 }
 
         suspend fun readHealthSetting(session: CoreSession): Boolean? {
             val r = session.call { settingsGetSettings(GetSettingsRequest(listOf(SettingKeys.HEALTH_CHECK))) }

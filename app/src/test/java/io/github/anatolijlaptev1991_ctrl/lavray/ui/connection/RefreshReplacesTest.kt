@@ -42,7 +42,7 @@ class RefreshReplacesTest {
             { ep -> LavrayClient(ep.token, { Conn(ByteArrayInputStream(http)) }, Dispatchers.IO) },
         )
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        val model = ConnectionModel(session, scope)
+        val model = ConnectionModel(session, scope, kotlinx.coroutines.flow.MutableStateFlow(io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus.IDLE))
         model.refresh(1L)
         withTimeoutOrNull(300) { model.info.first { it.loaded } }
         model.refresh(2L)

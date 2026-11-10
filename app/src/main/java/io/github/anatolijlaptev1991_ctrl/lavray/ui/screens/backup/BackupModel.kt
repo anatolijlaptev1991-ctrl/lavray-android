@@ -16,6 +16,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.backupImportBackup
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.backupPreviewBackup
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 
 @Immutable
 data class BackupState(
@@ -114,6 +116,24 @@ class ResolverBackupFiles(private val resolver: ContentResolver) : BackupFiles {
 }
 
 /**
+ * Keeps the :vpn process (and the core in it) alive while a long operation runs there, even if the app is left and the
+ * service would otherwise stop. [begin] may throw when the service cannot be reached; [end] is called in a `finally`.
+ */
+interface ServiceHold {
+    suspend fun begin(token: String, timeoutMs: Long)
+
+    suspend fun end(token: String)
+
+    companion object {
+        /** No service to hold (tests that do not care). */
+        val None = object : ServiceHold {
+            override suspend fun begin(token: String, timeoutMs: Long) = Unit
+            override suspend fun end(token: String) = Unit
+        }
+    }
+}
+
+/**
  * Backup export and restore through the system file picker (no storage permission). Every operation runs on [scope],
  * the app's scope, and clears `busy` however it ends: the model outlives the screen, so an operation that the screen's
  * own coroutine scope would have cancelled mid-way must not leave the buttons disabled for the rest of the process.
@@ -128,6 +148,8 @@ class BackupModel(
     private val onBeforeReplace: () -> Unit = {},
     /** Called once after the core replaced all data. */
     private val onRestored: () -> Unit = {},
+    /** Held for the duration of a restore: the core must not be stopped halfway through replacing all data. */
+    private val hold: ServiceHold = ServiceHold.None,
 ) {
     private val mutable = MutableStateFlow(BackupState())
     val state: StateFlow<BackupState> = mutable.asStateFlow()
@@ -136,6 +158,7 @@ class BackupModel(
     @Volatile private var picked: ByteArray? = null
     @Volatile private var attached = true
     private val lifeLock = Any()
+    private val holds = AtomicInteger()
 
     /** Marks the first operation of a screen visit; false when another one is still running. */
     private fun claim(reset: (BackupState) -> BackupState): Boolean {
@@ -222,9 +245,27 @@ class BackupModel(
         val data = picked ?: return null
         if (!claim { it }) return null
         val normalized = BackupRules.normalize(password)
-        return launchOp {
+        return launchOp { restore(data, normalized) }
+    }
+
+    /** The service is held first and released in `finally`; without the hold nothing is replaced (it could be cut off halfway). */
+    private suspend fun restore(data: ByteArray, password: String) {
+        val token = "backup-restore-${holds.incrementAndGet()}"
+        val held = try {
+            hold.begin(token, RESTORE_HOLD_MS)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        if (!held) {
+            mutable.update { it.copy(error = R.string.bk_err_hold) }
+            return
+        }
+        try {
             onBeforeReplace()
-            when (val r = session.call { backupImportBackup(ImportBackupRequest(data, normalized, confirmReplace = true)) }) {
+            when (val r = session.call { backupImportBackup(ImportBackupRequest(data, password, confirmReplace = true)) }) {
                 is CoreResult.Ok -> {
                     picked = null
                     mutable.update { it.copy(restored = true, needsRestart = r.value.needsAppRestart, summary = null, pickedName = null) }
@@ -232,6 +273,9 @@ class BackupModel(
                 }
                 is CoreResult.Fail -> mutable.update { it.copy(error = BackupErrors.text(r.reason, r.kind)) }
             }
+        } finally {
+            // A hold that cannot be released ends on its own at the timeout.
+            withContext(NonCancellable) { runCatching { hold.end(token) } }
         }
     }
 
@@ -272,5 +316,10 @@ class BackupModel(
         exported = null
         picked = null
         mutable.update { it.withoutFileState() }
+    }
+
+    private companion object {
+        /** The service clamps a hold to 15 minutes; a restore is seconds, ten minutes is a ceiling for a forgotten release. */
+        const val RESTORE_HOLD_MS = 10 * 60 * 1000L
     }
 }

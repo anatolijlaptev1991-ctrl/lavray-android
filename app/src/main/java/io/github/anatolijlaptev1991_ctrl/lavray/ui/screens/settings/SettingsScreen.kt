@@ -14,6 +14,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.textRes
@@ -131,18 +133,21 @@ private fun LavListBlock(title: Int, chips: @Composable () -> Unit) {
 @Composable
 fun StartupSection() {
     val env = LocalEnv.current
-    // null until read: a switch that shows "off" because the read failed would be a claim nobody checked.
-    var enabled by remember { mutableStateOf<Boolean?>(null) }
-    var readFailed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        runCatching { env.controller.isAutoConnectEnabled() }.onSuccess { enabled = it }.onFailure { readFailed = true }
+    val switch = remember(env) { AutoConnectSwitch(read = env.controller::isAutoConnectEnabled, write = env.controller::setAutoConnect) }
+    val ui by switch.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(switch) { switch.load() }
+    val hint = when {
+        ui.writeFailed -> stringResource(R.string.set_autoWriteFailed)
+        ui.readFailed -> stringResource(R.string.set_autoReadFailed)
+        else -> null
     }
     LavSwitchRow(
-        label = stringResource(R.string.main_auto_connect), checked = enabled == true,
-        onCheckedChange = { on -> enabled = on; env.controller.setAutoConnectEnabled(on) },
+        label = stringResource(R.string.main_auto_connect), checked = ui.value == true,
+        onCheckedChange = { on -> scope.launch { switch.set(on) } },
         modifier = Modifier.padding(horizontal = 16.dp),
-        hint = if (readFailed) stringResource(R.string.set_autoReadFailed) else null,
-        enabled = enabled != null,
+        hint = hint,
+        enabled = ui.value != null && !ui.saving,
     )
 }
 

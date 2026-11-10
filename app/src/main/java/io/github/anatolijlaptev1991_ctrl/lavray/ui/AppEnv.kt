@@ -19,6 +19,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.CoreProbeB
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ExitProbe
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.BackupModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ResolverBackupFiles
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ServiceHold
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
@@ -35,8 +36,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * The one object screens reach for: the VPN controller, the core session, the settings and the models that
@@ -58,7 +61,12 @@ class AppEnv(
     var settings: UiSettings by mutableStateOf(prefs.load())
         private set
 
-    val connection: ConnectionModel by lazy { ConnectionModel(session, scope) }
+    init {
+        // The service cut the Go core loose and started it anew: the endpoint (and its token) is not the one the client holds.
+        scope.launch { controller.status.map { it.coreEpoch }.distinctUntilChanged().collect(session::onCoreEpoch) }
+    }
+
+    val connection: ConnectionModel by lazy { ConnectionModel(session, scope, vpn.status) }
     val servers: ServersModel by lazy { ServersModel(session, scope, vpn::connect) }
     /** Raised when servers or subscriptions change behind a screen's back (import); screens that list them reload on it. */
     val data = DataChanges()
@@ -100,6 +108,10 @@ class AppEnv(
                 connection.refresh(0L)
                 // The result is also told here: the person may be on another screen by now.
                 toast.show(appContext.getString(R.string.bk_done))
+            },
+            hold = object : ServiceHold {
+                override suspend fun begin(token: String, timeoutMs: Long) = controller.beginBusy(token, timeoutMs)
+                override suspend fun end(token: String) = controller.endBusy(token)
             },
         )
     }

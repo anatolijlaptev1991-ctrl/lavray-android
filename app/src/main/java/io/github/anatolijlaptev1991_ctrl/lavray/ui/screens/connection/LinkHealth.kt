@@ -4,49 +4,45 @@ package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import io.github.anatolijlaptev1991_ctrl.lavray.R
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreStatus
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscribeEventsRequest
-import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreSubscribeEvents
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.mapNotNull
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 
 /**
- * What the core reported about the tunnel in one status frame. [healthError] is the core's reason code when the
- * check after connecting found that nothing passes through the server (desktop CoreStatus.healthError), else null.
+ * What the service reports about the tunnel right now. [healthError] is the core's reason code when its check after
+ * connecting found that nothing passes through the server (CoreStatus.health_error, carried by the service in
+ * [VpnStatus.healthError]), else null. [tunnel] numbers the tunnels this process has seen come up ([TunnelSight]): it
+ * is what ties a verdict to the tunnel it describes.
+ *
+ * The service is the source on purpose: it already holds the core's event stream for its own decisions and puts the
+ * reason into every status it publishes, and it drops the reason whenever it does not show the tunnel as connected (a
+ * rebuild, a grace period), so a reason of the previous tunnel cannot outlive it. A second SubscribeEvents stream from
+ * the screen would carry the same frames at the cost of one more socket and a reopening loop.
  */
 @Immutable
-data class HealthSignal(val connected: Boolean, val healthError: String?, val startedAtMs: Long) {
+data class HealthSignal(val connected: Boolean, val healthError: String?, val tunnel: Int) {
     companion object {
-        val None = HealthSignal(connected = false, healthError = null, startedAtMs = 0L)
+        val None = HealthSignal(connected = false, healthError = null, tunnel = 0)
 
-        /** One core status: connected only in CONNECTED, a blank reason is no reason. */
-        fun of(status: CoreStatus) = HealthSignal(
-            connected = status.state == CoreState.CORE_STATE_CONNECTED,
-            healthError = status.healthError?.trim()?.takeIf { it.isNotEmpty() },
-            startedAtMs = status.startedAtMs ?: 0L,
+        /** Connected only in CONNECTED, a blank reason is no reason. */
+        fun of(status: VpnStatus, tunnel: Int) = HealthSignal(
+            connected = status.state == VpnState.CONNECTED,
+            healthError = status.healthError?.trim()?.takeIf { it.isNotEmpty() && status.state == VpnState.CONNECTED },
+            tunnel = tunnel,
         )
     }
 }
 
 /**
- * Where the health signal comes from. Today it is the core's event stream; once the service carries
- * `health_error` in its own status, another implementation can replace [CoreHealthSource] without touching the screen.
+ * Counts the tunnels seen coming up: a new number each time the state turns CONNECTED after being anything else. The
+ * service shows CONNECTING for a rebuild and for the grace period after the core fell over, so a rebuilt tunnel is a new
+ * one here, exactly when the core starts a new health check.
  */
-fun interface HealthSource {
-    /** Frames while collected; the first one is the full current status. Cancelling the collector closes the stream. */
-    fun frames(): Flow<HealthSignal>
-}
-
-/** The core's SubscribeEvents stream, reduced to the state frames (the only ones that carry the status). */
-class CoreHealthSource(private val session: CoreSession) : HealthSource {
-    override fun frames(): Flow<HealthSignal> =
-        session.stream { coreSubscribeEvents(SubscribeEventsRequest(eventKinds = listOf(STATE_CHANGED))) }
-            .mapNotNull { event -> event.stateChanged?.let(HealthSignal::of) }
-
-    private companion object {
-        const val STATE_CHANGED = "state_changed"
+@Immutable
+data class TunnelSight(val tunnel: Int = 0, val up: Boolean = false) {
+    fun next(state: VpnState): TunnelSight = when {
+        state == VpnState.CONNECTED && !up -> TunnelSight(tunnel + 1, up = true)
+        state != VpnState.CONNECTED && up -> copy(up = false)
+        else -> this
     }
 }
 
@@ -71,18 +67,19 @@ sealed interface LinkHealth {
 
 /**
  * What is known about THIS tunnel's health check, taken when the tunnel was first seen connected: whether the setting
- * was on then (the core reads it when it connects), and when. [trusted] is false when the tunnel was first seen long
- * after it started, so the setting may have changed since and nothing can be said about it.
+ * was on then (the core reads it when it connects), and when. [trusted] is false when the tunnel had already been running
+ * long when it was first seen, or the start time or the setting could not be read: the setting may have changed since and
+ * nothing can be said about it.
  */
 @Immutable
-data class HealthBasis(val startedAtMs: Long, val checkEnabled: Boolean, val readyAtMs: Long, val trusted: Boolean) {
+data class HealthBasis(val tunnel: Int, val checkEnabled: Boolean, val readyAtMs: Long, val trusted: Boolean) {
     companion object {
-        /** [signal] is the first frame of a connected tunnel; [checkEnabled] is the setting read right then. */
-        fun firstSight(signal: HealthSignal, checkEnabled: Boolean, nowMs: Long) = HealthBasis(
-            startedAtMs = signal.startedAtMs,
-            checkEnabled = checkEnabled,
+        /** [startedAtMs] is the core's start time of the tunnel (null when unreadable); [checkEnabled] the setting read right then (null when unreadable). */
+        fun firstSight(tunnel: Int, startedAtMs: Long?, checkEnabled: Boolean?, nowMs: Long) = HealthBasis(
+            tunnel = tunnel,
+            checkEnabled = checkEnabled ?: false,
             readyAtMs = nowMs,
-            trusted = signal.startedAtMs > 0 && nowMs - signal.startedAtMs in 0..HealthRules.TRUST_MS,
+            trusted = checkEnabled != null && startedAtMs != null && startedAtMs > 0 && nowMs - startedAtMs in 0..HealthRules.TRUST_MS,
         )
     }
 }
@@ -117,7 +114,7 @@ object HealthRules {
     fun of(signal: HealthSignal, basis: HealthBasis?, nowMs: Long): LinkHealth = when {
         !signal.connected -> LinkHealth.Unknown
         signal.healthError != null -> LinkHealth.NoTraffic(signal.healthError)
-        basis == null || basis.startedAtMs != signal.startedAtMs || !basis.trusted || !basis.checkEnabled -> LinkHealth.NotChecked
+        basis == null || basis.tunnel != signal.tunnel || !basis.trusted || !basis.checkEnabled -> LinkHealth.NotChecked
         nowMs - basis.readyAtMs < CHECK_WINDOW_MS -> LinkHealth.Checking
         else -> LinkHealth.Verified
     }
