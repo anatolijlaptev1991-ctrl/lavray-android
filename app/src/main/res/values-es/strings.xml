@@ -21,10 +21,12 @@
     <string name="apps_except">Todas menos las elegidas</string>
     <string name="apps_except_d">Todas las apps pasan por el túnel menos las elegidas, que usan tu conexión normal.</string>
     <string name="apps_hint">Elige qué apps usan la VPN.</string>
+    <string name="apps_missing">No está entre las aplicaciones con icono de inicio (desinstalada o sin icono). Desmárcala si no la necesitas</string>
     <string name="apps_none">No se encontraron apps</string>
     <string name="apps_only">Solo las elegidas</string>
     <string name="apps_only_d">Solo las apps elegidas pasan por el túnel. Las demás usan tu conexión normal.</string>
     <string name="apps_only_empty">No hay ninguna app elegida, así que por ahora todas usan el túnel. Elige al menos una.</string>
+    <string name="apps_saveFailed">No se pudo guardar la selección de aplicaciones. Se muestra la guardada.</string>
     <string name="apps_search">Buscar apps</string>
     <string name="apps_system">Mostrar apps del sistema</string>
     <string name="apps_title">Apps en el túnel</string>
@@ -57,6 +59,7 @@
     <string name="bk_hint">Todos los datos en un solo archivo: ajustes, servidores con sus contraseñas, grupos, suscripciones (con sus direcciones) y tus propios conjuntos de rutas. El archivo se cifra con una contraseña; sin ella no se puede abrir.</string>
     <string name="bk_mismatch">Las contraseñas no coinciden</string>
     <string name="bk_noFile">Ningún archivo elegido</string>
+    <string name="bk_notIncluded">La copia no incluye la selección de aplicaciones del túnel ni el inicio al encender el teléfono: se guardan aparte y siguen igual tras restaurar.</string>
     <string name="bk_pw">Contraseña del archivo</string>
     <string name="bk_pw2">Repite la contraseña</string>
     <string name="bk_pwHint">Al menos %1$s caracteres. Una contraseña olvidada no se puede recuperar: sin ella nadie podrá abrir la copia.</string>
@@ -98,6 +101,7 @@
     <string name="chk_fix_sub">Abrir suscripciones</string>
     <string name="chk_fix_time">Sincronizar reloj</string>
     <string name="chk_ip_connect">Conéctate para ver la dirección a través del túnel.</string>
+    <string name="chk_ip_failed">No se pudo determinar la dirección: el servicio que la indica no respondió. El núcleo funciona.</string>
     <string name="chk_ip_run">Comprobar direcciones</string>
     <string name="chk_ip_title">Dirección pública</string>
     <string name="chk_ipv6_t">IPv6 no se salta el túnel</string>
@@ -136,6 +140,11 @@
     <string name="conn_disconnect">Desconectar</string>
     <string name="conn_down">Descarga</string>
     <string name="conn_ip">IP por el túnel</string>
+    <string name="conn_noTraffic">Conectado, pero por el servidor no pasa nada: %1$s. Elige otro servidor o revisa tu suscripción.</string>
+    <string name="conn_noTraffic_no_host">no se pudo resolver la dirección del servidor</string>
+    <string name="conn_noTraffic_refused">el servidor rechazó la conexión</string>
+    <string name="conn_noTraffic_reset">el servidor cortó la conexión</string>
+    <string name="conn_noTraffic_timeout">el servidor no respondió a tiempo</string>
     <string name="conn_session">Sesión</string>
     <string name="conn_state_connecting">Conectando…</string>
     <string name="conn_state_connecting_sub">Estableciendo el haz…</string>
@@ -184,9 +193,16 @@
     <string name="cx_empty_d">Añade una suscripción o un enlace de tu proveedor y conéctate.</string>
     <string name="cx_empty_t">Aún no hay servidores</string>
     <string name="cx_exit_t">Punto de salida</string>
-    <string name="cx_leak_clear">No se encontró ninguna fuga: la dirección que LAVRay ve directamente es distinta de la del túnel.</string>
+    <string name="cx_health_checking">Comprobando que el tráfico pasa por el servidor…</string>
+    <string name="cx_health_failed_sub">No se confirma la conexión por el servidor</string>
+    <string name="cx_health_unknown_sub">Conexión por el servidor sin comprobar</string>
+    <string name="cx_leak_clear">La dirección por el túnel es distinta de la directa. DNS e IPv6 no se miden en el teléfono: esta comprobación no descarta fugas por ellos.</string>
     <string name="cx_leak_unchecked">Sin comprobar: esta vez no se pudo medir una de las dos direcciones.</string>
+    <string name="cx_pending_apply">se aplica tras reiniciar</string>
+    <string name="cx_pending_d">Los cambios guardados aún no se han aplicado. Reinicia cuando te convenga.</string>
+    <string name="cx_pending_t">El túnel funciona con la configuración anterior</string>
     <string name="cx_probe_fail">Esta comprobación no se completó ahora.</string>
+    <string name="cx_state_reading">Leyendo el estado…</string>
     <string name="da_json_invalid">El núcleo no aceptó este JSON. Corrígelo y vuelve a comprobarlo.</string>
     <string name="dens_compact">Compacta</string>
     <string name="dens_normal">Normal</string>
@@ -212,7 +228,7 @@
     <string name="dns_tunnel">Por el túnel</string>
     <string name="dns_tunnel_d">El DNS cifrado viaja dentro del túnel del proxy: privacidad máxima.</string>
     <string name="dns_validate">Comprobar</string>
-    <string name="dns_warn">Cambiar de modo reconecta el canal un instante. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
+    <string name="dns_warn_phone">El cambio de modo se aplica tras reiniciar el núcleo. Mientras haya un túnel activo, aparecerá en pantalla la propuesta de reiniciar. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
     <string name="dns_warn_t">Compatibilidad</string>
     <string name="ed_t_chain">Cadena</string>
     <string name="ed_t_json">JSON propio</string>
@@ -222,6 +238,14 @@
     <string name="err_precondition">Esta acción no está disponible ahora</string>
     <string name="err_retry">Reintentar</string>
     <string name="err_unimplemented">Esta función aún no está disponible</string>
+    <string name="fail_apps_none">Ninguna de las aplicaciones elegidas está en este teléfono</string>
+    <string name="fail_connect_failed">No se pudo conectar</string>
+    <string name="fail_core_start">El núcleo no arrancó</string>
+    <string name="fail_no_server">No hay ningún servidor seleccionado</string>
+    <string name="fail_permission">Falta el permiso de VPN</string>
+    <string name="fail_protection_off">La protección está desactivada: el sistema desconectó la VPN</string>
+    <string name="fail_restricted_start">El sistema no permitió iniciar el túnel en segundo plano</string>
+    <string name="fail_tunnel_lost">Se perdió la conexión</string>
     <string name="filter_all">Todos</string>
     <string name="filter_down">Inaccesibles</string>
     <string name="filter_fast">Rápidos</string>
@@ -315,6 +339,7 @@
     <string name="lic_title">Licencias y componentes</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Desplazamiento automático</string>
+    <string name="log_copiedTruncated">Solo se copiaron las últimas líneas: %1$s de %2$s</string>
     <string name="log_copy">Copiar</string>
     <string name="log_exportD">Las contraseñas, UUID, tokens y direcciones de suscripción se sustituirán por ••••.</string>
     <string name="log_noMatch">Nada coincide con los filtros</string>
@@ -323,6 +348,8 @@
     <string name="log_resume">Reanudar</string>
     <string name="log_searchPh">Buscar en el registro…</string>
     <string name="log_share">Compartir</string>
+    <string name="log_shareFailed">No se pudo compartir el registro. Puedes copiarlo.</string>
+    <string name="log_shareTruncated">Solo se compartieron las últimas líneas: %1$s de %2$s</string>
     <string name="main_auto_connect">Conectar al iniciar el teléfono</string>
     <string name="mux_concurrency">Flujos simultáneos</string>
     <string name="mux_concurrencyErr">Introduce -1 o un número de 1 a 1024</string>
@@ -421,6 +448,7 @@
     <string name="rt_deleteConfirm">¿Eliminar el preset «%1$s»? No se puede deshacer.</string>
     <string name="rt_deletePreset">Eliminar preset</string>
     <string name="rt_duplicate">Duplicar</string>
+    <string name="rt_editRejected">El núcleo no aceptó esta entrada. Revisa cómo está escrita.</string>
     <string name="rt_empty_d">Núcleo no disponible — los presets aparecerán al iniciarlo</string>
     <string name="rt_empty_t">Presets no cargados</string>
     <string name="rt_exportPreset">Exportar preset</string>
@@ -484,6 +512,7 @@
     <string name="set_alwayson_open">Abrir ajustes de VPN</string>
     <string name="set_alwayson_t">VPN siempre activa</string>
     <string name="set_appVersion">Versión de la app</string>
+    <string name="set_autoReadFailed">No se pudo leer este valor: el interruptor no está disponible.</string>
     <string name="set_battery_d">Normalmente no hace falta cambiarlo: conectada, LAVRay funciona como servicio en primer plano con una notificación y no usa wake locks ni temporizadores. Algunas marcas detienen las apps en segundo plano de todos modos; si la conexión se corta con la pantalla apagada, pon LAVRay en «Sin restricciones» o «No optimizar». LAVRay no puede ver los límites propios de cada marca.</string>
     <string name="set_battery_off">LAVRay está excluida de la optimización de batería.</string>
     <string name="set_battery_on">La optimización de batería está activa para LAVRay (valor predeterminado).</string>
@@ -619,7 +648,9 @@
     <string name="toast_presetImportedWarn">Preset importado, avisos: %1$s</string>
     <string name="toast_presetReset">Preset restablecido al original</string>
     <string name="toast_presetSaved">Preset guardado</string>
+    <string name="toast_reconnected">Túnel reconectado</string>
     <string name="toast_saved">Guardado</string>
+    <string name="toast_savedRestart">Guardado, se aplica tras reiniciar</string>
     <string name="toast_subAdded">Suscripción «%1$s» añadida</string>
     <string name="toast_subUpdated">Suscripción «%1$s» actualizada</string>
     <string name="tun_exclAddr">Fuera del túnel: direcciones</string>

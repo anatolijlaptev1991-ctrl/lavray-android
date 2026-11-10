@@ -15,16 +15,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.anatolijlaptev1991_ctrl.lavray.R
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.LocalEnv
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.Lav
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIconView
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ButtonVariant
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavCard
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavChip
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavListRow
@@ -32,8 +29,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSectionL
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.isLive
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import kotlinx.coroutines.launch
@@ -66,7 +61,6 @@ fun TunnelSection(settings: SettingsState, model: SettingsModel) {
             if (settings.has(SettingKeys.TUN_EXCLUDE_ADDRESSES)) ExcludeAddresses(settings, model)
         }
     }
-    if (settings.reconnectNeeded) ReconnectHint(onDismiss = model::dismissReconnect)
 }
 
 @Composable
@@ -85,17 +79,21 @@ private fun PerAppBlock() {
     val nav = LocalNavigator.current
     val scope = rememberCoroutineScope()
     var selection by remember { mutableStateOf<AppSelection?>(null) }
-    var changed by remember { mutableStateOf(false) }
-    val vpn by env.vpn.status.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { selection = runCatching { env.controller.appSelection() }.getOrNull() }
+    LaunchedEffect(Unit) { selection = env.appSelection.current() }
     val current = selection ?: AppSelection()
     val choose = { mode: AppMode ->
         // Until the saved choice was read nothing is written: a failed read must not replace it with the default.
         val next = current.with(mode)
-        if (selection != null) {
+        if (selection != null && next != current) {
             selection = next
-            changed = true
-            scope.launch { runCatching { env.controller.setAppSelection(next) } }
+            val saved = env.appSelection.submit(next, env.scope)
+            env.scope.launch {
+                val result = saved.await()
+                if (result is AppSelectionSaver.Result.Failed) {
+                    selection = result.stored ?: current
+                    env.toast.show(env.appContext.getString(R.string.apps_saveFailed))
+                }
+            }
         }
         Unit
     }
@@ -127,24 +125,4 @@ private fun PerAppBlock() {
     if (current.mode == AppMode.Only && current.packages.isEmpty()) {
         LavBanner(StatusTone.Connecting, stringResource(R.string.apps_only_empty), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
-    if (changed && phaseOf(vpn.state).isLive) ReconnectHint(onDismiss = { changed = false })
-}
-
-/** Shown after a change that only the next tunnel picks up, with the button that rebuilds it now. */
-@Composable
-internal fun ReconnectHint(onDismiss: () -> Unit) {
-    val env = LocalEnv.current
-    val scope = rememberCoroutineScope()
-    val live = phaseOf(env.vpn.status.collectAsStateWithLifecycle().value.state).isLive
-    if (!live) return
-    LavBanner(
-        StatusTone.Neutral, stringResource(R.string.set_reconnect),
-        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        actions = {
-            LavButton(stringResource(R.string.set_reconnect_now), {
-                onDismiss()
-                scope.launch { Reconnect.now(env) }
-            }, variant = ButtonVariant.Primary)
-        },
-    )
 }

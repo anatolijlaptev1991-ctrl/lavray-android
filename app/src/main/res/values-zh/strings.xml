@@ -21,10 +21,12 @@
     <string name="apps_except">除所选之外的应用</string>
     <string name="apps_except_d">除所选应用外，其他应用都通过隧道；所选应用使用普通网络连接。</string>
     <string name="apps_hint">选择哪些应用使用 VPN。</string>
+    <string name="apps_missing">不在带启动图标的应用中（已卸载或没有图标）。不需要时请取消勾选</string>
     <string name="apps_none">未找到应用</string>
     <string name="apps_only">仅所选应用</string>
     <string name="apps_only_d">只有所选应用通过隧道，其他应用使用普通网络连接。</string>
     <string name="apps_only_empty">尚未选择应用，目前所有应用都通过隧道。请至少选择一个应用。</string>
+    <string name="apps_saveFailed">无法保存应用选择，显示的是已保存的选择。</string>
     <string name="apps_search">搜索应用</string>
     <string name="apps_system">显示系统应用</string>
     <string name="apps_title">隧道中的应用</string>
@@ -57,6 +59,7 @@
     <string name="bk_hint">所有数据保存在一个文件中：设置、带密码的服务器、分组、订阅（含地址）以及自定义路由预设。文件使用密码加密，没有密码无法打开。</string>
     <string name="bk_mismatch">两次密码不一致</string>
     <string name="bk_noFile">未选择文件</string>
+    <string name="bk_notIncluded">备份不包含按应用分流的选择和开机自动连接：它们单独保存，恢复后保持原样。</string>
     <string name="bk_pw">文件密码</string>
     <string name="bk_pw2">再次输入密码</string>
     <string name="bk_pwHint">至少 %1$s 个字符。忘记的密码无法找回：没有密码，任何人都无法打开备份。</string>
@@ -98,6 +101,7 @@
     <string name="chk_fix_sub">打开订阅</string>
     <string name="chk_fix_time">校准时钟</string>
     <string name="chk_ip_connect">连接后可查看通过隧道的地址。</string>
+    <string name="chk_ip_failed">无法确定地址：提供该信息的服务没有响应。内核运行正常。</string>
     <string name="chk_ip_run">检查地址</string>
     <string name="chk_ip_title">公网地址</string>
     <string name="chk_ipv6_t">IPv6 未绕过隧道</string>
@@ -136,6 +140,11 @@
     <string name="conn_disconnect">断开</string>
     <string name="conn_down">下载</string>
     <string name="conn_ip">隧道出口 IP</string>
+    <string name="conn_noTraffic">已连接，但服务器没有任何流量通过：%1$s。请换一个服务器或检查订阅。</string>
+    <string name="conn_noTraffic_no_host">无法解析服务器地址</string>
+    <string name="conn_noTraffic_refused">服务器拒绝了连接</string>
+    <string name="conn_noTraffic_reset">服务器中断了连接</string>
+    <string name="conn_noTraffic_timeout">服务器未在规定时间内响应</string>
     <string name="conn_session">会话</string>
     <string name="conn_state_connecting">连接中…</string>
     <string name="conn_state_connecting_sub">正在建立光束…</string>
@@ -184,9 +193,16 @@
     <string name="cx_empty_d">添加服务商的订阅或链接，即可连接。</string>
     <string name="cx_empty_t">还没有服务器</string>
     <string name="cx_exit_t">出口</string>
-    <string name="cx_leak_clear">未发现泄漏：LAVRay 直接看到的地址与通过隧道看到的地址不同。</string>
+    <string name="cx_health_checking">正在检查流量能否通过服务器……</string>
+    <string name="cx_health_failed_sub">未能确认通过服务器的连接</string>
+    <string name="cx_health_unknown_sub">尚未检查通过服务器的连接</string>
+    <string name="cx_leak_clear">通过隧道的地址与直连地址不同。手机上不测量 DNS 和 IPv6：此检查不能排除这两项的泄漏。</string>
     <string name="cx_leak_unchecked">未检查：这次没能测得两个地址中的一个。</string>
+    <string name="cx_pending_apply">重启后生效</string>
+    <string name="cx_pending_d">已保存的更改尚未生效。方便时请重启。</string>
+    <string name="cx_pending_t">隧道仍在使用旧设置</string>
     <string name="cx_probe_fail">这项检查刚才没有完成。</string>
+    <string name="cx_state_reading">正在读取状态……</string>
     <string name="da_json_invalid">核心不接受此 JSON。请修正后重新检查。</string>
     <string name="dens_compact">紧凑</string>
     <string name="dens_normal">舒适</string>
@@ -212,7 +228,7 @@
     <string name="dns_tunnel">经隧道</string>
     <string name="dns_tunnel_d">加密 DNS 在代理隧道内传输——隐私最佳。</string>
     <string name="dns_validate">检查</string>
-    <string name="dns_warn">切换模式会短暂重连通道。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
+    <string name="dns_warn_phone">切换模式需要重启内核后才会生效。隧道开启时，屏幕上会出现重启提示。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
     <string name="dns_warn_t">兼容性</string>
     <string name="ed_t_chain">链式</string>
     <string name="ed_t_json">自定义 JSON</string>
@@ -222,6 +238,14 @@
     <string name="err_precondition">当前无法执行此操作</string>
     <string name="err_retry">重试</string>
     <string name="err_unimplemented">此功能尚未实现</string>
+    <string name="fail_apps_none">所选应用在此手机上均不存在</string>
+    <string name="fail_connect_failed">连接失败</string>
+    <string name="fail_core_start">内核未能启动</string>
+    <string name="fail_no_server">未选择服务器</string>
+    <string name="fail_permission">缺少 VPN 授权</string>
+    <string name="fail_protection_off">保护已关闭：系统断开了 VPN</string>
+    <string name="fail_restricted_start">系统不允许在后台启动隧道</string>
+    <string name="fail_tunnel_lost">连接已中断</string>
     <string name="filter_all">全部</string>
     <string name="filter_down">不可达</string>
     <string name="filter_fast">低延迟</string>
@@ -315,6 +339,7 @@
     <string name="lic_title">许可与组件</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">自动滚动</string>
+    <string name="log_copiedTruncated">只复制了最新的行：%1$s/%2$s</string>
     <string name="log_copy">复制</string>
     <string name="log_exportD">密码、UUID、令牌与订阅地址将替换为 ••••。</string>
     <string name="log_noMatch">没有符合筛选的记录</string>
@@ -323,6 +348,8 @@
     <string name="log_resume">继续</string>
     <string name="log_searchPh">搜索日志…</string>
     <string name="log_share">分享</string>
+    <string name="log_shareFailed">无法分享日志，可以改为复制。</string>
+    <string name="log_shareTruncated">只分享了最新的行：%1$s/%2$s</string>
     <string name="main_auto_connect">手机启动时自动连接</string>
     <string name="mux_concurrency">并发流数量</string>
     <string name="mux_concurrencyErr">请输入 -1 或 1 到 1024 之间的数字</string>
@@ -417,6 +444,7 @@
     <string name="rt_deleteConfirm">删除预设“%1$s”？此操作无法撤销。</string>
     <string name="rt_deletePreset">删除预设</string>
     <string name="rt_duplicate">复制</string>
+    <string name="rt_editRejected">内核未接受此条目，请检查写法。</string>
     <string name="rt_empty_d">内核不可用 — 启动后将显示预设</string>
     <string name="rt_empty_t">预设未加载</string>
     <string name="rt_exportPreset">导出预设</string>
@@ -480,6 +508,7 @@
     <string name="set_alwayson_open">打开 VPN 设置</string>
     <string name="set_alwayson_t">始终开启的 VPN</string>
     <string name="set_appVersion">应用版本</string>
+    <string name="set_autoReadFailed">无法读取该值：开关不可用。</string>
     <string name="set_battery_d">通常无需更改：连接期间 LAVRay 作为前台服务运行并显示通知，不使用唤醒锁或定时器。部分手机品牌仍会停止后台应用；如果息屏后连接中断，请将 LAVRay 设为“不受限制”或“不优化”。LAVRay 无法看到各品牌特有的限制。</string>
     <string name="set_battery_off">LAVRay 已被排除在电池优化之外。</string>
     <string name="set_battery_on">LAVRay 已启用电池优化（默认）。</string>
@@ -615,7 +644,9 @@
     <string name="toast_presetImportedWarn">预设已导入，警告：%1$s</string>
     <string name="toast_presetReset">预设已重置为原始状态</string>
     <string name="toast_presetSaved">预设已保存</string>
+    <string name="toast_reconnected">隧道已重新连接</string>
     <string name="toast_saved">已保存</string>
+    <string name="toast_savedRestart">已保存，重启后生效</string>
     <string name="toast_subAdded">已添加订阅“%1$s”</string>
     <string name="toast_subUpdated">订阅“%1$s”已更新</string>
     <string name="tun_exclAddr">排除地址</string>

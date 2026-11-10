@@ -25,5 +25,12 @@ fun phaseOf(state: VpnState): Phase = when (state) {
     VpnState.ERROR -> Phase.Error
 }
 
-/** True while a tunnel is up or on its way up: the live statistics are worth subscribing to only then. */
+/** True while the tunnel is connected: the live statistics and the tunnel address are worth asking for only then. */
 val Phase.isLive: Boolean get() = this == Phase.On
+
+/**
+ * True from the moment a connection is started until the tunnel is fully down, so also while it is coming up, waiting
+ * for the network or going down. The core refuses operations that need "no connection" (restoring a backup) in all of
+ * these, not only when connected.
+ */
+val Phase.hasTunnel: Boolean get() = this == Phase.On || this == Phase.Connecting || this == Phase.WaitingNetwork || this == Phase.Disconnecting

@@ -102,6 +102,12 @@ object PresetDraft {
         }
     }
 
+    /** True when [raw] (trimmed, ignoring case) is in [list]: the core has taken the entry that was typed. */
+    fun contains(list: List<String>, raw: String): Boolean {
+        val entry = raw.trim()
+        return entry.isNotEmpty() && list.any { it.equals(entry, ignoreCase = true) }
+    }
+
     fun removeEntry(list: List<String>, entry: String): List<String> = list.filter { it != entry }
 
     /** Name of a copy: the dictionary pattern "{name} (copy)" is applied by the caller. */

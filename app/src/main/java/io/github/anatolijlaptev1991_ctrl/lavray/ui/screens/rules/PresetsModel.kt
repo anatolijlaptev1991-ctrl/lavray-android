@@ -46,17 +46,21 @@ import kotlinx.coroutines.sync.withLock
 
 /** One-shot results the screen turns into a toast. */
 sealed interface PresetsEvent {
-    data object Activated : PresetsEvent
-    data object Saved : PresetsEvent
-    data object Copied : PresetsEvent
-    data object Deleted : PresetsEvent
-    data object Reset : PresetsEvent
+    /** [needsRestart] is the core's answer to THIS change: the running tunnel does not have it yet. */
+    data class Activated(val needsRestart: Boolean) : PresetsEvent
+    data class Saved(val needsRestart: Boolean) : PresetsEvent
+    data class Copied(val needsRestart: Boolean) : PresetsEvent
+    data class Deleted(val needsRestart: Boolean) : PresetsEvent
+    data class Reset(val needsRestart: Boolean) : PresetsEvent
     data object Exported : PresetsEvent
     data class Imported(val warnings: Int) : PresetsEvent
     data object Unreadable : PresetsEvent
     /** The preset was changed elsewhere (revision mismatch): the list was reloaded, the edit must be repeated. */
     data object Conflict : PresetsEvent
     data object RuleExists : PresetsEvent
+
+    /** The core refused an entry or an edit as invalid (not a link or a file: the wording of "check the file" does not fit). */
+    data object EditRejected : PresetsEvent
     data class Failed(val kind: ErrorKind) : PresetsEvent
 }
 
@@ -126,7 +130,7 @@ class PresetsModel(
             dispatch(PresetsAction.Active(id))
             if (r.needsProfileRestart) restart.need()
             load()
-            PresetsEvent.Activated
+            PresetsEvent.Activated(r.needsProfileRestart)
         }
     }
 
@@ -135,13 +139,14 @@ class PresetsModel(
         val base = known[id]
         val next = base?.takeIf { !it.builtin }?.let { PresetDraft.apply(it, patch) }
         if (base == null || next == null || !PresetDraft.isChanged(base, next)) return@op null
-        exec({ routingUpdatePreset(UpdatePresetRequest(next, base.revision)) }) { r ->
+        val outcome = exec({ routingUpdatePreset(UpdatePresetRequest(next, base.revision)) }) { r ->
             val saved = r.preset ?: next
             known = known + (id to saved)
             dispatch(PresetsAction.Replace(saved))
             if (r.needsProfileRestart) restart.need()
-            PresetsEvent.Saved
+            PresetsEvent.Saved(r.needsProfileRestart)
         }
+        if (outcome is PresetsEvent.Failed && outcome.kind == ErrorKind.InvalidInput) PresetsEvent.EditRejected else outcome
     }
 
     /** A copy of [sourceId] under [name]; [activateIt] makes it the active preset at once. */
@@ -150,19 +155,23 @@ class PresetsModel(
             if (made.needsRestart) restart.need()
             if (activateIt) { activeId = made.preset.id; dispatch(PresetsAction.Active(made.preset.id)) }
             load()
-            PresetsEvent.Copied
+            PresetsEvent.Copied(made.needsRestart)
         }
     }
 
     private suspend fun LavrayClient.makeCopy(sourceId: String, name: String?, activateIt: Boolean): Made {
-        var made = routingCreatePreset(CreatePresetRequest(builtinSourceId = sourceId))
-        val wanted = name?.trim().orEmpty()
-        if (wanted.isNotEmpty() && wanted != made.displayName) {
-            val res = routingUpdatePreset(UpdatePresetRequest(PresetDraft.apply(made, PresetPatch(displayName = wanted)), made.revision))
-            made = res.preset ?: made
+        val created = routingCreatePreset(CreatePresetRequest(builtinSourceId = sourceId))
+        // Name and activation are separate calls: if one fails the copy is removed again, so "failed" is what the list shows too.
+        return afterCreate(created, undo = { routingDeletePreset(DeletePresetRequest(it.id)) }) { c ->
+            var made = c
+            val wanted = name?.trim().orEmpty()
+            if (wanted.isNotEmpty() && wanted != made.displayName) {
+                val res = routingUpdatePreset(UpdatePresetRequest(PresetDraft.apply(made, PresetPatch(displayName = wanted)), made.revision))
+                made = res.preset ?: made
+            }
+            val restartNeeded = if (activateIt) routingActivatePreset(ActivatePresetRequest(made.id)).needsProfileRestart else false
+            Made(made, restartNeeded)
         }
-        val restartNeeded = if (activateIt) routingActivatePreset(ActivatePresetRequest(made.id)).needsProfileRestart else false
-        return Made(made, restartNeeded)
     }
 
     fun createEmpty(name: String) = op {
@@ -173,13 +182,15 @@ class PresetsModel(
         )
         exec({
             val made = routingCreatePreset(CreatePresetRequest(preset = values))
-            Made(made, routingActivatePreset(ActivatePresetRequest(made.id)).needsProfileRestart)
+            afterCreate(made, undo = { routingDeletePreset(DeletePresetRequest(it.id)) }) {
+                Made(made, routingActivatePreset(ActivatePresetRequest(made.id)).needsProfileRestart)
+            }
         }) { made ->
             if (made.needsRestart) restart.need()
             activeId = made.preset.id
             dispatch(PresetsAction.Active(made.preset.id))
             load()
-            PresetsEvent.Saved
+            PresetsEvent.Saved(made.needsRestart)
         }
     }
 
@@ -187,7 +198,7 @@ class PresetsModel(
         exec({ routingDeletePreset(DeletePresetRequest(id)) }) { r ->
             if (r.needsProfileRestart) restart.need()
             load()
-            PresetsEvent.Deleted
+            PresetsEvent.Deleted(r.needsProfileRestart)
         }
     }
 
@@ -200,7 +211,7 @@ class PresetsModel(
         }) { needsRestart ->
             if (needsRestart) restart.need()
             load()
-            PresetsEvent.Reset
+            PresetsEvent.Reset(needsRestart)
         }
     }
 

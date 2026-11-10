@@ -85,6 +85,7 @@ fun LogScreen() {
     }
     val copied = stringResource(R.string.toast_logCopied)
     val failed = stringResource(R.string.conns_copyFailed)
+    val shareFailed = stringResource(R.string.log_shareFailed)
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -102,10 +103,25 @@ fun LogScreen() {
                     { frozen = if (frozen == null) lines else null },
                 )
                 LavIconButton(LavIcon.Copy, stringResource(R.string.log_copy), {
-                    val ok = copyToClipboard(context, LogFilter.export(shown))
-                    env.toast.show(if (ok) copied else failed)
+                    val export = LogFilter.exportWithInfo(shown)
+                    val ok = copyToClipboard(context, export.text)
+                    env.toast.show(
+                        when {
+                            !ok -> failed
+                            export.truncated -> env.appContext.getString(R.string.log_copiedTruncated, export.lines.toString(), export.totalLines.toString())
+                            else -> copied
+                        },
+                    )
                 })
-                LavIconButton(LavIcon.Share, stringResource(R.string.log_share), { shareText(context, LogFilter.export(shown)) })
+                LavIconButton(LavIcon.Share, stringResource(R.string.log_share), {
+                    val export = LogFilter.exportWithInfo(shown, LogFilter.SHARE_MAX_CHARS)
+                    if (!shareText(context, export.text)) {
+                        env.toast.show(shareFailed)
+                    } else if (export.truncated) {
+                        // Said once the chooser is open: only the newest lines were put into the message.
+                        env.toast.show(env.appContext.getString(R.string.log_shareTruncated, export.lines.toString(), export.totalLines.toString()))
+                    }
+                })
                 LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it }, Modifier.weight(1f))
             }
             LavText(stringResource(R.string.log_exportD), style = Lav.type.caption, color = Lav.colors.textTertiary)
@@ -144,11 +160,16 @@ private fun severityColor(s: LogSeverity, c: LavColors): Color = when (s) {
     LogSeverity.Debug, LogSeverity.Trace -> c.textTertiary
 }
 
-private fun shareText(context: android.content.Context, text: String) {
+/** True when the chooser was opened; false when no app takes plain text or the text was too big for the system. */
+private fun shareText(context: android.content.Context, text: String): Boolean {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-    try {
+    return try {
         context.startActivity(Intent.createChooser(send, null))
+        true
     } catch (_: ActivityNotFoundException) {
-        // No app takes plain text: Copy is still there.
+        false
+    } catch (_: RuntimeException) {
+        // TransactionTooLargeException arrives wrapped in a RuntimeException.
+        false
     }
 }

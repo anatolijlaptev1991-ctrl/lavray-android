@@ -67,7 +67,10 @@ object LogFilter {
      * Newest lines that fit [maxChars], oldest first. Share hands the text over a Binder transaction (about 1 MB
      * for everything in flight), so an unbounded log would fail there; Copy uses the same bound for consistency.
      */
-    fun export(list: List<LogEntry>, maxChars: Int = EXPORT_MAX_CHARS): String {
+    fun export(list: List<LogEntry>, maxChars: Int = EXPORT_MAX_CHARS): String = exportWithInfo(list, maxChars).text
+
+    /** The same, with how many of the lines fit: a cut text must be said to be cut. */
+    fun exportWithInfo(list: List<LogEntry>, maxChars: Int = EXPORT_MAX_CHARS): Export {
         val lines = ArrayDeque<String>()
         var total = 0
         for (e in list.asReversed()) {
@@ -76,8 +79,18 @@ object LogFilter {
             lines.addFirst(line)
             total += line.length + 1
         }
-        return lines.joinToString("\n")
+        return Export(lines.joinToString("\n"), lines.size, list.size)
+    }
+
+    class Export(val text: String, val lines: Int, val totalLines: Int) {
+        val truncated: Boolean get() = lines < totalLines
     }
 
     const val EXPORT_MAX_CHARS = 200_000
+
+    /**
+     * Share is smaller: the chooser carries the text twice in one Binder transaction (the intent and the copy inside
+     * the chooser intent), and 200 000 UTF-16 characters, twice, is close to the 1 MB limit.
+     */
+    const val SHARE_MAX_CHARS = 60_000
 }

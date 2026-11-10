@@ -21,10 +21,12 @@
     <string name="apps_except">All except selected</string>
     <string name="apps_except_d">Every app goes through the tunnel except the ones you select; those use your normal connection.</string>
     <string name="apps_hint">Choose which apps use the VPN.</string>
+    <string name="apps_missing">Not among the apps with a launcher icon (removed, or it has none). Untick it if you do not need it</string>
     <string name="apps_none">No apps found</string>
     <string name="apps_only">Only selected</string>
     <string name="apps_only_d">Only the apps you select go through the tunnel. All other apps use your normal connection.</string>
     <string name="apps_only_empty">No app is selected, so all apps use the tunnel for now. Select at least one app.</string>
+    <string name="apps_saveFailed">Could not save the app choice. The saved choice is shown.</string>
     <string name="apps_search">Search apps</string>
     <string name="apps_system">Show system apps</string>
     <string name="apps_title">Apps in the tunnel</string>
@@ -57,6 +59,7 @@
     <string name="bk_hint">All your data in one file: settings, servers with their passwords, groups, subscriptions (with their URLs) and your own routing presets. The file is encrypted with a password; without it, it cannot be opened.</string>
     <string name="bk_mismatch">Passwords don’t match</string>
     <string name="bk_noFile">No file chosen</string>
+    <string name="bk_notIncluded">The backup does not include the per-app tunnel choice or starting at phone boot: they are stored separately and stay as they were after a restore.</string>
     <string name="bk_pw">File password</string>
     <string name="bk_pw2">Repeat the password</string>
     <string name="bk_pwHint">At least %1$s characters. A forgotten password cannot be recovered: nobody can open the backup without it.</string>
@@ -98,6 +101,7 @@
     <string name="chk_fix_sub">Open subscriptions</string>
     <string name="chk_fix_time">Sync the clock</string>
     <string name="chk_ip_connect">Connect to see the address through the tunnel.</string>
+    <string name="chk_ip_failed">Could not determine the address: the service that reports it did not answer. The core is running.</string>
     <string name="chk_ip_run">Check addresses</string>
     <string name="chk_ip_title">Public address</string>
     <string name="chk_ipv6_t">IPv6 doesn’t bypass the tunnel</string>
@@ -136,6 +140,11 @@
     <string name="conn_disconnect">Disconnect</string>
     <string name="conn_down">Download</string>
     <string name="conn_ip">IP via tunnel</string>
+    <string name="conn_noTraffic">Connected, but nothing gets through the server: %1$s. Choose another server or check your subscription.</string>
+    <string name="conn_noTraffic_no_host">the server address could not be resolved</string>
+    <string name="conn_noTraffic_refused">the server refused the connection</string>
+    <string name="conn_noTraffic_reset">the server dropped the connection</string>
+    <string name="conn_noTraffic_timeout">the server did not respond in time</string>
     <string name="conn_session">Session</string>
     <string name="conn_state_connecting">Connecting…</string>
     <string name="conn_state_connecting_sub">Establishing the beam…</string>
@@ -184,9 +193,16 @@
     <string name="cx_empty_d">Add a subscription or link from your provider, then connect.</string>
     <string name="cx_empty_t">No servers yet</string>
     <string name="cx_exit_t">Exit point</string>
-    <string name="cx_leak_clear">No leak found: the address LAVRay sees directly differs from the one through the tunnel.</string>
+    <string name="cx_health_checking">Checking that traffic passes through the server…</string>
+    <string name="cx_health_failed_sub">Link through the server is not confirmed</string>
+    <string name="cx_health_unknown_sub">Link through the server is not checked</string>
+    <string name="cx_leak_clear">The address through the tunnel differs from the direct one. DNS and IPv6 are not measured on the phone: this check does not rule out leaks through them.</string>
     <string name="cx_leak_unchecked">Not checked: one of the two addresses could not be measured this time.</string>
+    <string name="cx_pending_apply">applies after the restart</string>
+    <string name="cx_pending_d">Saved changes are not applied yet. Restart when it suits you.</string>
+    <string name="cx_pending_t">The tunnel is running with the old settings</string>
     <string name="cx_probe_fail">This check did not complete just now.</string>
+    <string name="cx_state_reading">Reading the state…</string>
     <string name="da_json_invalid">The core did not accept this JSON. Fix it and check again.</string>
     <string name="dens_compact">Compact</string>
     <string name="dens_normal">Comfortable</string>
@@ -212,7 +228,7 @@
     <string name="dns_tunnel">Through the tunnel</string>
     <string name="dns_tunnel_d">Encrypted DNS travels inside the proxy tunnel — maximum privacy.</string>
     <string name="dns_validate">Validate</string>
-    <string name="dns_warn">Switching modes reconnects the channel briefly. Some corporate networks and providers block third-party DNS — if sites stop opening, switch back to “Auto”.</string>
+    <string name="dns_warn_phone">A mode change applies after the core is restarted. While a tunnel is up, an offer to restart appears on screen. Some corporate networks and providers block third-party DNS — if sites stop opening, switch back to “Auto”.</string>
     <string name="dns_warn_t">Compatibility</string>
     <string name="ed_t_chain">Chain</string>
     <string name="ed_t_json">Custom JSON</string>
@@ -222,6 +238,14 @@
     <string name="err_precondition">This action is not available right now</string>
     <string name="err_retry">Retry</string>
     <string name="err_unimplemented">This feature is not available yet</string>
+    <string name="fail_apps_none">None of the chosen apps is on this phone</string>
+    <string name="fail_connect_failed">Could not connect</string>
+    <string name="fail_core_start">The core did not start</string>
+    <string name="fail_no_server">No server is selected</string>
+    <string name="fail_permission">VPN permission is missing</string>
+    <string name="fail_protection_off">Protection is off: the system disconnected the VPN</string>
+    <string name="fail_restricted_start">The system did not allow the tunnel to start in the background</string>
+    <string name="fail_tunnel_lost">The link was lost</string>
     <string name="filter_all">All</string>
     <string name="filter_down">Unreachable</string>
     <string name="filter_fast">Fast</string>
@@ -315,6 +339,7 @@
     <string name="lic_title">Licenses and components</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Auto-scroll</string>
+    <string name="log_copiedTruncated">Only the latest lines were copied: %1$s of %2$s</string>
     <string name="log_copy">Copy</string>
     <string name="log_exportD">Passwords, UUIDs, tokens and subscription URLs will be replaced by ••••.</string>
     <string name="log_noMatch">Nothing matches the filters</string>
@@ -323,6 +348,8 @@
     <string name="log_resume">Resume</string>
     <string name="log_searchPh">Search the log…</string>
     <string name="log_share">Share</string>
+    <string name="log_shareFailed">Could not share the log. You can copy it instead.</string>
+    <string name="log_shareTruncated">Only the latest lines were shared: %1$s of %2$s</string>
     <string name="main_auto_connect">Connect when the phone starts</string>
     <string name="mux_concurrency">Concurrent streams</string>
     <string name="mux_concurrencyErr">Enter -1 or a number from 1 to 1024</string>
@@ -421,6 +448,7 @@
     <string name="rt_deleteConfirm">Delete the preset “%1$s”? This can’t be undone.</string>
     <string name="rt_deletePreset">Delete preset</string>
     <string name="rt_duplicate">Duplicate</string>
+    <string name="rt_editRejected">The core did not accept this entry. Check how it is written.</string>
     <string name="rt_empty_d">Core unavailable — presets will appear after it starts</string>
     <string name="rt_empty_t">Presets not loaded</string>
     <string name="rt_exportPreset">Export preset</string>
@@ -484,6 +512,7 @@
     <string name="set_alwayson_open">Open VPN settings</string>
     <string name="set_alwayson_t">Always-on VPN</string>
     <string name="set_appVersion">App version</string>
+    <string name="set_autoReadFailed">Could not read this value: the switch is unavailable.</string>
     <string name="set_battery_d">Usually you do not need to change this: while connected, LAVRay runs as a foreground service with a notification and uses no wake locks or timers. Some phone brands stop background apps anyway; if the connection drops while the screen is off, set LAVRay to “Unrestricted” or “Not optimized”. LAVRay cannot see brand-specific limits.</string>
     <string name="set_battery_off">LAVRay is excluded from battery optimization.</string>
     <string name="set_battery_on">Battery optimization is on for LAVRay (the default).</string>
@@ -619,7 +648,9 @@
     <string name="toast_presetImportedWarn">Preset imported, warnings: %1$s</string>
     <string name="toast_presetReset">Preset reset to the original</string>
     <string name="toast_presetSaved">Preset saved</string>
+    <string name="toast_reconnected">Tunnel reconnected</string>
     <string name="toast_saved">Saved</string>
+    <string name="toast_savedRestart">Saved, applies after the restart</string>
     <string name="toast_subAdded">Subscription “%1$s” added</string>
     <string name="toast_subUpdated">Subscription “%1$s” updated</string>
     <string name="tun_exclAddr">Keep out of the tunnel: addresses</string>

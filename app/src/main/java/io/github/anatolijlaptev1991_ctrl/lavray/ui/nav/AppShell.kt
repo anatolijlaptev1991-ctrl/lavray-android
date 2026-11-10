@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -57,6 +59,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.NavItem
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ToastHost
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.lavClickable
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.importer.ImportHost
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartBanner
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartToasts
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.CancellationException
@@ -75,7 +79,9 @@ fun AppShell() {
     val navigator = LocalNavigator.current
     val state = navigator.state
     val sections = AppRegistry.sections
-    val items = sections.map { NavItem(it.id, stringResource(it.label), it.icon) }
+    // Built once per language: a new list on every pass would recompose the bottom bar and the rail each time.
+    val resources = LocalResources.current
+    val items = remember(resources) { sections.map { NavItem(it.id, resources.getString(it.label), it.icon) } }
     val backProgress = remember { mutableFloatStateOf(0f) }
 
     PredictiveBackHandler(enabled = state.canPop) { events ->
@@ -92,7 +98,10 @@ fun AppShell() {
     BoxWithConstraints(Modifier.fillMaxSize().background(Lav.colors.bgBase)) {
         val wide = maxWidth >= WIDE
         val pushedOpen = state.pushed.isNotEmpty()
-        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        // Derived: reading the inset height here would recompose the whole shell on every frame of the keyboard animation.
+        val density = LocalDensity.current
+        val ime = WindowInsets.ime
+        val imeVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
         val showNav = !pushedOpen && !imeVisible
         Row(Modifier.fillMaxSize()) {
             if (wide && showNav) {
@@ -109,6 +118,9 @@ fun AppShell() {
                 ),
             ) {
                 Header(state, navigator)
+                RestartToasts()
+                // The Connection screen shows this state itself, in its own place and also after "later".
+                if (pushedOpen || state.section != NavState.START_SECTION) RestartBanner()
                 Box(
                     Modifier.weight(1f).fillMaxWidth()
                         // Without the bottom bar (pushed screens, the rail, the keyboard) the content must clear the system gesture bar itself.

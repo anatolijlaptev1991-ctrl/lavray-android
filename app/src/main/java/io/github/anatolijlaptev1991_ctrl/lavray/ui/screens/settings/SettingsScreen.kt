@@ -37,6 +37,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavChip
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavListRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavScreenColumn
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSectionLabel
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSkeletonRows
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.AppLanguage
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.AppLocale
@@ -51,16 +52,17 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
 fun SettingsScreen() {
     val env = LocalEnv.current
     val nav = LocalNavigator.current
-    val model = remember { SettingsModel(env.session, env.scope) }
+    val model = remember { SettingsModel(env.session, env.scope, env.restart) }
     val settings by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) { model.load() }
     LavScreenColumn {
         settings.error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes()), actions = { LavButton(stringResource(R.string.err_retry), { model.dismissError(); model.load() }) }) }
         LavSectionLabel(stringResource(R.string.sec_startup))
         LavCard(Modifier.fillMaxWidth()) { StartupSection() }
-        TunnelSection(settings, model)
+        // Until the core's values are read, nothing is drawn: the built-in defaults must not look like saved settings.
+        if (settings.ready) TunnelSection(settings, model) else if (!settings.loaded) LavSkeletonRows(3, stringResource(R.string.lazy_loading))
         SystemSection()
-        AdvancedSection(settings, model)
+        if (settings.ready) AdvancedSection(settings, model)
         LavSectionLabel(stringResource(R.string.sec_appearance))
         LavCard(Modifier.fillMaxWidth()) { AppearanceSection() }
         LavSectionLabel(stringResource(R.string.sec_backup))
@@ -129,12 +131,18 @@ private fun LavListBlock(title: Int, chips: @Composable () -> Unit) {
 @Composable
 fun StartupSection() {
     val env = LocalEnv.current
-    var enabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { runCatching { enabled = env.controller.isAutoConnectEnabled() } }
+    // null until read: a switch that shows "off" because the read failed would be a claim nobody checked.
+    var enabled by remember { mutableStateOf<Boolean?>(null) }
+    var readFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        runCatching { env.controller.isAutoConnectEnabled() }.onSuccess { enabled = it }.onFailure { readFailed = true }
+    }
     LavSwitchRow(
-        label = stringResource(R.string.main_auto_connect), checked = enabled,
+        label = stringResource(R.string.main_auto_connect), checked = enabled == true,
         onCheckedChange = { on -> enabled = on; env.controller.setAutoConnectEnabled(on) },
         modifier = Modifier.padding(horizontal = 16.dp),
+        hint = if (readFailed) stringResource(R.string.set_autoReadFailed) else null,
+        enabled = enabled != null,
     )
 }
 

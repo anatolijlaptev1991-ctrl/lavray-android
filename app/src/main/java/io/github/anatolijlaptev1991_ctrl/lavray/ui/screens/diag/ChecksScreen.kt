@@ -60,7 +60,7 @@ fun ChecksScreen() {
     val state by model.state.collectAsStateWithLifecycle()
     val vpn by env.vpn.status.collectAsStateWithLifecycle()
     val live = phaseOf(vpn.state).isLive
-    LaunchedEffect(model) { model.runChecks() }
+    LaunchedEffect(model, live) { model.onTunnelChanged(live) }
     DisposableEffect(model) { onDispose { model.cancelRunning() } }
 
     LavScreenColumn {
@@ -182,6 +182,7 @@ private fun IpLine(label: String, reading: IpReading, offText: String?) {
             reading is IpReading.Value -> LavText(reading.ip, style = Lav.type.mono)
             reading is IpReading.Loading -> LavText(stringResource(R.string.chk_st_run), style = Lav.type.small, color = c.textSecondary)
             reading is IpReading.Failed -> LavText(stringResource(reading.kind.textRes()), style = Lav.type.small, color = c.errorText)
+            reading is IpReading.NotDetermined -> LavText(stringResource(R.string.chk_ip_failed), style = Lav.type.small, color = c.errorText)
             offText != null -> LavText(offText, style = Lav.type.small, color = c.textSecondary)
             else -> LavText("—", style = Lav.type.mono, color = c.textTertiary)
         }

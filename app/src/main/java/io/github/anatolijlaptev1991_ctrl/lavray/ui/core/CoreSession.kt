@@ -22,8 +22,17 @@ enum class ErrorKind { CoreUnavailable, NotImplemented, Precondition, InvalidInp
  */
 sealed interface CoreResult<out T> {
     data class Ok<T>(val value: T) : CoreResult<T>
-    /** [reason] is the core's ErrorInfo.reason when it sent one, for screens that word errors by reason (backup). */
-    data class Fail(val kind: ErrorKind, val reason: String? = null, val line: Int? = null) : CoreResult<Nothing>
+    /**
+     * [reason] is the core's ErrorInfo.reason when it sent one, for screens that word errors by reason (backup).
+     * [coreAnswered] is true when the core itself replied with the error (for example "unavailable" because an
+     * outside service did not answer): the core is up, so such a failure must not be worded "core unavailable".
+     */
+    data class Fail(
+        val kind: ErrorKind,
+        val reason: String? = null,
+        val line: Int? = null,
+        val coreAnswered: Boolean = false,
+    ) : CoreResult<Nothing>
 }
 
 fun Throwable.errorKind(): ErrorKind = when {
@@ -38,6 +47,13 @@ fun Throwable.errorKind(): ErrorKind = when {
     this is IOException -> ErrorKind.CoreUnavailable
     else -> ErrorKind.Generic
 }
+
+/**
+ * The core received the request and answered "unavailable" with an error body of its own, as opposed to a socket that
+ * could not be opened or a proxy status without a body (those carry the "HTTP nnn" text of the client).
+ */
+fun Throwable.answeredByCore(): Boolean =
+    this is ApiException && code == ConnectCode.UNAVAILABLE && httpStatus != 0 && !message.orEmpty().startsWith("HTTP ")
 
 /** Source of the endpoint; the VPN controller in the app, a fake in tests. */
 fun interface EndpointSource {
@@ -85,13 +101,18 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                drop(e)
+                val answered = e.answeredByCore()
+                if (!answered) drop(e)
                 if (!retried && (e as? ApiException)?.neverReachedCore == true) {
                     retried = true
                     continue
                 }
                 val api = e as? ApiException
-                return CoreResult.Fail(e.errorKind(), api?.reason, if (e.errorKind() == ErrorKind.InvalidInput) CoreMessages.lineOf(api?.message) else null)
+                return CoreResult.Fail(
+                    e.errorKind(), api?.reason,
+                    if (e.errorKind() == ErrorKind.InvalidInput) CoreMessages.lineOf(api?.message) else null,
+                    coreAnswered = answered,
+                )
             }
         }
     }

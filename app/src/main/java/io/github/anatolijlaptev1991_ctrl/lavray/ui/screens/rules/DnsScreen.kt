@@ -78,7 +78,6 @@ fun DnsScreen() {
 @Composable
 private fun Content(state: DnsState, model: DnsModel) {
     Column(Modifier.fillMaxSize()) {
-        RestartBanner()
         LavScreenColumn(Modifier.weight(1f)) {
             ModesCard(state, model)
             AdvancedCard(state, model)
@@ -94,7 +93,7 @@ private fun ModesCard(state: DnsState, model: DnsModel) {
             DnsCard.entries.forEach { card ->
                 ModeOption(card, state.activeCard == card.id, enabled = !state.busy) { model.pick(card) }
             }
-            LavBanner(StatusTone.Neutral, stringResource(R.string.dns_warn_t), Modifier.padding(top = 8.dp), text = stringResource(R.string.dns_warn))
+            LavBanner(StatusTone.Neutral, stringResource(R.string.dns_warn_t), Modifier.padding(top = 8.dp), text = stringResource(R.string.dns_warn_phone))
         }
     }
 }
@@ -186,8 +185,9 @@ private fun DnsToasts(model: DnsModel) {
     }
 }
 
+/** The toast follows the core's answer to this save (needsRestart), not any global state. */
 private fun dnsEventText(ctx: Context, e: DnsEvent): String = when (e) {
-    DnsEvent.Saved -> ctx.getString(R.string.toast_saved)
+    is DnsEvent.Saved -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_saved))
     DnsEvent.JsonValid -> ctx.getString(R.string.dns_jsonOk)
     is DnsEvent.Failed -> ctx.getString(e.kind.textRes())
 }

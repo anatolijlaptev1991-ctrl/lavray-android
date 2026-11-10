@@ -107,6 +107,18 @@ class ConnectionsTests {
         assertEquals(3L, ConnRow.from(c.copy(endedAtMs = 8_000)).durationSeconds(99_999))
     }
 
+    @Test fun aClosedRowDoesNotDependOnTheClock() {
+        val c = Connection(
+            id = "x", startedAtMs = 5_000, status = Connection.Status.STATUS_CLOSED, outbound = "proxy", destination = "a.example:443",
+            resolvedDestination = "a.example:443", process = "", uploadBytes = 7, downloadBytes = 9, network = "udp", chain = listOf("proxy"),
+        )
+        val closed = ConnRow.from(c.copy(endedAtMs = 8_000))
+        assertEquals(closed.clockFor(10_000), closed.clockFor(99_000))
+        assertEquals(closed.durationSeconds(10_000), closed.durationSeconds(closed.clockFor(99_000)))
+        val open = ConnRow.from(c.copy(endedAtMs = null))
+        assertEquals(99_000L, open.clockFor(99_000))
+    }
+
     @Test fun backoffDoublesUpToThirtySeconds() {
         assertEquals(2_000L, StreamBackoff.next(1_000))
         assertEquals(30_000L, StreamBackoff.next(20_000))

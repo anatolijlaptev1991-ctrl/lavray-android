@@ -42,6 +42,9 @@ data class ConnRow(
 
     fun durationSeconds(nowMs: Long): Long = (((endedAtMs ?: nowMs) - startedAtMs) / 1000).coerceAtLeast(0)
 
+    /** The clock value a row needs: a closed row does not depend on it, so it gets a constant. */
+    fun clockFor(nowMs: Long): Long = if (endedAtMs != null) 0L else nowMs
+
     companion object {
         private const val BLOCK = "block"
         private const val DIRECT = "direct"

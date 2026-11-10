@@ -83,7 +83,6 @@ private fun PresetList(state: PresetsState, model: PresetsModel, onNew: () -> Un
         )
     }
     Column(Modifier.fillMaxSize()) {
-        RestartBanner()
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             LavButton(stringResource(R.string.rt_new), onNew, variant = ButtonVariant.Primary, icon = LavIcon.Plus)
         }
@@ -162,17 +161,19 @@ private fun PresetToasts(model: PresetsModel) {
     }
 }
 
+/** The toast follows the core's answer to the action that was taken (needsRestart), not any global state. */
 private fun presetEventText(ctx: Context, e: PresetsEvent): String = when (e) {
-    PresetsEvent.Activated -> ctx.getString(R.string.toast_presetActivated)
-    PresetsEvent.Saved -> ctx.getString(R.string.toast_presetSaved)
-    PresetsEvent.Copied -> ctx.getString(R.string.toast_presetCopied)
-    PresetsEvent.Deleted -> ctx.getString(R.string.toast_presetDeleted)
-    PresetsEvent.Reset -> ctx.getString(R.string.toast_presetReset)
+    is PresetsEvent.Activated -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_presetActivated))
+    is PresetsEvent.Saved -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_presetSaved))
+    is PresetsEvent.Copied -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_presetCopied))
+    is PresetsEvent.Deleted -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_presetDeleted))
+    is PresetsEvent.Reset -> ctx.getString(savedOrPending(e.needsRestart, R.string.toast_presetReset))
     PresetsEvent.Exported -> ctx.getString(R.string.toast_presetExported)
     is PresetsEvent.Imported ->
         if (e.warnings > 0) ctx.getString(R.string.toast_presetImportedWarn, e.warnings.toString()) else ctx.getString(R.string.toast_presetImported)
     PresetsEvent.Unreadable -> ctx.getString(R.string.rt_importFailed)
     PresetsEvent.Conflict -> ctx.getString(R.string.toast_presetConflict)
     PresetsEvent.RuleExists -> ctx.getString(R.string.rt_ruleExists)
+    PresetsEvent.EditRejected -> ctx.getString(R.string.rt_editRejected)
     is PresetsEvent.Failed -> ctx.getString(e.kind.textRes())
 }

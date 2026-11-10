@@ -61,7 +61,6 @@ fun PresetEditor(p: RoutingPreset, state: PresetsState, model: PresetsModel, onB
     }
     Column(Modifier.fillMaxSize()) {
         EditorBar(p, onBack)
-        RestartBanner()
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             item(key = "head") {
                 Head(p, state, enabled = !state.busy, onApply = { model.activate(p.id) }, onCustomize = {
@@ -133,7 +132,7 @@ private fun LazyListScope.listSection(p: RoutingPreset, kind: ListKind, open: Bo
     }
     if (editable) {
         item(key = "a:${kind.name}", contentType = TYPE_ADD) {
-            AddEntry(kind) { raw ->
+            AddEntry(kind, entries) { raw ->
                 when (PresetDraft.addEntry(entries, raw)) {
                     is AddResult.Added -> actions.edit(PresetPatch(listEdit = ListEdit.Add(kind, raw)))
                     AddResult.Exists -> actions.exists()

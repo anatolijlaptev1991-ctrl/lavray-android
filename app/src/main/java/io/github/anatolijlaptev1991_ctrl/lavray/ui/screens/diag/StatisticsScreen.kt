@@ -32,6 +32,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSkeleton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.UnitFormat
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.i18n.rememberUnitFormat
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.isLive
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 import java.text.DateFormat
@@ -52,6 +53,8 @@ fun StatisticsScreen() {
     val fmt = rememberUnitFormat()
 
     LaunchedEffect(model) { model.load() }
+    val phase = phaseOf(vpn.state)
+    LaunchedEffect(phase) { if (phase == Phase.Off || phase == Phase.Error) model.reloadAfterSession() }
     LaunchedEffect(live) {
         if (!live) {
             model.endSession()

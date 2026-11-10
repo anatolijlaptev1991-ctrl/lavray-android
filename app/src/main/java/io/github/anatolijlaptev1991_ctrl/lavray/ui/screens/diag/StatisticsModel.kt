@@ -18,6 +18,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TrafficReading
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.apply
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,8 @@ data class StatsState(
     val total: TrafficPair = TrafficPair(),
     val groups: List<GroupLine> = emptyList(),
     val error: ErrorKind? = null,
+    /** A live session has reported on this screen, so the stored totals are out of date once it ends. */
+    val sessionSeen: Boolean = false,
 )
 
 /** Pure mapping from core messages to what the screen shows. */
@@ -65,11 +68,21 @@ object StatsMapper {
             .sortedByDescending { it.traffic.total }
 
     fun names(groups: List<Group>): Map<Long, String> = groups.associate { it.id to it.name }
+
+    fun afterFrame(s: StatsState, snap: StatsSnapshot): StatsState =
+        s.copy(session = s.session.apply(snap), tags = tags(snap), error = null, sessionSeen = true)
+
+    /** The live part goes when the tunnel leaves CONNECTED; [StatsState.sessionSeen] stays until the totals were read again. */
+    fun afterEnd(s: StatsState): StatsState = s.copy(session = TrafficReading.Empty, tags = emptyList())
+
+    /** The totals of the ended session were read (or there was no session): nothing is waiting any more. */
+    fun afterReload(s: StatsState): StatsState = s.copy(sessionSeen = false)
 }
 
 /**
  * Traffic statistics: the live session from the stats stream (open only while the screen is visible and a tunnel is
- * up) and the totals and per-group summary from two unary calls made once when the screen opens.
+ * up) and the totals and per-group summary from unary calls made when the screen opens and again when the session
+ * that was shown ends.
  */
 class StatisticsModel(private val session: CoreSession) {
     private val mutable = MutableStateFlow(StatsState())
@@ -99,13 +112,28 @@ class StatisticsModel(private val session: CoreSession) {
         StreamBackoff.run(
             open = { session.stream { statsSubscribe(SubscribeStatsRequest(intervalMs = INTERVAL_MS)) } },
             onError = { kind -> mutable.update { it.copy(error = kind) } },
-            onFrame = { snap -> mutable.update { it.copy(session = it.session.apply(snap), tags = StatsMapper.tags(snap), error = null) } },
+            onFrame = { snap -> mutable.update { StatsMapper.afterFrame(it, snap) } },
         )
     }
 
-    fun endSession() = mutable.update { it.copy(session = TrafficReading.Empty, tags = emptyList()) }
+    /** The tunnel left CONNECTED: the live part is cleared. */
+    fun endSession() = mutable.update(StatsMapper::afterEnd)
+
+    /**
+     * The tunnel is fully down. The core writes the end of a session after the stop completes, which is later than the
+     * first frame that is not CONNECTED, so the totals are read when the tunnel is down, and once more shortly after, in
+     * case the write was still under way. Only when a session was shown on this screen.
+     */
+    suspend fun reloadAfterSession() {
+        if (!mutable.value.sessionSeen) return
+        mutable.update(StatsMapper::afterReload)
+        load()
+        delay(RELOAD_RETRY_MS)
+        load()
+    }
 
     private companion object {
         const val INTERVAL_MS = 1000
+        const val RELOAD_RETRY_MS = 1_500L
     }
 }

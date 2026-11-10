@@ -29,6 +29,9 @@ sealed interface IpReading {
     data object Loading : IpReading
     data class Value(val ip: String, val ipv6: Boolean) : IpReading
     data class Failed(val kind: ErrorKind) : IpReading
+
+    /** The core is fine, but the outside "what is my address" service did not answer. */
+    data object NotDetermined : IpReading
 }
 
 @Immutable
@@ -45,7 +48,19 @@ data class ChecksState(
     val routing: Boolean = false,
     val route: RouteAnswer? = null,
     val routeError: ErrorKind? = null,
-)
+) {
+    /**
+     * Everything that was measured through the tunnel, dropped when the tunnel goes away: the address seen through it,
+     * the leak verdict and the self-check rows (which describe the tunnel as it was) are not true any more.
+     */
+    fun withoutTunnelResults(): ChecksState = copy(
+        rows = emptyList(), running = false, summary = null, error = null,
+        tunnel = IpReading.Idle, leak = null, leakRunning = false, leakError = null,
+        // The address probes share one job, which is cancelled with the tunnel: a direct probe that was still running
+        // would otherwise stay "running" for ever.
+        direct = if (direct == IpReading.Loading) IpReading.Idle else direct,
+    )
+}
 
 /**
  * The diagnostics calls of the Checks screen. Every call is a one-shot unary request on the IO dispatcher; nothing
@@ -59,6 +74,19 @@ class ChecksModel(private val session: CoreSession, private val scope: Coroutine
     private var routeJob: Job? = null
 
     val state: StateFlow<ChecksState> = mutable.asStateFlow()
+
+    /**
+     * Called on entry and whenever the tunnel goes up or down. A tunnel that went down takes its results with it
+     * (and the runs that were measuring it); the self-check then runs again for the new state.
+     */
+    fun onTunnelChanged(live: Boolean) {
+        if (!live) {
+            ipJob?.cancel()
+            leakJob?.cancel()
+            mutable.update { it.withoutTunnelResults() }
+        }
+        runChecks()
+    }
 
     fun runChecks() {
         checkJob?.cancel()
@@ -93,7 +121,7 @@ class ChecksModel(private val session: CoreSession, private val scope: Coroutine
         when (val r = session.call { diagnosticsGetPublicIp(GetPublicIpRequest(via)) }) {
             is CoreResult.Ok -> r.value.ip?.takeIf { it.isNotBlank() }?.let { IpReading.Value(it, r.value.isIpv6) }
                 ?: IpReading.Failed(ErrorKind.Generic)
-            is CoreResult.Fail -> IpReading.Failed(r.kind)
+            is CoreResult.Fail -> if (r.coreAnswered) IpReading.NotDetermined else IpReading.Failed(r.kind)
         }
 
     fun checkLeaks() {

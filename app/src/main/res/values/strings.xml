@@ -21,10 +21,12 @@
     <string name="apps_except">Все, кроме выбранных</string>
     <string name="apps_except_d">Все приложения работают через туннель, кроме выбранных: они используют обычное подключение.</string>
     <string name="apps_hint">Выберите, какие приложения работают через VPN.</string>
+    <string name="apps_missing">Нет среди приложений с запуском (удалено или без значка). Снимите отметку, если не нужно</string>
     <string name="apps_none">Приложения не найдены</string>
     <string name="apps_only">Только выбранные</string>
     <string name="apps_only_d">Через туннель работают только выбранные приложения. Остальные используют обычное подключение.</string>
     <string name="apps_only_empty">Ни одно приложение не выбрано, поэтому пока все приложения работают через туннель. Выберите хотя бы одно.</string>
+    <string name="apps_saveFailed">Не удалось сохранить выбор приложений. Показан сохранённый выбор.</string>
     <string name="apps_search">Поиск приложений</string>
     <string name="apps_system">Показывать системные приложения</string>
     <string name="apps_title">Приложения в туннеле</string>
@@ -57,6 +59,7 @@
     <string name="bk_hint">Все данные одним файлом: настройки, серверы с их паролями, группы, подписки (с адресами) и свои наборы маршрутов. Файл шифруется паролем; без пароля его не открыть.</string>
     <string name="bk_mismatch">Пароли не совпадают</string>
     <string name="bk_noFile">Файл не выбран</string>
+    <string name="bk_notIncluded">В копию не входят выбор приложений для туннеля и автозапуск при включении телефона: они хранятся отдельно и после восстановления остаются как были.</string>
     <string name="bk_pw">Пароль для файла</string>
     <string name="bk_pw2">Повторите пароль</string>
     <string name="bk_pwHint">Не короче %1$s символов. Забытый пароль восстановить нельзя: без него копию не откроет никто.</string>
@@ -98,6 +101,7 @@
     <string name="chk_fix_sub">Открыть подписки</string>
     <string name="chk_fix_time">Синхронизировать время</string>
     <string name="chk_ip_connect">Подключитесь, чтобы увидеть адрес через туннель.</string>
+    <string name="chk_ip_failed">Не удалось определить адрес: сервис, который его сообщает, не ответил. Ядро работает.</string>
     <string name="chk_ip_run">Проверить адреса</string>
     <string name="chk_ip_title">Публичный адрес</string>
     <string name="chk_ipv6_t">IPv6 не идёт мимо туннеля</string>
@@ -136,6 +140,11 @@
     <string name="conn_disconnect">Отключить</string>
     <string name="conn_down">Загрузка</string>
     <string name="conn_ip">IP через туннель</string>
+    <string name="conn_noTraffic">Подключено, но через сервер ничего не проходит: %1$s. Выберите другой сервер или проверьте подписку.</string>
+    <string name="conn_noTraffic_no_host">не удалось найти адрес сервера</string>
+    <string name="conn_noTraffic_refused">сервер отклонил соединение</string>
+    <string name="conn_noTraffic_reset">сервер оборвал соединение</string>
+    <string name="conn_noTraffic_timeout">сервер не ответил вовремя</string>
     <string name="conn_session">Сессия</string>
     <string name="conn_state_connecting">Подключение…</string>
     <string name="conn_state_connecting_sub">Устанавливаем луч…</string>
@@ -184,9 +193,16 @@
     <string name="cx_empty_d">Добавьте подписку или ссылку от провайдера — и подключайтесь.</string>
     <string name="cx_empty_t">Пока нет серверов</string>
     <string name="cx_exit_t">Точка выхода</string>
-    <string name="cx_leak_clear">Утечек не найдено: адрес, который LAVRay видит напрямую, отличается от адреса через туннель.</string>
+    <string name="cx_health_checking">Проверяю, что через сервер идёт трафик…</string>
+    <string name="cx_health_failed_sub">Связь через сервер не подтверждена</string>
+    <string name="cx_health_unknown_sub">Связь через сервер не проверена</string>
+    <string name="cx_leak_clear">Адрес через туннель отличается от прямого. DNS и IPv6 на телефоне не измеряются: утечки по ним эта проверка не исключает.</string>
     <string name="cx_leak_unchecked">Не проверено: в этот раз не удалось измерить один из двух адресов.</string>
+    <string name="cx_pending_apply">применится после перезапуска</string>
+    <string name="cx_pending_d">Сохранённые изменения ещё не применены. Перезапустите, когда удобно.</string>
+    <string name="cx_pending_t">Туннель работает со старыми настройками</string>
     <string name="cx_probe_fail">Эта проверка сейчас не завершилась.</string>
+    <string name="cx_state_reading">Читаю состояние…</string>
     <string name="da_json_invalid">Ядро не приняло этот JSON. Исправьте его и проверьте ещё раз.</string>
     <string name="dens_compact">Компактная</string>
     <string name="dens_normal">Обычная</string>
@@ -212,7 +228,7 @@
     <string name="dns_tunnel">Через туннель</string>
     <string name="dns_tunnel_d">Шифрованный DNS идёт внутри прокси-туннеля — максимум приватности.</string>
     <string name="dns_validate">Проверить</string>
-    <string name="dns_warn">Смена режима кратко переподключает канал. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
+    <string name="dns_warn_phone">Смена режима применяется после перезапуска ядра. Пока туннель включён, предложение перезапустить появится на экране. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
     <string name="dns_warn_t">Совместимость</string>
     <string name="ed_t_chain">Цепочка</string>
     <string name="ed_t_json">Свой JSON</string>
@@ -222,6 +238,14 @@
     <string name="err_precondition">Сейчас это действие недоступно</string>
     <string name="err_retry">Повторить</string>
     <string name="err_unimplemented">Функция пока не реализована</string>
+    <string name="fail_apps_none">Ни одного из выбранных приложений нет на телефоне</string>
+    <string name="fail_connect_failed">Подключиться не удалось</string>
+    <string name="fail_core_start">Ядро не запустилось</string>
+    <string name="fail_no_server">Не выбран сервер</string>
+    <string name="fail_permission">Нет согласия на VPN</string>
+    <string name="fail_protection_off">Защита выключена: система отключила VPN</string>
+    <string name="fail_restricted_start">Система не разрешила запустить туннель в фоне</string>
+    <string name="fail_tunnel_lost">Связь потеряна</string>
     <string name="filter_all">Все</string>
     <string name="filter_down">Недоступные</string>
     <string name="filter_fast">Быстрые</string>
@@ -315,6 +339,7 @@
     <string name="lic_title">Лицензии и компоненты</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Автопрокрутка</string>
+    <string name="log_copiedTruncated">Скопированы только последние строки: %1$s из %2$s</string>
     <string name="log_copy">Копировать</string>
     <string name="log_exportD">Пароли, UUID, токены и адреса подписок будут заменены на ••••.</string>
     <string name="log_noMatch">Ничего не найдено по фильтрам</string>
@@ -323,6 +348,8 @@
     <string name="log_resume">Продолжить</string>
     <string name="log_searchPh">Поиск в журнале…</string>
     <string name="log_share">Поделиться</string>
+    <string name="log_shareFailed">Не удалось поделиться журналом. Его можно скопировать.</string>
+    <string name="log_shareTruncated">Отправлены только последние строки: %1$s из %2$s</string>
     <string name="main_auto_connect">Подключаться при запуске телефона</string>
     <string name="mux_concurrency">Параллельных потоков</string>
     <string name="mux_concurrencyErr">Введите -1 или число от 1 до 1024</string>
@@ -429,6 +456,7 @@
     <string name="rt_deleteConfirm">Удалить пресет «%1$s»? Это действие нельзя отменить.</string>
     <string name="rt_deletePreset">Удалить пресет</string>
     <string name="rt_duplicate">Дублировать</string>
+    <string name="rt_editRejected">Ядро не приняло эту запись. Проверьте, как она написана.</string>
     <string name="rt_empty_d">Ядро недоступно — пресеты появятся после подключения</string>
     <string name="rt_empty_t">Пресеты не загружены</string>
     <string name="rt_exportPreset">Экспорт пресета</string>
@@ -492,6 +520,7 @@
     <string name="set_alwayson_open">Открыть настройки VPN</string>
     <string name="set_alwayson_t">Постоянный VPN (Always-on)</string>
     <string name="set_appVersion">Версия приложения</string>
+    <string name="set_autoReadFailed">Не удалось прочитать это значение: переключатель недоступен.</string>
     <string name="set_battery_d">Обычно менять это не нужно: при подключении LAVRay работает как служба переднего плана с уведомлением и не использует wake lock и таймеры. Некоторые производители всё равно останавливают фоновые приложения; если соединение рвётся при выключенном экране, выберите для LAVRay «Без ограничений» или «Не оптимизировать». Ограничения конкретной оболочки LAVRay увидеть не может.</string>
     <string name="set_battery_off">LAVRay исключён из оптимизации батареи.</string>
     <string name="set_battery_on">Для LAVRay включена оптимизация батареи (по умолчанию).</string>
@@ -627,7 +656,9 @@
     <string name="toast_presetImportedWarn">Пресет импортирован, предупреждений: %1$s</string>
     <string name="toast_presetReset">Пресет сброшен к исходному</string>
     <string name="toast_presetSaved">Пресет сохранён</string>
+    <string name="toast_reconnected">Туннель переподключён</string>
     <string name="toast_saved">Сохранено</string>
+    <string name="toast_savedRestart">Сохранено, применится после перезапуска</string>
     <string name="toast_subAdded">Подписка «%1$s» добавлена</string>
     <string name="toast_subUpdated">Подписка «%1$s» обновлена</string>
     <string name="tun_exclAddr">Не пускать в туннель: адреса</string>

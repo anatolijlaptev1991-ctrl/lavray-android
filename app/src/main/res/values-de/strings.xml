@@ -21,10 +21,12 @@
     <string name="apps_except">Alle außer ausgewählten</string>
     <string name="apps_except_d">Alle Apps laufen durch den Tunnel, außer den ausgewählten; diese nutzen Ihre normale Verbindung.</string>
     <string name="apps_hint">Wählen Sie, welche Apps das VPN nutzen.</string>
+    <string name="apps_missing">Nicht unter den Apps mit Startsymbol (entfernt oder ohne Symbol). Häkchen entfernen, wenn es nicht gebraucht wird</string>
     <string name="apps_none">Keine Apps gefunden</string>
     <string name="apps_only">Nur ausgewählte</string>
     <string name="apps_only_d">Nur die ausgewählten Apps laufen durch den Tunnel. Alle anderen nutzen Ihre normale Verbindung.</string>
     <string name="apps_only_empty">Keine App ausgewählt, daher nutzen vorerst alle Apps den Tunnel. Wählen Sie mindestens eine App.</string>
+    <string name="apps_saveFailed">Die App-Auswahl konnte nicht gespeichert werden. Angezeigt wird die gespeicherte Auswahl.</string>
     <string name="apps_search">Apps suchen</string>
     <string name="apps_system">Systemapps anzeigen</string>
     <string name="apps_title">Apps im Tunnel</string>
@@ -57,6 +59,7 @@
     <string name="bk_hint">Alle Daten in einer Datei: Einstellungen, Server mit ihren Passwörtern, Gruppen, Abos (mit ihren Adressen) und eigene Routing-Presets. Die Datei wird mit einem Passwort verschlüsselt; ohne Passwort lässt sie sich nicht öffnen.</string>
     <string name="bk_mismatch">Passwörter stimmen nicht überein</string>
     <string name="bk_noFile">Keine Datei ausgewählt</string>
+    <string name="bk_notIncluded">Die Sicherung enthält weder die App-Auswahl für den Tunnel noch den Start beim Einschalten des Telefons: Beides wird getrennt gespeichert und bleibt nach der Wiederherstellung unverändert.</string>
     <string name="bk_pw">Datei-Passwort</string>
     <string name="bk_pw2">Passwort wiederholen</string>
     <string name="bk_pwHint">Mindestens %1$s Zeichen. Ein vergessenes Passwort lässt sich nicht wiederherstellen: Ohne es kann niemand die Sicherung öffnen.</string>
@@ -98,6 +101,7 @@
     <string name="chk_fix_sub">Abos öffnen</string>
     <string name="chk_fix_time">Uhr synchronisieren</string>
     <string name="chk_ip_connect">Verbinden Sie sich, um die Adresse über den Tunnel zu sehen.</string>
+    <string name="chk_ip_failed">Die Adresse konnte nicht ermittelt werden: Der Dienst, der sie nennt, hat nicht geantwortet. Der Kern läuft.</string>
     <string name="chk_ip_run">Adressen prüfen</string>
     <string name="chk_ip_title">Öffentliche Adresse</string>
     <string name="chk_ipv6_t">IPv6 läuft nicht am Tunnel vorbei</string>
@@ -136,6 +140,11 @@
     <string name="conn_disconnect">Trennen</string>
     <string name="conn_down">Download</string>
     <string name="conn_ip">IP über den Tunnel</string>
+    <string name="conn_noTraffic">Verbunden, aber über den Server kommt nichts durch: %1$s. Wähle einen anderen Server oder prüfe dein Abo.</string>
+    <string name="conn_noTraffic_no_host">die Serveradresse konnte nicht aufgelöst werden</string>
+    <string name="conn_noTraffic_refused">der Server hat die Verbindung abgelehnt</string>
+    <string name="conn_noTraffic_reset">der Server hat die Verbindung getrennt</string>
+    <string name="conn_noTraffic_timeout">der Server hat nicht rechtzeitig geantwortet</string>
     <string name="conn_session">Dauer</string>
     <string name="conn_state_connecting">Verbinde…</string>
     <string name="conn_state_connecting_sub">Strahl wird aufgebaut…</string>
@@ -184,9 +193,16 @@
     <string name="cx_empty_d">Füge ein Abo oder einen Link deines Anbieters hinzu und verbinde dich.</string>
     <string name="cx_empty_t">Noch keine Server</string>
     <string name="cx_exit_t">Ausgangspunkt</string>
-    <string name="cx_leak_clear">Kein Leck gefunden: Die Adresse, die LAVRay direkt sieht, unterscheidet sich von der durch den Tunnel.</string>
+    <string name="cx_health_checking">Prüfe, ob Verkehr über den Server läuft …</string>
+    <string name="cx_health_failed_sub">Verbindung über den Server nicht bestätigt</string>
+    <string name="cx_health_unknown_sub">Verbindung über den Server nicht geprüft</string>
+    <string name="cx_leak_clear">Die Adresse durch den Tunnel unterscheidet sich von der direkten. DNS und IPv6 werden auf dem Telefon nicht gemessen: Diese Prüfung schließt Lecks darüber nicht aus.</string>
     <string name="cx_leak_unchecked">Nicht geprüft: Eine der beiden Adressen konnte diesmal nicht gemessen werden.</string>
+    <string name="cx_pending_apply">gilt nach dem Neustart</string>
+    <string name="cx_pending_d">Gespeicherte Änderungen sind noch nicht angewendet. Starte neu, wenn es passt.</string>
+    <string name="cx_pending_t">Der Tunnel läuft mit den alten Einstellungen</string>
     <string name="cx_probe_fail">Diese Prüfung ist gerade nicht abgeschlossen worden.</string>
+    <string name="cx_state_reading">Lese den Zustand …</string>
     <string name="da_json_invalid">Der Kern hat dieses JSON nicht akzeptiert. Korrigieren Sie es und prüfen Sie erneut.</string>
     <string name="dens_compact">Kompakt</string>
     <string name="dens_normal">Normal</string>
@@ -212,7 +228,7 @@
     <string name="dns_tunnel">Durch den Tunnel</string>
     <string name="dns_tunnel_d">Verschlüsseltes DNS läuft innerhalb des Proxy-Tunnels — maximale Privatsphäre.</string>
     <string name="dns_validate">Prüfen</string>
-    <string name="dns_warn">Der Moduswechsel verbindet den Kanal kurz neu. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
+    <string name="dns_warn_phone">Ein Moduswechsel wird nach dem Neustart des Kerns wirksam. Solange ein Tunnel aktiv ist, erscheint auf dem Bildschirm der Hinweis zum Neustart. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
     <string name="dns_warn_t">Kompatibilität</string>
     <string name="ed_t_chain">Kette</string>
     <string name="ed_t_json">Eigenes JSON</string>
@@ -222,6 +238,14 @@
     <string name="err_precondition">Diese Aktion ist derzeit nicht verfügbar</string>
     <string name="err_retry">Erneut versuchen</string>
     <string name="err_unimplemented">Diese Funktion ist noch nicht verfügbar</string>
+    <string name="fail_apps_none">Keine der gewählten Apps ist auf diesem Telefon</string>
+    <string name="fail_connect_failed">Verbindung fehlgeschlagen</string>
+    <string name="fail_core_start">Der Kern ist nicht gestartet</string>
+    <string name="fail_no_server">Kein Server ausgewählt</string>
+    <string name="fail_permission">VPN-Erlaubnis fehlt</string>
+    <string name="fail_protection_off">Der Schutz ist aus: Das System hat das VPN getrennt</string>
+    <string name="fail_restricted_start">Das System hat den Tunnelstart im Hintergrund nicht erlaubt</string>
+    <string name="fail_tunnel_lost">Die Verbindung ging verloren</string>
     <string name="filter_all">Alle</string>
     <string name="filter_down">Unerreichbar</string>
     <string name="filter_fast">Schnelle</string>
@@ -315,6 +339,7 @@
     <string name="lic_title">Lizenzen und Komponenten</string>
     <string name="lic_zxing">ZXing core — Apache-2.0</string>
     <string name="log_autoscroll">Autoscroll</string>
+    <string name="log_copiedTruncated">Nur die letzten Zeilen wurden kopiert: %1$s von %2$s</string>
     <string name="log_copy">Kopieren</string>
     <string name="log_exportD">Passwörter, UUIDs, Tokens und Abo-Adressen werden durch •••• ersetzt.</string>
     <string name="log_noMatch">Nichts passt zu den Filtern</string>
@@ -323,6 +348,8 @@
     <string name="log_resume">Fortsetzen</string>
     <string name="log_searchPh">Protokoll durchsuchen…</string>
     <string name="log_share">Teilen</string>
+    <string name="log_shareFailed">Das Protokoll konnte nicht geteilt werden. Du kannst es kopieren.</string>
+    <string name="log_shareTruncated">Nur die letzten Zeilen wurden geteilt: %1$s von %2$s</string>
     <string name="main_auto_connect">Beim Start des Telefons verbinden</string>
     <string name="mux_concurrency">Gleichzeitige Streams</string>
     <string name="mux_concurrencyErr">Geben Sie -1 oder eine Zahl von 1 bis 1024 ein</string>
@@ -421,6 +448,7 @@
     <string name="rt_deleteConfirm">Preset „%1$s“ löschen? Das lässt sich nicht rückgängig machen.</string>
     <string name="rt_deletePreset">Preset löschen</string>
     <string name="rt_duplicate">Duplizieren</string>
+    <string name="rt_editRejected">Der Kern hat diesen Eintrag nicht akzeptiert. Prüfe die Schreibweise.</string>
     <string name="rt_empty_d">Core nicht verfügbar — Presets erscheinen nach dem Start</string>
     <string name="rt_empty_t">Presets nicht geladen</string>
     <string name="rt_exportPreset">Preset exportieren</string>
@@ -484,6 +512,7 @@
     <string name="set_alwayson_open">VPN-Einstellungen öffnen</string>
     <string name="set_alwayson_t">Always-on-VPN</string>
     <string name="set_appVersion">App-Version</string>
+    <string name="set_autoReadFailed">Dieser Wert konnte nicht gelesen werden: Der Schalter ist nicht verfügbar.</string>
     <string name="set_battery_d">Normalerweise müssen Sie das nicht ändern: Bei bestehender Verbindung läuft LAVRay als Vordergrunddienst mit Benachrichtigung und nutzt keine Wake-Locks oder Timer. Manche Hersteller beenden Hintergrund-Apps trotzdem; bricht die Verbindung bei ausgeschaltetem Bildschirm ab, stellen Sie LAVRay auf „Unbeschränkt“ oder „Nicht optimieren“. Herstellerspezifische Grenzen kann LAVRay nicht sehen.</string>
     <string name="set_battery_off">LAVRay ist von der Akkuoptimierung ausgenommen.</string>
     <string name="set_battery_on">Die Akkuoptimierung ist für LAVRay aktiv (Standard).</string>
@@ -619,7 +648,9 @@
     <string name="toast_presetImportedWarn">Preset importiert, Warnungen: %1$s</string>
     <string name="toast_presetReset">Preset auf Original zurückgesetzt</string>
     <string name="toast_presetSaved">Preset gespeichert</string>
+    <string name="toast_reconnected">Tunnel neu verbunden</string>
     <string name="toast_saved">Gespeichert</string>
+    <string name="toast_savedRestart">Gespeichert, gilt nach dem Neustart</string>
     <string name="toast_subAdded">Abo „%1$s“ hinzugefügt</string>
     <string name="toast_subUpdated">Abo „%1$s“ aktualisiert</string>
     <string name="tun_exclAddr">Aus dem Tunnel lassen: Adressen</string>
