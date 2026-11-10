@@ -89,6 +89,7 @@ func patchConfig(cfg []byte, p tunParams) ([]byte, patchReport, error) {
 		return nil, rep, err
 	}
 	patchRoute(root, &rep)
+	patchSniff(root) // patch_sniff.go: потолок тайм-аута sniff
 	patchDNS(root, &rep)
 	patchExperimental(root, &rep)
 	out, err := encodeObject(root)
