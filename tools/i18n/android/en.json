@@ -93,6 +93,7 @@
   "imp_fileHint_phone": "Choose a file: YAML, base64 or a list of links.",
   "imp_file_choose": "Choose a file…",
   "imp_file_unreadable": "Could not read the file. Choose another one.",
+  "imp_issue_no_key": "This link has no key (UUID or password) before the server address. Most likely it was not copied in full.",
   "imp_issue_rest": "The other lines are imported without it.",
   "imp_issue_ss_b64": "The key part of this ss:// link is not valid base64. Often the closing = signs were cut off when it was copied; add them or ask for the link again.",
   "imp_issue_ss_method": "This ss:// link names a cipher the app does not support.",

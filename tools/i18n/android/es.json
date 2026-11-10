@@ -93,6 +93,7 @@
   "imp_fileHint_phone": "Elige un archivo: YAML, base64 o una lista de enlaces.",
   "imp_file_choose": "Elegir archivo…",
   "imp_file_unreadable": "No se pudo leer el archivo. Elige otro.",
+  "imp_issue_no_key": "A este enlace le falta la clave (UUID o contraseña) antes de la dirección del servidor. Lo más probable es que no se haya copiado completo.",
   "imp_issue_rest": "Las demás líneas se importan sin ella.",
   "imp_issue_ss_b64": "La parte de la clave de este enlace ss:// no es base64 válido. A menudo se pierden los signos = finales al copiarlo: añádelos o pide el enlace de nuevo.",
   "imp_issue_ss_method": "Este enlace ss:// indica un cifrado que la app no admite.",

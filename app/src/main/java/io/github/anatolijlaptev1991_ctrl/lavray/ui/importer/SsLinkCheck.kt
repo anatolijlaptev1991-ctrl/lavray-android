@@ -14,10 +14,31 @@ enum class LinkProblem {
 
     /** The cipher is not one the core knows. */
     SsMethod,
+
+    /** A vless, trojan, hysteria2 or tuic link with nothing before the server address: no UUID, no password. */
+    NoKey,
 }
 
 /** One refused line: [line] counts from 1 in the pasted text, blank lines included. */
 data class LinkIssue(val line: Int, val problem: LinkProblem, val masked: String)
+
+/**
+ * The one check the core makes on every vless, trojan, hysteria2 and tuic link that can be repeated here without
+ * guessing: the key (UUID or password) is what stands before the last "@" of the address part, and a link with nothing
+ * there is refused (parse.go: parseTrojanVLESS, parseHysteria2, parseTUIC). A link cut off while copying, or a word that
+ * only starts like a link, ends up exactly so. Anything else about the link is left to the core.
+ */
+object KeyLinkCheck {
+    val schemes: Set<String> = setOf("vless", "trojan", "hy2", "hysteria2", "tuic")
+
+    /** Null when the link has a key part; the core still has the last word. */
+    fun check(link: String): LinkProblem? {
+        val body = link.trim().substringAfter("://", "")
+        // Go's net/url: the fragment goes first, then the query, and the address part ends at the first slash.
+        val authority = body.substringBefore('#').substringBefore('?').substringBefore('/')
+        return if (authority.lastIndexOf('@') <= 0) LinkProblem.NoKey else null
+    }
+}
 
 /**
  * The checks the core makes on an `ss://` link, done before the core is asked so that the preview never promises

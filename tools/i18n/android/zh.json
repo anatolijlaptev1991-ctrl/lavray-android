@@ -93,6 +93,7 @@
   "imp_fileHint_phone": "选择文件：YAML、base64 或链接列表。",
   "imp_file_choose": "选择文件…",
   "imp_file_unreadable": "无法读取该文件。请选择其他文件。",
+  "imp_issue_no_key": "此链接在服务器地址前缺少密钥（UUID 或密码）。很可能是链接没有复制完整。",
   "imp_issue_rest": "其余各行会照常导入。",
   "imp_issue_ss_b64": "此 ss:// 链接的密钥部分不是有效的 base64。复制时常会丢掉末尾的 = 号：请补上，或重新获取链接。",
   "imp_issue_ss_method": "此 ss:// 链接指定的加密方式应用不支持。",

@@ -93,6 +93,7 @@
   "imp_fileHint_phone": "Wähle eine Datei: YAML, Base64 oder eine Liste von Links.",
   "imp_file_choose": "Datei wählen …",
   "imp_file_unreadable": "Die Datei konnte nicht gelesen werden. Wähle eine andere.",
+  "imp_issue_no_key": "In diesem Link fehlt der Schlüssel (UUID oder Passwort) vor der Serveradresse. Wahrscheinlich wurde er nicht vollständig kopiert.",
   "imp_issue_rest": "Die übrigen Zeilen werden ohne sie importiert.",
   "imp_issue_ss_b64": "Der Schlüsselteil dieses ss://-Links ist kein gültiges Base64. Oft gehen beim Kopieren die abschließenden =-Zeichen verloren: Ergänzen Sie sie oder fragen Sie den Link erneut an.",
   "imp_issue_ss_method": "Dieser ss://-Link nennt ein Verschlüsselungsverfahren, das die App nicht unterstützt.",

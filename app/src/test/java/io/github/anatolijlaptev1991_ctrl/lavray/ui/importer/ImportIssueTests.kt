@@ -12,6 +12,35 @@ class ImportIssueTests {
     private val padded = "ss://YWVzLTI1Ni1nY206c2VjcmV0MQ==@host.example:8388#ok"
     private val unpadded = "ss://YWVzLTI1Ni1nY206c2VjcmV0MQ@host.example:8388#short"
 
+    // V-08: "vless://not-a-valid-link" was previewed as one server; the core refuses a link without a key.
+    @Test fun aLinkWithNothingBeforeTheServerAddressIsAnIssueNotAServer() {
+        for (scheme in listOf("vless", "trojan", "hy2", "hysteria2", "tuic")) {
+            assertEquals(scheme, LinkProblem.NoKey, KeyLinkCheck.check("$scheme://not-a-valid-link"))
+            assertEquals(scheme, LinkProblem.NoKey, KeyLinkCheck.check("$scheme://host.example:443?security=tls#name"))
+            assertEquals(scheme, LinkProblem.NoKey, KeyLinkCheck.check("$scheme://@host.example:443"))
+            // An "@" that is not in the address part is not a key.
+            assertEquals(scheme, LinkProblem.NoKey, KeyLinkCheck.check("$scheme://host.example:443/path@x?a=b@c#n@me"))
+            assertNull(scheme, KeyLinkCheck.check("$scheme://0a1b2c3d-0000-4000-8000-000000000001@host.example:443?security=tls#name"))
+            // What the key must look like is the core's business: a password with a colon, an empty user with a password.
+            assertNull(scheme, KeyLinkCheck.check("$scheme://user:pass@host.example:443"))
+            assertNull(scheme, KeyLinkCheck.check("$scheme://:pass@host.example"))
+        }
+        val r = LinkClassifier.classify("vless://not-a-valid-link") as ImportInput.Links
+        assertEquals(1, r.issues.size)
+        assertEquals(LinkProblem.NoKey, r.issues[0].problem)
+        assertEquals("nothing is left to import", 0, r.readable)
+        val mixed = LinkClassifier.classify(
+            "vless://0a1b2c3d-0000-4000-8000-000000000001@host.example:443\ntrojan://cut-off",
+        ) as ImportInput.Links
+        assertEquals(1, mixed.readable)
+        assertEquals(2, mixed.issues[0].line)
+    }
+
+    @Test fun otherSchemesAreNotCheckedForAKey() {
+        val r = LinkClassifier.classify("socks://host.example:1080") as ImportInput.Links
+        assertTrue(r.issues.isEmpty())
+    }
+
     @Test fun paddedBase64UserInfoIsAccepted() {
         assertNull(SsLinkCheck.check(padded))
     }

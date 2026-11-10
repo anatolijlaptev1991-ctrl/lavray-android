@@ -239,6 +239,7 @@ private fun IssueBanner(issue: LinkIssue, othersStay: Boolean) {
             LinkProblem.SsBase64 -> R.string.imp_issue_ss_b64
             LinkProblem.SsPair -> R.string.imp_issue_ss_pair
             LinkProblem.SsMethod -> R.string.imp_issue_ss_method
+            LinkProblem.NoKey -> R.string.imp_issue_no_key
         },
     )
     val rest = if (othersStay) " " + stringResource(R.string.imp_issue_rest) else ""

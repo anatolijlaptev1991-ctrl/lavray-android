@@ -84,7 +84,12 @@ object LinkClassifier {
             schemes = known.map { schemes[it] }.distinct(),
             skipped = lines.size - known.size,
             issues = known.mapNotNull { i ->
-                if (schemes[i] != "ss") null else SsLinkCheck.check(lines[i])?.let { LinkIssue(lineNumbers[i], it, mask(lines[i])) }
+                val problem = when (schemes[i]) {
+                    "ss" -> SsLinkCheck.check(lines[i])
+                    in KeyLinkCheck.schemes -> KeyLinkCheck.check(lines[i])
+                    else -> null
+                }
+                problem?.let { LinkIssue(lineNumbers[i], it, mask(lines[i])) }
             },
         )
     }

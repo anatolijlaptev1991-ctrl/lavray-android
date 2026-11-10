@@ -293,6 +293,7 @@
     <string name="imp_happErrT">Link konnte nicht entschlüsselt werden</string>
     <string name="imp_hint">Füge einen beliebigen Link ein — verschlüsselte Links werden automatisch entschlüsselt</string>
     <string name="imp_httpWarn">Unverschlüsselter Link: Anbieter und Netz sehen die Abo-Adresse</string>
+    <string name="imp_issue_no_key">In diesem Link fehlt der Schlüssel (UUID oder Passwort) vor der Serveradresse. Wahrscheinlich wurde er nicht vollständig kopiert.</string>
     <string name="imp_issue_rest">Die übrigen Zeilen werden ohne sie importiert.</string>
     <string name="imp_issue_ss_b64">Der Schlüsselteil dieses ss://-Links ist kein gültiges Base64. Oft gehen beim Kopieren die abschließenden =-Zeichen verloren: Ergänzen Sie sie oder fragen Sie den Link erneut an.</string>
     <string name="imp_issue_ss_method">Dieser ss://-Link nennt ein Verschlüsselungsverfahren, das die App nicht unterstützt.</string>

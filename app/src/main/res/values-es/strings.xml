@@ -293,6 +293,7 @@
     <string name="imp_happErrT">No se pudo descifrar el enlace</string>
     <string name="imp_hint">Pega cualquier enlace: los enlaces cifrados se descifran automáticamente</string>
     <string name="imp_httpWarn">Enlace sin cifrar: tu proveedor y la red verán la dirección de la suscripción</string>
+    <string name="imp_issue_no_key">A este enlace le falta la clave (UUID o contraseña) antes de la dirección del servidor. Lo más probable es que no se haya copiado completo.</string>
     <string name="imp_issue_rest">Las demás líneas se importan sin ella.</string>
     <string name="imp_issue_ss_b64">La parte de la clave de este enlace ss:// no es base64 válido. A menudo se pierden los signos = finales al copiarlo: añádelos o pide el enlace de nuevo.</string>
     <string name="imp_issue_ss_method">Este enlace ss:// indica un cifrado que la app no admite.</string>
