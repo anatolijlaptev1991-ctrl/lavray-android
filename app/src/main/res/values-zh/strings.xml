@@ -504,6 +504,7 @@
     <string name="srv_empty_d">添加订阅或链接后，服务器会显示在这里。</string>
     <string name="srv_empty_t">还没有服务器</string>
     <string name="srv_group">按订阅分组</string>
+    <string name="srv_inUse">无法删除已连接的服务器或包含它的分组：请先断开连接或切换到其他服务器。</string>
     <string name="srv_manual">手动添加</string>
     <string name="srv_menu_clone">复制</string>
     <string name="srv_menu_move">移动到分组…</string>
@@ -558,6 +559,7 @@
     <string name="sub_set_uaField">自定义 User-Agent</string>
     <string name="sub_settings">订阅设置</string>
     <string name="sub_unlimited">不限量</string>
+    <string name="sub_url_web">需要以 http:// 或 https:// 开头的链接。加密链接请通过“导入”添加。</string>
     <string name="subs_add">添加订阅</string>
     <string name="subs_auto">自动更新</string>
     <string name="subs_delConfirm">删除订阅“%2$s”及其服务器（%1$s 个）？</string>

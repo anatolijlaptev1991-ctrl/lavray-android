@@ -516,6 +516,7 @@
     <string name="srv_empty_d">Добавьте подписку или ссылку — серверы появятся здесь.</string>
     <string name="srv_empty_t">Пока нет серверов</string>
     <string name="srv_group">Группировать по подписке</string>
+    <string name="srv_inUse">Подключённый сервер и группу с ним удалить нельзя: сначала отключитесь или переключитесь на другой сервер.</string>
     <string name="srv_manual">Добавлены вручную</string>
     <string name="srv_menu_clone">Дублировать</string>
     <string name="srv_menu_move">Переместить в группу…</string>
@@ -570,6 +571,7 @@
     <string name="sub_set_uaField">Свой User-Agent</string>
     <string name="sub_settings">Настройки подписки</string>
     <string name="sub_unlimited">Без лимита</string>
+    <string name="sub_url_web">Нужна ссылка, которая начинается с http:// или https://. Зашифрованную ссылку добавьте через «Импорт».</string>
     <string name="subs_add">Добавить подписку</string>
     <string name="subs_auto">Автообновление</string>
     <string name="subs_delConfirm">Удалить подписку «%2$s» и её серверы (%1$s)?</string>

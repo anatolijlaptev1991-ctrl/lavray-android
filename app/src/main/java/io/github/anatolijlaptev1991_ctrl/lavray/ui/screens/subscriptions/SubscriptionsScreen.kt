@@ -154,6 +154,7 @@ private fun eventText(ctx: android.content.Context, e: SubscriptionsEvent): Stri
     SubscriptionsEvent.RollbackFailed -> ctx.getString(R.string.subs_rollback_fail)
     SubscriptionsEvent.Saved -> ctx.getString(R.string.toast_saved)
     SubscriptionsEvent.Deleted -> null
+    SubscriptionsEvent.InUse -> ctx.getString(R.string.srv_inUse)
     is SubscriptionsEvent.Failed -> ctx.getString(e.kind.textRes())
 }
 

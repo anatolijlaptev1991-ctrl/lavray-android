@@ -75,7 +75,8 @@ fun ConnectionScreen() {
     val phase = phaseOf(status.state)
     val connect = rememberVpnConnect()
 
-    LaunchedEffect(phase, env.settings.selectedProfileId) { model.refresh(env.settings.selectedProfileId) }
+    val dataVersion by env.data.version.collectAsStateWithLifecycle()
+    LaunchedEffect(phase, env.settings.selectedProfileId, dataVersion) { model.refresh(env.settings.selectedProfileId) }
 
     val traffic by remember(phase.isLive) {
         if (phase.isLive) model.traffic() else kotlinx.coroutines.flow.flowOf(TrafficReading.Empty)

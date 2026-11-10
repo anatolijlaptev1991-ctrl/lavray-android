@@ -508,6 +508,7 @@
     <string name="srv_empty_d">Add a subscription or link, and your servers will appear here.</string>
     <string name="srv_empty_t">No servers yet</string>
     <string name="srv_group">Group by subscription</string>
+    <string name="srv_inUse">The connected server, and a group that holds it, cannot be deleted: disconnect or switch to another server first.</string>
     <string name="srv_manual">Added manually</string>
     <string name="srv_menu_clone">Duplicate</string>
     <string name="srv_menu_move">Move to group…</string>
@@ -562,6 +563,7 @@
     <string name="sub_set_uaField">Custom User-Agent</string>
     <string name="sub_settings">Subscription settings</string>
     <string name="sub_unlimited">Unlimited</string>
+    <string name="sub_url_web">A link starting with http:// or https:// is needed. Add an encrypted link through Import.</string>
     <string name="subs_add">Add subscription</string>
     <string name="subs_auto">Auto-update</string>
     <string name="subs_delConfirm">Delete the subscription “%2$s” and its servers (%1$s)?</string>

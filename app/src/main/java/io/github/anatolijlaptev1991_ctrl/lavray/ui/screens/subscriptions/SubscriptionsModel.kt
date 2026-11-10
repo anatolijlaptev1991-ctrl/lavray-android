@@ -55,6 +55,9 @@ sealed interface SubscriptionsEvent {
     data object RollbackFailed : SubscriptionsEvent
     data object Saved : SubscriptionsEvent
     data object Deleted : SubscriptionsEvent
+
+    /** The core refused to delete the subscription that holds the connected server. */
+    data object InUse : SubscriptionsEvent
     data class Failed(val kind: ErrorKind) : SubscriptionsEvent
 }
 
@@ -92,6 +95,8 @@ class SubscriptionsModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
     private val store: SubFailureStorage,
+    /** Called when an update, a rollback or a delete changed the servers, so screens that list them can reload. */
+    private val onServersChanged: () -> Unit = {},
 ) {
     private val registry = SubscriptionRegistry(session)
     private val actions = Channel<SubscriptionsAction>(Channel.UNLIMITED)
@@ -214,6 +219,7 @@ class SubscriptionsModel(
                 dispatch(SubscriptionsAction.DropFailure(id))
                 mutableEvents.tryEmit(SubscriptionsEvent.Updated(name))
                 load()
+                onServersChanged()
             }
             result is FetchResult.Failed && result.coreProblem != null -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(result.coreProblem))
             else -> {
@@ -253,6 +259,7 @@ class SubscriptionsModel(
         }
         dispatch(SubscriptionsAction.UpdateFinished)
         load()
+        onServersChanged()
     }
 
     private fun publishProgress(ev: SubscriptionProgress) {
@@ -269,18 +276,31 @@ class SubscriptionsModel(
     // ---- row actions
 
     fun toggleAuto(row: SubRow) {
-        val g = rawGroups[row.id] ?: return
         scope.launch(Dispatchers.IO) {
+            val g = freshGroup(row.id) ?: return@launch
             finish(session.call { profileUpdateGroup(UpdateGroupRequest(SubscriptionEdit.withAutoUpdate(g, !row.autoUpdate))) }) { load() }
         }
     }
 
+    /**
+     * UpdateGroup replaces the whole group, so it must be sent what the core holds now: a name or a switch changed on
+     * another screen since this list was loaded would otherwise be put back. Falls back to the loaded copy.
+     */
+    private suspend fun freshGroup(id: Long): Group? =
+        ((session.call { subscriptionListSubscriptions() } as? CoreResult.Ok)?.value?.groups?.firstOrNull { it.id == id }) ?: rawGroups[id]
+
     fun delete(row: SubRow) {
         scope.launch(Dispatchers.IO) {
-            finish(session.call { subscriptionDeleteSubscription(DeleteSubscriptionRequest(row.id)) }) {
+            val r = session.call { subscriptionDeleteSubscription(DeleteSubscriptionRequest(row.id)) }
+            if (r is CoreResult.Fail && r.kind == ErrorKind.Precondition) {
+                mutableEvents.tryEmit(SubscriptionsEvent.InUse)
+                return@launch
+            }
+            finish(r) {
                 dispatch(SubscriptionsAction.Removed(row.id))
                 mutableEvents.tryEmit(SubscriptionsEvent.Deleted)
                 load()
+                onServersChanged()
             }
         }
     }
@@ -289,15 +309,22 @@ class SubscriptionsModel(
         scope.launch(Dispatchers.IO) {
             when (val r = session.call { subscriptionRollbackSubscription(RollbackSubscriptionRequest(row.id)) }) {
                 is CoreResult.Fail -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(r.kind))
-                is CoreResult.Ok -> if (r.value.success) {
-                    mutableEvents.tryEmit(SubscriptionsEvent.RolledBack(row.name, r.value.restoredCount ?: 0))
-                    load()
-                } else {
+                // The core answers a rollback that worked with an empty message (success stays false, no count): only a
+                // reported error means it did not work. The number of servers is then read from the group itself.
+                is CoreResult.Ok -> if (r.value.error != null) {
                     mutableEvents.tryEmit(SubscriptionsEvent.RollbackFailed)
+                } else {
+                    val count = r.value.restoredCount ?: serverCount(row.id) ?: 0
+                    mutableEvents.tryEmit(SubscriptionsEvent.RolledBack(row.name, count))
+                    load()
+                    onServersChanged()
                 }
             }
         }
     }
+
+    private suspend fun serverCount(groupId: Long): Int? =
+        (session.call { profileListProfiles(ListProfilesRequest(groupId = groupId, page = Page(offset = 0, limit = 1))) } as? CoreResult.Ok)?.value?.total?.toInt()
 
     // ---- sheets: these return the outcome so the sheet can show the error under its field
 
@@ -353,6 +380,7 @@ class SubscriptionsModel(
             }
         }
         load()
+        onServersChanged()
         return out
     }
 
@@ -375,7 +403,7 @@ class SubscriptionsModel(
 
     suspend fun save(row: SubRow, plan: EditPlan): CoreResult<Unit> {
         if (plan.isEmpty) return CoreResult.Ok(Unit)
-        val g = rawGroups[row.id] ?: return CoreResult.Fail(ErrorKind.NotFound)
+        val g = freshGroup(row.id) ?: return CoreResult.Fail(ErrorKind.NotFound)
         val r = session.call { applyPlan(g, plan) }
         return when (r) {
             is CoreResult.Fail -> r

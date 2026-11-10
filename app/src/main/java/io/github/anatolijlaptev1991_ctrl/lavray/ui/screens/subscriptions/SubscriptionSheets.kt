@@ -137,6 +137,7 @@ private fun SettingsSheet(row: SubRow, env: SubSheetEnv, close: () -> Unit) {
         )
         LavTextField(
             form.url, { form = form.copy(url = it) }, label = stringResource(R.string.imp_link), mono = true,
+            error = if (form.url.isNotBlank() && !SubscriptionLogic.isWebLink(form.url)) stringResource(R.string.sub_url_web) else null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         )
         IntervalPicker(form) { form = it }

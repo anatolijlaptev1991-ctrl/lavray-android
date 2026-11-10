@@ -508,6 +508,7 @@
     <string name="srv_empty_d">Füge ein Abo oder einen Link hinzu, dann erscheinen deine Server hier.</string>
     <string name="srv_empty_t">Noch keine Server</string>
     <string name="srv_group">Nach Abo gruppieren</string>
+    <string name="srv_inUse">Der verbundene Server und eine Gruppe, die ihn enthält, lassen sich nicht löschen: Erst trennen oder auf einen anderen Server wechseln.</string>
     <string name="srv_manual">Manuell hinzugefügt</string>
     <string name="srv_menu_clone">Duplizieren</string>
     <string name="srv_menu_move">In Gruppe verschieben …</string>
@@ -562,6 +563,7 @@
     <string name="sub_set_uaField">Eigener User-Agent</string>
     <string name="sub_settings">Abo-Einstellungen</string>
     <string name="sub_unlimited">Unbegrenzt</string>
+    <string name="sub_url_web">Erforderlich ist ein Link mit http:// oder https://. Verschlüsselte Links fügst du über den Import hinzu.</string>
     <string name="subs_add">Abo hinzufügen</string>
     <string name="subs_auto">Auto-Update</string>
     <string name="subs_delConfirm">Abo „%2$s“ und seine Server löschen (%1$s)?</string>

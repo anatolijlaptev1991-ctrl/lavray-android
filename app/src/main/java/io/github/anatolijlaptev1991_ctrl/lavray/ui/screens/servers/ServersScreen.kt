@@ -129,6 +129,7 @@ private fun EventToasts(model: ServersModel) {
                     is ServersEvent.Deleted -> ctx.getString(R.string.toast_deletedN, e.count.toString())
                     ServersEvent.Moved -> ctx.getString(R.string.mv_done)
                     ServersEvent.GroupSaved -> ctx.getString(R.string.toast_saved)
+                    ServersEvent.InUse -> ctx.getString(R.string.srv_inUse)
                     is ServersEvent.Failed -> ctx.getString(e.kind.textRes())
                 }
                 env.toast.show(text)

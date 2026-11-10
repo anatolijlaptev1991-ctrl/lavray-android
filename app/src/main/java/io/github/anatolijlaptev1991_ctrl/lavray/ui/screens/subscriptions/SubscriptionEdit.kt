@@ -36,9 +36,12 @@ data class EditForm(
     val hwid: Boolean = false,
     val hwidTouched: Boolean = false,
 ) {
-    /** Custom User-Agent needs a value, a name and a link must not be blank, header length is capped as in the core. */
+    /**
+     * Custom User-Agent needs a value, a name must not be blank, header length is capped as in the core. The link must be
+     * http(s): the core stores an edited address as typed and cannot open an encrypted link there (only when one is added).
+     */
     val valid: Boolean
-        get() = name.isNotBlank() && url.isNotBlank() &&
+        get() = name.isNotBlank() && SubscriptionLogic.isWebLink(url) &&
             (ua != UaPreset.Custom || uaCustom.isNotBlank()) && uaCustom.length <= SubscriptionLogic.UA_MAX
 
     companion object {

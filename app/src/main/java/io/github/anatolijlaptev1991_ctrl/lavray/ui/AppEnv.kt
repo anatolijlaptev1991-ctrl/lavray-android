@@ -46,11 +46,18 @@ class AppEnv(
         private set
 
     val connection: ConnectionModel by lazy { ConnectionModel(session, scope) }
-    val servers: ServersModel by lazy { ServersModel(session, scope, vpn) }
-    val importer: ImportModel by lazy { ImportModel(session, scope, subscriptions, { servers.refresh() }) }
+    val servers: ServersModel by lazy { ServersModel(session, scope, vpn::connect) }
+    /** Raised when servers or subscriptions change behind a screen's back (import); screens that list them reload on it. */
+    val data = DataChanges()
+    val importer: ImportModel by lazy { ImportModel(session, scope, subscriptions, ::serversChanged) }
+
+    private fun serversChanged() {
+        servers.refresh()
+        data.notifyChanged()
+    }
     val restart: RestartHub by lazy { RestartHub(session, scope) }
     val exit: ExitProbe by lazy { ExitProbe(CoreProbeBackend(session)) }
-    val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext)) }
+    val subscriptions: SubscriptionsModel by lazy { SubscriptionsModel(session, scope, SubFailureStore(appContext), ::serversChanged) }
 
     /** Replaces the settings and saves them; the UI recomposes from the new immutable value. */
     fun update(change: (UiSettings) -> UiSettings) {

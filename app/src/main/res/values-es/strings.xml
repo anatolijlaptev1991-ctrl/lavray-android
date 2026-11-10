@@ -508,6 +508,7 @@
     <string name="srv_empty_d">Añade una suscripción o un enlace y tus servidores aparecerán aquí.</string>
     <string name="srv_empty_t">Aún no hay servidores</string>
     <string name="srv_group">Agrupar por suscripción</string>
+    <string name="srv_inUse">No se puede eliminar el servidor conectado ni un grupo que lo contiene: desconéctate o cambia a otro servidor antes.</string>
     <string name="srv_manual">Añadidos a mano</string>
     <string name="srv_menu_clone">Duplicar</string>
     <string name="srv_menu_move">Mover a un grupo…</string>
@@ -562,6 +563,7 @@
     <string name="sub_set_uaField">User-Agent personalizado</string>
     <string name="sub_settings">Ajustes de la suscripción</string>
     <string name="sub_unlimited">Sin límite</string>
+    <string name="sub_url_web">Hace falta un enlace que empiece por http:// o https://. Añade un enlace cifrado desde Importar.</string>
     <string name="subs_add">Añadir suscripción</string>
     <string name="subs_auto">Actualización automática</string>
     <string name="subs_delConfirm">¿Eliminar la suscripción «%2$s» y sus servidores (%1$s)?</string>

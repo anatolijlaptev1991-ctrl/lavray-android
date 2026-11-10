@@ -30,7 +30,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileStopTests
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileTestLatency
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.profileUpdateGroup
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreState
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.VpnActions
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
@@ -55,6 +54,9 @@ sealed interface ServersEvent {
     data class Deleted(val count: Int) : ServersEvent
     data object Moved : ServersEvent
     data object GroupSaved : ServersEvent
+
+    /** The core refused to delete the connected server, or a group that holds it. */
+    data object InUse : ServersEvent
     data class Failed(val kind: ErrorKind) : ServersEvent
 }
 
@@ -66,7 +68,7 @@ sealed interface ServersEvent {
 class ServersModel(
     private val session: CoreSession,
     private val scope: CoroutineScope,
-    private val vpn: VpnActions,
+    private val connectTo: (Long) -> Unit,
 ) {
     private val actions = Channel<ServersAction>(Channel.UNLIMITED)
     private val mutable = MutableStateFlow(ServersState())
@@ -183,7 +185,7 @@ class ServersModel(
 
     fun delete(ids: Set<Long>) {
         scope.launch(Dispatchers.IO) {
-            finish(session.call { profileDeleteProfile(DeleteProfileRequest(ids.toList())) }) {
+            finish(session.call { profileDeleteProfile(DeleteProfileRequest(ids.toList())) }, inUseWhenRefused = true) {
                 dispatch(ServersAction.Removed(ids))
                 mutableEvents.tryEmit(ServersEvent.Deleted(ids.size))
             }
@@ -230,8 +232,10 @@ class ServersModel(
     }
 
     fun renameGroup(id: Long, name: String) {
-        val current = rawGroups[id] ?: return
         scope.launch(Dispatchers.IO) {
+            // UpdateGroup replaces the whole group: send what the core holds now, not the copy loaded earlier.
+            val fresh = (session.call { profileListGroups() } as? CoreResult.Ok)?.value?.groups?.firstOrNull { it.id == id }
+            val current = fresh ?: rawGroups[id] ?: return@launch
             finish(session.call { profileUpdateGroup(UpdateGroupRequest(current.copy(name = name.trim()))) }) {
                 mutableEvents.tryEmit(ServersEvent.GroupSaved)
                 refresh()
@@ -241,7 +245,7 @@ class ServersModel(
 
     fun deleteGroup(id: Long) {
         scope.launch(Dispatchers.IO) {
-            finish(session.call { profileDeleteGroup(DeleteGroupRequest(id)) }) { refresh() }
+            finish(session.call { profileDeleteGroup(DeleteGroupRequest(id)) }, inUseWhenRefused = true) { refresh() }
         }
     }
 
@@ -251,12 +255,20 @@ class ServersModel(
         is CoreResult.Fail -> null
     }.also { if (it == null) mutableEvents.tryEmit(ServersEvent.Failed(ErrorKind.NotFound)) }
 
-    fun connect(id: Long) = vpn.connect(id)
+    fun connect(id: Long) = connectTo(id)
 
-    private inline fun <T> finish(result: CoreResult<T>, onOk: () -> Unit) {
+    /**
+     * A refused change is reported, and the list is read again: the core applies a batch one item at a time and stops
+     * at the first refusal, so some of the items may have changed before it said no.
+     */
+    private inline fun <T> finish(result: CoreResult<T>, inUseWhenRefused: Boolean = false, onOk: () -> Unit) {
         when (result) {
             is CoreResult.Ok -> onOk()
-            is CoreResult.Fail -> mutableEvents.tryEmit(ServersEvent.Failed(result.kind))
+            is CoreResult.Fail -> {
+                val inUse = inUseWhenRefused && result.kind == ErrorKind.Precondition
+                mutableEvents.tryEmit(if (inUse) ServersEvent.InUse else ServersEvent.Failed(result.kind))
+                refresh()
+            }
         }
     }
 
