@@ -23,7 +23,7 @@ sealed interface AutoEvent {
     data object NetworkAvailable : AutoEvent
     data object NetworkLost : AutoEvent
     data object AttemptSucceeded : AutoEvent
-    data class AttemptFailed(val permanent: Boolean, val message: String?) : AutoEvent
+    data class AttemptFailed(val permanent: Boolean, val message: String?, val kind: String? = null) : AutoEvent
     data object TimerFired : AutoEvent
 
     /** The connection dropped after it had been established. */
@@ -38,7 +38,7 @@ sealed interface AutoEffect {
     data object CancelRetry : AutoEffect
     data class WatchNetwork(val enabled: Boolean) : AutoEffect
     data object NotifyNeedsPermission : AutoEffect
-    data class Fail(val message: String?) : AutoEffect
+    data class Fail(val message: String?, val kind: String? = null) : AutoEffect
 }
 
 data class AutoState(
@@ -76,8 +76,9 @@ class AutoConnectMachine(private val backoff: RetryBackoff = RetryBackoff()) {
     private fun onStart(e: AutoEvent.Start): List<AutoEffect> {
         backoff.reset()
         if (!e.consentGranted) {
+            // A retry timer or network watcher from an earlier start must not outlive this one.
             state = AutoState(AutoPhase.IDLE, e.source.retries, e.networkAvailable)
-            return listOf(AutoEffect.NotifyNeedsPermission)
+            return listOf(AutoEffect.CancelRetry, AutoEffect.WatchNetwork(false), AutoEffect.NotifyNeedsPermission)
         }
         if (e.source.retries && !e.networkAvailable) {
             state = AutoState(AutoPhase.WAITING_NETWORK, true, false)
@@ -113,7 +114,7 @@ class AutoConnectMachine(private val backoff: RetryBackoff = RetryBackoff()) {
         if (state.phase != AutoPhase.ATTEMPTING) return emptyList()
         if (e.permanent || !state.retries) {
             state = state.copy(phase = AutoPhase.FAILED)
-            return listOf(AutoEffect.CancelRetry, AutoEffect.WatchNetwork(false), AutoEffect.Fail(e.message))
+            return listOf(AutoEffect.CancelRetry, AutoEffect.WatchNetwork(false), AutoEffect.Fail(e.message, e.kind))
         }
         if (!state.networkAvailable) {
             state = state.copy(phase = AutoPhase.WAITING_NETWORK)

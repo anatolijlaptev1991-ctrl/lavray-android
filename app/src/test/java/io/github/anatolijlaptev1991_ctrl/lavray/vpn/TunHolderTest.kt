@@ -49,4 +49,21 @@ class TunHolderTest {
         holder.release()
         assertFalse(holder.isHeld())
     }
+
+    // A late IDLE of the previous run must not close the interface that the next run just established.
+    @Test
+    fun releaseOfAnOlderGenerationIsIgnored() {
+        val holder = TunHolder<Fake>()
+        val first = Fake()
+        val second = Fake()
+        val g1 = holder.replace(first)
+        val g2 = holder.replace(second)
+        assertEquals(g2, holder.currentGeneration())
+        assertFalse(holder.releaseIfCurrent(g1))
+        assertEquals(0, second.closed)
+        assertTrue(holder.isHeld())
+        assertTrue(holder.releaseIfCurrent(g2))
+        assertEquals(1, second.closed)
+        assertFalse(holder.releaseIfCurrent(g2))
+    }
 }

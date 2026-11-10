@@ -7,11 +7,13 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnObserver
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.IVpnService
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatusWire
 
 /** What the binder needs from the service; keeps the AIDL stub free of service internals. */
 internal interface VpnBinderHost {
     fun endpoint(): CoreEndpoint
     fun connect(profileId: Long)
+    fun reconnect(profileId: Long)
     fun disconnect()
     fun currentStatus(): VpnStatus
     var autoConnect: Boolean
@@ -35,12 +37,14 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
 
     override fun connect(profileId: Long) = host.connect(profileId)
 
+    override fun reconnect(profileId: Long) = host.reconnect(profileId)
+
     override fun disconnect() = host.disconnect()
 
     override fun registerObserver(observer: IVpnObserver) {
         observers.register(observer)
         val status = host.currentStatus()
-        runCatching { observer.onStatus(status.state.code, status.error) }
+        runCatching { deliver(observer, status) }
     }
 
     override fun unregisterObserver(observer: IVpnObserver) {
@@ -59,16 +63,24 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
         host.appSelection = AppSelection.parse(json)
     }
 
+    /**
+     * Synchronized: the event loop and binder threads both publish, and RemoteCallbackList allows one broadcast at a time
+     * (a second beginBroadcast throws).
+     */
+    @Synchronized
     fun broadcast(status: VpnStatus) {
         val n = observers.beginBroadcast()
         try {
             for (i in 0 until n) {
-                runCatching { observers.getBroadcastItem(i).onStatus(status.state.code, status.error) }
+                runCatching { deliver(observers.getBroadcastItem(i), status) }
             }
         } finally {
             observers.finishBroadcast()
         }
     }
+
+    private fun deliver(observer: IVpnObserver, status: VpnStatus) =
+        observer.onStatus(status.state.code, status.error, VpnStatusWire.detailOf(status))
 
     fun kill() = observers.kill()
 

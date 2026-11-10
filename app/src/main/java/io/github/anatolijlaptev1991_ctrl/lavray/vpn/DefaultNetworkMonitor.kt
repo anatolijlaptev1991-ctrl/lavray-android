@@ -24,18 +24,19 @@ enum class NetworkRegistration {
     /** API 31+: the best network that is not a VPN, with no side effects. */
     BEST_MATCHING,
 
-    /** API 28 to 30: a request for the best non-VPN network. */
+    /**
+     * API 26 to 30: a request for the best non-VPN network. requestNetwork(request, callback, handler) exists since
+     * API 26 and needs only CHANGE_NETWORK_STATE (developer.android.com, ConnectivityManager); no documented
+     * limitation on 26-27. The plain default-network callback was used there before and never saw a physical change
+     * once the tunnel was up (it reports the tunnel itself as the default).
+     */
     REQUEST,
-
-    /** API 26 and 27: the plain default-network callback. */
-    DEFAULT,
     ;
 
     companion object {
         fun forSdk(sdk: Int): NetworkRegistration = when {
             sdk >= Build.VERSION_CODES.S -> BEST_MATCHING
-            sdk >= Build.VERSION_CODES.P -> REQUEST
-            else -> DEFAULT
+            else -> REQUEST
         }
     }
 }
@@ -125,7 +126,6 @@ class DefaultNetworkMonitor(
         when (NetworkRegistration.forSdk(Build.VERSION.SDK_INT)) {
             NetworkRegistration.BEST_MATCHING -> cm.registerBestMatchingNetworkCallback(request, callback, handler)
             NetworkRegistration.REQUEST -> cm.requestNetwork(request, callback, handler)
-            NetworkRegistration.DEFAULT -> cm.registerDefaultNetworkCallback(callback, handler)
         }
     }
 
@@ -175,13 +175,18 @@ class DefaultNetworkMonitor(
             val lp = cm.getLinkProperties(network) ?: return null
             val name = lp.interfaceName ?: return null
             val index = runCatching { Os.if_nametoindex(name) }.getOrDefault(0)
+            val type = transportName(caps)
             return InterfaceInfo(
                 name = name,
                 index = index,
                 mtu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) lp.mtu else 0,
                 addrs = lp.linkAddresses.map { "${it.address.hostAddress?.substringBefore('%')}/${it.prefixLength}" },
+                flags = InterfaceFlags.forType(type, IffMasks.fromOs()),
                 metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
-                type = transportName(caps),
+                type = type,
+                dns = lp.dnsServers.mapNotNull { it.hostAddress?.substringBefore('%') },
+                gateway = lp.routes.filter { it.isDefaultRoute && it.gateway?.isAnyLocalAddress == false }
+                    .mapNotNull { it.gateway?.hostAddress?.substringBefore('%') },
             )
         }
 

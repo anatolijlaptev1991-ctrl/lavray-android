@@ -327,10 +327,16 @@
     <string name="notif_connecting">正在连接…</string>
     <string name="notif_disconnecting">正在断开…</string>
     <string name="notif_error">连接失败</string>
+    <string name="notif_failure_apps_none">所选应用均未安装。请在设置中重新选择应用。</string>
+    <string name="notif_failure_no_server">未选择服务器。请选择服务器后重新连接。</string>
     <string name="notif_failure_title">无法连接</string>
     <string name="notif_idle">未连接</string>
     <string name="notif_permission_text">打开应用，重新允许 VPN。</string>
     <string name="notif_permission_title">需要 VPN 权限</string>
+    <string name="notif_protection_off_text">隧道未能及时恢复，应用现在使用普通网络连接。</string>
+    <string name="notif_protection_off_title">保护已关闭</string>
+    <string name="notif_stopped_text">打开应用以重新开启 VPN。</string>
+    <string name="notif_stopped_title">VPN 已停止</string>
     <string name="notif_waiting_network">等待网络</string>
     <string name="onb_src_happ_d">粘贴加密的订阅链接 — 本地解密</string>
     <string name="out_block">拦截</string>
@@ -592,7 +598,7 @@
     <string name="tun_exclAddrErr">不是地址或网络：</string>
     <string name="tun_exclHint">每行一个</string>
     <string name="tun_ipv6">IPv6 经隧道</string>
-    <string name="tun_ipv6_d">关闭：IPv6 流量不进入隧道，使用普通网络连接。</string>
+    <string name="tun_ipv6_d">关闭：隧道内应用的 IPv6 会被阻止（不会直连），这些应用只使用 IPv4。</string>
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">MTU 须在 1280–9000 之间</string>
     <string name="tun_mtu_d">隧道可传输的最大数据包。如果部分网站卡住而其他正常，请调低。</string>

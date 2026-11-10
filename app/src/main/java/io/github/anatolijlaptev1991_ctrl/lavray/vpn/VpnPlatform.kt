@@ -7,10 +7,20 @@ import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
 import lavray.core.mobile.NetworkListener
 import lavray.core.mobile.Platform
 import java.io.IOException
 import java.net.InetSocketAddress
+
+/** What the platform tells the service about the interface it builds; called from Go threads, must not block. */
+internal interface PlatformListener {
+    /** A new interface replaced the previous one. [skippedPackages] are selected apps that are not installed. */
+    fun onTunEstablished(generation: Int, skippedPackages: List<String>)
+
+    /** The interface could not be built for a reason that retrying cannot fix. */
+    fun onTunFailed(failure: TunFailure)
+}
 
 /**
  * The host side of the Go core: everything it cannot do from native code on Android.
@@ -20,6 +30,7 @@ internal class VpnPlatform(
     private val service: VpnService,
     private val connectivity: ConnectivityManager,
     private val establisher: TunEstablisher,
+    private val events: PlatformListener,
 ) : Platform {
     private var monitor: DefaultNetworkMonitor? = null
     private var listener: NetworkListener? = null
@@ -27,17 +38,37 @@ internal class VpnPlatform(
     private val tun = TunHolder<ParcelFileDescriptor>()
 
     override fun openTun(optionsJSON: String): Int {
-        val pfd = establisher.establish(TunOptions.parse(optionsJSON))
-        // The core duplicates the descriptor; this one stays open (and so does the interface)
-        // until the tunnel ends. A reconnect replaces and closes the previous one.
-        tun.replace(pfd)
+        val built = try {
+            establisher.establish(TunOptions.parse(optionsJSON))
+        } catch (e: NoAllowedAppsException) {
+            events.onTunFailed(TunFailure(FailureKind.APPS_NONE, e.message))
+            throw e
+        }
+        // The core gets an independent descriptor (dup + detach) and owns it; this one stays open, and so does
+        // the interface, until the tunnel ends. A late release from an older run cannot close a descriptor the
+        // core is using, and the core closing its own never ends the interface.
+        val forCore = try {
+            built.descriptor.dup().detachFd()
+        } catch (e: IOException) {
+            runCatching { built.descriptor.close() }
+            throw e
+        }
+        val generation = tun.replace(built.descriptor)
+        events.onTunEstablished(generation, built.skippedPackages)
         // The new interface follows the default network until the monitor says otherwise.
         syncUnderlying(currentUnderlying)
-        return pfd.fd
+        return forCore
     }
 
     /** Ends the interface once the core has stopped using it. Safe to call at any time. */
     fun releaseTun() = tun.release()
+
+    /** Ends the interface only if it is still the one of [generation]; false when a newer one replaced it. */
+    fun releaseTunIfCurrent(generation: Int): Boolean = tun.releaseIfCurrent(generation)
+
+    fun tunGeneration(): Int = tun.currentGeneration()
+
+    fun isTunHeld(): Boolean = tun.isHeld()
 
     override fun protect(fd: Int) {
         if (!service.protect(fd)) throw IOException("VpnService.protect failed")
@@ -56,8 +87,10 @@ internal class VpnPlatform(
         }
     }
 
-    override fun packagesForUid(uid: Int): String =
+    // No error result in the Go interface: an exception escaping into native code would kill the process.
+    override fun packagesForUid(uid: Int): String = runCatching {
         service.packageManager.getPackagesForUid(uid)?.joinToString(",").orEmpty()
+    }.getOrDefault("")
 
     @Volatile
     private var currentUnderlying: Network? = null

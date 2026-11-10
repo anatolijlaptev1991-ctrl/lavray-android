@@ -17,6 +17,13 @@ interface IVpnService {
 
     void disconnect();
 
+    /**
+     * Rebuilds the tunnel (server switch, new settings): the interface stays blocked, not open, until the new one
+     * replaces it, for at most 30 seconds. profileId <= 0 reconnects the last server. Use this instead of
+     * disconnect() followed by connect(), which hands every app the direct connection in between.
+     */
+    void reconnect(long profileId);
+
     /** Delivers the current status immediately, then every change. */
     void registerObserver(IVpnObserver observer);
 

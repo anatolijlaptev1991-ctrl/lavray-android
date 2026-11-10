@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.vpn
 
-import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.VpnService
-import android.os.Build
 import android.os.IBinder
-import android.os.PowerManager
+import android.os.SystemClock
+import android.util.Log
 import io.github.anatolijlaptev1991_ctrl.lavray.R
 import io.github.anatolijlaptev1991_ctrl.lavray.api.ApiException
 import io.github.anatolijlaptev1991_ctrl.lavray.api.ConnectCode
@@ -23,6 +18,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.CoreStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.DisconnectRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreDisconnect
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreSubscribeEvents
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.MainActivity
@@ -43,23 +39,37 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The tunnel, in its own process (:vpn). One coroutine consumes every event in order,
- * so the auto-connect machine and the status fields have a single writer. Nothing here
- * polls, schedules alarms or holds a wake lock; the only timers are the backoff delays.
+ * The tunnel, in its own process (:vpn). One coroutine consumes every event in order, so the auto-connect
+ * machine and the status fields have a single writer. Nothing here polls, schedules alarms or holds a wake
+ * lock; the only timers are the backoff delays, the grace period after a core drop and the blackhole cap.
+ *
+ * The decisions live in small testable classes: [AutoConnectMachine] (retry), [LinkWatch] (is a core drop final),
+ * [BlackholePolicy] (keep the interface blocked during a transition), [TunnelIntent] (what survives a process
+ * death), [StatusModel] (what the UI is told), [ShutdownPolicy] (when the process may leave).
  */
 class LavrayVpnService : VpnService(), VpnBinderHost {
+    private sealed interface Outcome {
+        data class Success(val status: CoreStatus) : Outcome
+        data class Failure(val failure: AttemptFailure) : Outcome
+    }
+
     private sealed interface Event {
         data class Command(val command: StartCommand) : Event
         data class Auto(val event: AutoEvent) : Event
         data class Core(val status: CoreStatus) : Event
-        data class UiBound(val bound: Boolean) : Event
+        data class AttemptDone(val generation: Int, val outcome: Outcome) : Event
+        data class GraceElapsed(val token: Int) : Event
+        data class TunEstablished(val generation: Int, val skipped: List<String>) : Event
+        data object Poke : Event
         data object Revoked : Event
     }
 
     private val events = Channel<Event>(Channel.UNLIMITED)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val machine = AutoConnectMachine()
-    private val gate = NotificationGate()
+    private val watch = LinkWatch()
+    private val blackhole = BlackholePolicy()
+    private val ui = UiBindTracker()
     private val binder = VpnBinder(this)
     private val coreMutex = Mutex()
 
@@ -67,25 +77,40 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
     private lateinit var platform: VpnPlatform
     private lateinit var watcher: NetworkWatcher
     private lateinit var prefs: VpnPrefs
+    private lateinit var wish: TunnelIntent
+    private lateinit var fg: ServiceForeground
 
     @Volatile private var client: LavrayClient? = null
     @Volatile private var endpoint: CoreEndpoint? = null
     @Volatile private var status: VpnStatus = VpnStatus.IDLE
 
+    /** Set from Go threads while the interface is built; read by the attempt that asked for it. */
+    @Volatile private var tunFailure: TunFailure? = null
+
     // The fields below are touched only by the event loop.
     private var coreStatus: CoreStatus? = null
     private var requestedProfile: Long? = null
-    private var lastFailure: String? = null
-    private var needsPermission = false
-    private var uiBound = false
-    private var foreground = false
     private var attemptJob: Job? = null
+    private var attemptProfile: Long? = null
+    private var attemptGeneration = 0
+    private var disconnectFirst = false
     private var retryJob: Job? = null
+    private var graceJob: Job? = null
+    private var holdJob: Job? = null
     private var eventsJob: Job? = null
+    private var disconnecting = false
+    private var knownTunGeneration = 0
+    private var skippedPackages: List<String> = emptyList()
+    private var holdUntilMono = 0L
+    private var blackholeUntilWall = 0L
 
-    private val screenOn = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            gate.onScreenOn()?.let { notify(it) }
+    private val platformEvents = object : PlatformListener {
+        override fun onTunEstablished(generation: Int, skippedPackages: List<String>) {
+            post(Event.TunEstablished(generation, skippedPackages))
+        }
+
+        override fun onTunFailed(failure: TunFailure) {
+            tunFailure = failure
         }
     }
 
@@ -94,16 +119,27 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         live.incrementAndGet()
         VpnNotifications.ensureChannels(this)
         prefs = VpnPrefs(this)
+        wish = TunnelIntent(prefs)
+        fg = ServiceForeground(this)
+        // A stale "wanted" flag in a fresh process means the last process died without anyone deciding it.
+        wish.onProcessStarted(ExitReasons.lastVpnExit(this))
+        if (wish.snapshot.needsPermission && VpnService.prepare(this) == null) wish.onPermissionGranted()
         val cm = getSystemService(ConnectivityManager::class.java)
         val openApp = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        platform = VpnPlatform(this, cm, TunEstablisher(this, getString(R.string.app_name), openApp) { prefs.appSelection })
+        platform = VpnPlatform(
+            this,
+            cm,
+            TunEstablisher(this, getString(R.string.app_name), openApp) { prefs.appSelection },
+            platformEvents,
+        )
         core = CoreHost(this, platform)
         watcher = NetworkWatcher(
             cm,
             onAvailable = { post(Event.Auto(AutoEvent.NetworkAvailable)) },
             onLost = { post(Event.Auto(AutoEvent.NetworkLost)) },
         )
-        registerScreenReceiver()
+        fg.registerScreenReceiver()
+        scope.launch(Dispatchers.IO) { BootComponents.reconcile(this@LavrayVpnService, prefs.autoConnect) }
         scope.launch { for (event in events) handle(event) }
     }
 
@@ -112,23 +148,41 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
             intent?.action,
             intent?.getStringExtra(StartIntent.EXTRA_SOURCE),
             intent?.getLongExtra(StartIntent.EXTRA_PROFILE_ID, 0L) ?: 0L,
+            hasIntent = intent != null,
         )
-        // A start that was promised to become foreground must do so within seconds, whatever follows.
-        if (command is StartCommand.Connect) enterForeground()
+        when (command) {
+            // A start that was promised to become foreground must do so within seconds, whatever follows.
+            is StartCommand.Connect, is StartCommand.Reconnect -> {
+                if (!fg.enter()) failRestrictedStart()
+            }
+            StartCommand.Disconnect -> this.wish.onUserDisconnect()
+            StartCommand.Resume -> fg.enter()
+        }
         post(Event.Command(command))
-        return START_NOT_STICKY
+        // Sticky: after the process dies the system restarts the service with a null intent, and [StartCommand.Resume]
+        // reconnects only if the tunnel was wanted and consent is still there; otherwise it stops at once.
+        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         if (intent?.action == SERVICE_INTERFACE) return super.onBind(intent)
-        post(Event.UiBound(true))
+        ui.onBind()
+        post(Event.Poke)
         scope.launch(Dispatchers.IO) { runCatching { ensureCore() } }
         return binder
     }
 
+    override fun onRebind(intent: Intent?) {
+        ui.onRebind()
+        post(Event.Poke)
+    }
+
     override fun onUnbind(intent: Intent?): Boolean {
-        if (intent?.action != SERVICE_INTERFACE) post(Event.UiBound(false))
-        return super.onUnbind(intent)
+        if (intent?.action == SERVICE_INTERFACE) return super.onUnbind(intent)
+        ui.onUnbind()
+        post(Event.Poke)
+        // True: when the UI comes back to a live service the system calls onRebind instead of staying silent.
+        return true
     }
 
     override fun onRevoke() {
@@ -136,7 +190,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
     }
 
     override fun onDestroy() {
-        unregisterReceiver(screenOn)
+        fg.unregisterScreenReceiver()
         watcher.stop()
         platform.close()
         binder.kill()
@@ -144,7 +198,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         live.decrementAndGet()
         val host = core
         // Stop the core and leave: this process exists only for the tunnel. A new
-        // service instance created meanwhile keeps the process alive.
+        // service instance created meanwhile keeps the process alive and owns its own core.
         Thread({
             host.stop()
             if (live.get() == 0) android.os.Process.killProcess(android.os.Process.myPid())
@@ -159,18 +213,29 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         return checkNotNull(endpoint)
     }
 
-    override fun connect(profileId: Long) {
-        val intent = Intent(this, LavrayVpnService::class.java)
+    override fun connect(profileId: Long) = startViaIntent(null, profileId)
+
+    override fun reconnect(profileId: Long) = startViaIntent(StartIntent.ACTION_RECONNECT, profileId)
+
+    private fun startViaIntent(action: String?, profileId: Long) {
+        // Written before the start, with commit(): a process that dies a moment later must still be restored.
+        wish.onConnectRequested()
+        val start = Intent(this, LavrayVpnService::class.java)
             .putExtra(StartIntent.EXTRA_SOURCE, StartSource.USER.wire)
             .putExtra(StartIntent.EXTRA_PROFILE_ID, profileId)
+        if (action != null) start.setAction(action)
         try {
-            startForegroundService(intent)
+            startForegroundService(start)
         } catch (e: RuntimeException) {
-            publishNow(VpnStatus(VpnState.ERROR, e.message))
+            wish.onGaveUp(FailureKind.RESTRICTED_START, e.message, wasEstablished = false)
+            publishNow(VpnStatus(VpnState.ERROR, e.message, lastFailure = e.message, failureKind = FailureKind.RESTRICTED_START))
         }
     }
 
-    override fun disconnect() = post(Event.Command(StartCommand.Disconnect))
+    override fun disconnect() {
+        wish.onUserDisconnect()
+        post(Event.Command(StartCommand.Disconnect))
+    }
 
     override fun currentStatus(): VpnStatus = status
 
@@ -178,6 +243,8 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         get() = prefs.autoConnect
         set(value) {
             prefs.autoConnect = value
+            // The boot receiver exists only while the setting is on; a failed switch leaves it on, never silently off.
+            BootComponents.reconcile(this, value)
         }
 
     override var appSelection: AppSelection
@@ -193,52 +260,156 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
     }
 
     private suspend fun handle(event: Event) {
+        guarded("event") { dispatch(event) }
+        guarded("reconcile") { reconcile() }
+        guarded("publish") { publish() }
+    }
+
+    // One bad event must not end the loop: the tunnel outlives any single handler's failure.
+    private inline fun guarded(what: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "$what failed: ${e.javaClass.simpleName}")
+            runCatching { publishNow(VpnStatus(VpnState.ERROR, e.message ?: e.javaClass.simpleName)) }
+        }
+    }
+
+    private suspend fun dispatch(event: Event) {
         when (event) {
             is Event.Command -> when (val c = event.command) {
-                is StartCommand.Connect -> startConnect(c)
+                is StartCommand.Connect -> startConnect(c.source, c.profileId, reconnecting = false)
+                is StartCommand.Reconnect -> startConnect(StartSource.USER, c.profileId, reconnecting = true)
                 StartCommand.Disconnect -> stopConnection(AutoEvent.ManualDisconnect)
+                StartCommand.Resume -> resume()
             }
             is Event.Auto -> apply(machine.handle(event.event))
             is Event.Core -> onCoreStatus(event.status)
-            is Event.UiBound -> uiBound = event.bound
-            Event.Revoked -> stopConnection(AutoEvent.ConsentRevoked)
+            is Event.AttemptDone -> onAttemptDone(event)
+            is Event.GraceElapsed -> applyLink(watch.onGraceElapsed(event.token))
+            is Event.TunEstablished -> {
+                knownTunGeneration = event.generation
+                skippedPackages = event.skipped
+            }
+            Event.Poke -> Unit
+            Event.Revoked -> {
+                wish.onRevoked()
+                stopConnection(AutoEvent.ConsentRevoked)
+            }
         }
-        publish()
     }
 
-    private fun startConnect(command: StartCommand.Connect) {
-        needsPermission = false
-        lastFailure = null
-        VpnNotifications.cancelAlert(this)
-        requestedProfile = command.profileId
+    private fun resume() {
+        val wanted = wish.snapshot.wantConnected
+        if (!wanted || VpnService.prepare(this) != null) {
+            // Nobody asked for the tunnel (or consent is gone): do not hold the process for nothing.
+            if (wanted) wish.onPermissionMissing()
+            return
+        }
+        startConnect(StartSource.SYSTEM, null, reconnecting = false)
+    }
+
+    private fun startConnect(source: StartSource, profileId: Long?, reconnecting: Boolean) {
         val consent = VpnService.prepare(this) == null
-        apply(machine.handle(AutoEvent.Start(command.source, consent, watcher.isUp())))
+        if (consent) wish.onConnectRequested()
+        if (profileId != null) requestedProfile = profileId
+        // A reconnect keeps the interface blocked; the rebuild first asks the core to stop.
+        disconnectFirst = reconnecting && consent && watch.established
+        if (!reconnecting) {
+            watch.reset().forEach { applyLinkEffect(it) }
+            blackhole.reset()
+        }
+        VpnNotifications.cancelAlert(this)
+        apply(machine.handle(AutoEvent.Start(source, consent, watcher.isUp())))
     }
 
     private suspend fun stopConnection(reason: AutoEvent) {
         apply(machine.handle(reason))
+        attemptGeneration++
         attemptJob?.cancel()
-        client?.let { c ->
-            try {
-                c.coreDisconnect(DisconnectRequest(collectStats = false))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Not running, or the core is already gone: the tunnel is down either way.
-            }
+        watch.reset().forEach { applyLinkEffect(it) }
+        blackhole.reset()
+        holdJob?.cancel()
+        blackholeUntilWall = 0
+        // Show "disconnecting" while the core is asked; the answer is bounded.
+        disconnecting = true
+        publishNow(computeStatus())
+        try {
+            disconnectCore()
+        } finally {
+            disconnecting = false
         }
-        coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE)
+        coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE, lastError = null)
+        skippedPackages = emptyList()
         platform.releaseTun()
     }
 
+    /** Asks the core to stop; a core that does not answer in time is stopped from underneath. */
+    private suspend fun disconnectCore() {
+        val c = client ?: return
+        val answered = try {
+            withTimeoutOrNull(DISCONNECT_TIMEOUT_MS) { c.coreDisconnect(DisconnectRequest(collectStats = false)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Not running, or the core is already gone: the tunnel is down either way.
+            Unit
+        }
+        if (answered == null) forceStopCore()
+    }
+
+    private suspend fun forceStopCore() {
+        Log.w(TAG, "core did not answer Disconnect in time; stopping it")
+        eventsJob?.cancel()
+        coreMutex.withLock {
+            client = null
+            endpoint = null
+            withContext(Dispatchers.IO) { core.stop() }
+        }
+    }
+
     private fun onCoreStatus(next: CoreStatus) {
-        val wasActive = isCoreActive()
-        val wasConnected = coreStatus?.state == CoreState.CORE_STATE_CONNECTED
         coreStatus = next
-        // The core has let go of the tunnel: close our descriptor or the interface outlives it.
-        if (wasActive && !isCoreActive()) platform.releaseTun()
-        val dropped = next.state == CoreState.CORE_STATE_ERROR || next.state == CoreState.CORE_STATE_IDLE
-        if (wasConnected && dropped) apply(machine.handle(AutoEvent.ConnectionLost))
+        applyLink(watch.onCore(next.state, attemptRunning = attemptJob?.isActive == true))
+    }
+
+    private fun applyLink(effects: List<LinkEffect>) = effects.forEach { applyLinkEffect(it) }
+
+    private fun applyLinkEffect(effect: LinkEffect) {
+        when (effect) {
+            is LinkEffect.StartGrace -> {
+                graceJob?.cancel()
+                graceJob = scope.launch {
+                    delay(effect.delayMs)
+                    post(Event.GraceElapsed(effect.token))
+                }
+            }
+            LinkEffect.CancelGrace -> graceJob?.cancel()
+            LinkEffect.Lost -> onTunnelLost()
+        }
+    }
+
+    private fun onTunnelLost() {
+        apply(machine.handle(AutoEvent.ConnectionLost))
+        // No retry follows (a user start, or a state that cannot retry): the tunnel ended on its own.
+        if (!machine.state.pending) giveUp(FailureKind.TUNNEL_LOST, coreStatus?.lastError, wasEstablished = true)
+    }
+
+    private fun onAttemptDone(done: Event.AttemptDone) {
+        if (done.generation != attemptGeneration) return // a cancelled or replaced attempt must not overwrite anything
+        when (val outcome = done.outcome) {
+            is Outcome.Success -> {
+                onCoreStatus(outcome.status)
+                wish.onConnected()
+                apply(machine.handle(AutoEvent.AttemptSucceeded))
+            }
+            is Outcome.Failure -> {
+                val f = outcome.failure
+                apply(machine.handle(AutoEvent.AttemptFailed(f.permanent, f.message, f.kind)))
+            }
+        }
     }
 
     private fun apply(effects: List<AutoEffect>) {
@@ -255,15 +426,21 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
                 AutoEffect.CancelRetry -> retryJob?.cancel()
                 is AutoEffect.WatchNetwork -> watchNetwork(effect.enabled)
                 AutoEffect.NotifyNeedsPermission -> {
-                    needsPermission = true
+                    wish.onPermissionMissing()
+                    attemptGeneration++
+                    attemptJob?.cancel()
                     VpnNotifications.postPermissionNeeded(this)
                 }
-                is AutoEffect.Fail -> {
-                    lastFailure = effect.message
-                    if (!uiBound) VpnNotifications.postFailure(this, effect.message)
-                }
+                is AutoEffect.Fail -> giveUp(effect.kind ?: FailureKind.CONNECT_FAILED, effect.message, wasEstablished = false)
             }
         }
+    }
+
+    /** The service stops trying: persist why, and say so when nobody is looking at the app. */
+    private fun giveUp(kind: String, message: String?, wasEstablished: Boolean) {
+        wish.onGaveUp(kind, message, wasEstablished)
+        if (ui.bound) return
+        if (wasEstablished) VpnNotifications.postStopped(this) else VpnNotifications.postFailure(this, kind, message)
     }
 
     private fun watchNetwork(enabled: Boolean) {
@@ -280,23 +457,32 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
     }
 
     private fun launchAttempt() {
-        attemptJob?.cancel()
         val profile = requestedProfile
+        // The same profile already in flight is joined, not cancelled: two starts at boot (the receiver and the
+        // system's Always-on) must not abort the first connect.
+        if (AttemptGate.decide(attemptJob?.isActive == true, attemptProfile, profile) == AttemptDecision.KEEP) return
+        attemptJob?.cancel()
+        val generation = ++attemptGeneration
+        attemptProfile = profile
+        tunFailure = null
+        val reconnecting = disconnectFirst
+        disconnectFirst = false
         attemptJob = scope.launch(Dispatchers.IO) {
-            try {
+            val outcome = try {
                 val c = ensureCore()
                 if (eventsJob?.isActive != true) startEventStream(c)
-                val result = withTimeoutOrNull(ATTEMPT_TIMEOUT_MS) { ConnectAttempt.run(c, profile) }
+                if (reconnecting) runCatching { withTimeoutOrNull(DISCONNECT_TIMEOUT_MS) { c.coreDisconnect(DisconnectRequest(collectStats = false)) } }
+                val status = withTimeoutOrNull(ATTEMPT_TIMEOUT_MS) { ConnectAttempt.run(ClientCoreApi(c), profile) }
                     ?: throw ApiException(ConnectCode.DEADLINE_EXCEEDED, "connect timed out")
-                post(Event.Core(result))
-                post(Event.Auto(AutoEvent.AttemptSucceeded))
+                Outcome.Success(status)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val failure = ConnectAttempt.classify(e)
-                platform.releaseTun()
-                post(Event.Auto(AutoEvent.AttemptFailed(failure.permanent, failure.message)))
+                Outcome.Failure(ConnectAttempt.classify(e, tunFailure))
+            } catch (e: LinkageError) {
+                Outcome.Failure(ConnectAttempt.classify(CoreStartException("core failed to start: ${e.message}", e)))
             }
+            post(Event.AttemptDone(generation, outcome))
         }
     }
 
@@ -326,35 +512,90 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         }
     }
 
-    // ---- status, notification, lifecycle
+    // ---- interface hold, status, lifecycle
+
+    /** The rule is [BlackholePolicy]: keep the interface blocked only while the app itself rebuilds an established tunnel. */
+    private fun reconcile() {
+        val now = SystemClock.elapsedRealtime()
+        val input = HoldInput(platform.isTunHeld(), isCoreActive(), watch.established, watch.inGrace, machine.state.phase)
+        when (val decision = blackhole.evaluate(now, input)) {
+            HoldDecision.None -> endHold()
+            is HoldDecision.Hold -> beginHold(now, decision.untilMs)
+            is HoldDecision.Release -> {
+                endHold()
+                // Against the generation this loop knows: a newer interface (built while this event was on its way) stays.
+                platform.releaseTunIfCurrent(knownTunGeneration)
+                if (decision.capExpired) onBlackholeCapExpired()
+            }
+        }
+    }
+
+    private fun beginHold(now: Long, untilMono: Long) {
+        if (holdUntilMono == untilMono) return
+        holdUntilMono = untilMono
+        blackholeUntilWall = System.currentTimeMillis() + (untilMono - now)
+        holdJob?.cancel()
+        holdJob = scope.launch {
+            delay(untilMono - now)
+            post(Event.Poke)
+        }
+    }
+
+    private fun endHold() {
+        if (holdUntilMono == 0L) return
+        holdUntilMono = 0
+        blackholeUntilWall = 0
+        holdJob?.cancel()
+    }
+
+    private fun onBlackholeCapExpired() {
+        wish.onFailureNoted(FailureKind.PROTECTION_OFF, null)
+        VpnNotifications.postProtectionOff(this)
+    }
 
     private fun publish() {
-        publishNow(computeStatus())
         val active = isCoreActive()
         val pending = machine.state.pending
-        if (foreground && ShutdownPolicy.shouldLeaveForeground(active, pending)) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            foreground = false
+        val transition = watch.inGrace || holdUntilMono != 0L
+        if (ShutdownPolicy.shouldBeForeground(active, pending, transition)) {
+            // The core can be up while the service was demoted (a restricted start); take the state back when allowed.
+            if (!fg.isForeground) fg.enter(computeStatus().state)
+        } else if (fg.isForeground) {
+            fg.leave()
         }
-        if (ShutdownPolicy.shouldStop(active, uiBound, pending)) stopSelf()
+        publishNow(computeStatus())
+        if (ShutdownPolicy.shouldStop(active, ui.bound, pending, transition)) {
+            // Whenever the service stops on its own the wish is cleared, so a fresh process never reads a stale one.
+            if (wish.snapshot.wantConnected) wish.onGaveUp(FailureKind.TUNNEL_LOST, null, wasEstablished = false)
+            stopSelf()
+        }
     }
 
     private fun publishNow(next: VpnStatus) {
         status = next
         binder.broadcast(next)
-        if (foreground) offerNotification(NotificationModel(next.state, next.error))
+        fg.offer(NotificationModel(next.state, next.error))
     }
 
     private fun computeStatus(): VpnStatus {
-        val fromCore = coreStatus?.let { CoreStatusMapper.fromCore(it.state, it.lastError) } ?: VpnStatus.IDLE
-        return when {
-            needsPermission -> VpnStatus(VpnState.NEEDS_PERMISSION)
-            machine.state.phase == AutoPhase.WAITING_NETWORK || machine.state.phase == AutoPhase.BACKING_OFF ->
-                VpnStatus(VpnState.WAITING_NETWORK)
-            machine.state.phase == AutoPhase.FAILED -> VpnStatus(VpnState.ERROR, lastFailure)
-            machine.state.phase == AutoPhase.ATTEMPTING && fromCore.state == VpnState.IDLE -> VpnStatus(VpnState.CONNECTING)
-            else -> fromCore
-        }
+        val saved = wish.snapshot
+        return StatusModel.compute(
+            StatusInputs(
+                coreState = coreStatus?.state,
+                coreError = coreStatus?.lastError,
+                healthError = coreStatus?.healthError,
+                phase = machine.state.phase,
+                needsPermission = saved.needsPermission,
+                lastFailure = saved.lastFailure,
+                failureKind = saved.failureKind,
+                inGrace = watch.inGrace,
+                disconnecting = disconnecting,
+                unexpectedStop = saved.unexpectedStop,
+                stopReason = saved.stopReason,
+                skippedPackages = skippedPackages,
+                blackholeUntilMs = blackholeUntilWall,
+            ),
+        )
     }
 
     private fun isCoreActive(): Boolean = when (coreStatus?.state) {
@@ -365,47 +606,17 @@ class LavrayVpnService : VpnService(), VpnBinderHost {
         else -> false
     }
 
-    private fun enterForeground() {
-        if (foreground) return
-        val model = gate.forcePost(NotificationModel(VpnState.CONNECTING))
-        val notification = VpnNotifications.status(this, model)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(VpnNotifications.ID_STATUS, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(VpnNotifications.ID_STATUS, notification)
-            }
-            foreground = true
-        } catch (e: RuntimeException) {
-            // Not allowed to run in the foreground (restricted start): report and stand down.
-            VpnNotifications.postFailure(this, e.message)
-            stopSelf()
-        }
-    }
-
-    // While the screen is off the update is held back and released by the screen-on receiver.
-    private fun offerNotification(model: NotificationModel) {
-        val interactive = getSystemService(PowerManager::class.java).isInteractive
-        gate.offer(model, interactive)?.let { notify(it) }
-    }
-
-    private fun notify(model: NotificationModel) {
-        if (!foreground) return
-        getSystemService(NotificationManager::class.java)
-            .notify(VpnNotifications.ID_STATUS, VpnNotifications.status(this, model))
-    }
-
-    private fun registerScreenReceiver() {
-        val filter = IntentFilter(Intent.ACTION_SCREEN_ON)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenOn, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(screenOn, filter)
-        }
+    /** A start that must be foreground could not be: report it, record it, and stand down. */
+    private fun failRestrictedStart() {
+        wish.onGaveUp(FailureKind.RESTRICTED_START, null, wasEstablished = false)
+        VpnNotifications.postFailure(this, FailureKind.RESTRICTED_START, null)
+        stopSelf()
     }
 
     private companion object {
+        const val TAG = "LavrayVpn"
         val live = AtomicInteger(0)
         const val ATTEMPT_TIMEOUT_MS = 90_000L
+        const val DISCONNECT_TIMEOUT_MS = 15_000L
     }
 }

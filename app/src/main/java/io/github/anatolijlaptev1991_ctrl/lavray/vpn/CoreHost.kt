@@ -12,12 +12,48 @@ import java.security.SecureRandom
 class CoreStartException(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)
 
 /**
+ * Who owns the one Go core of this process. A service that is destroyed stops its core on a thread of its own;
+ * a service created meanwhile starts a new one. Without an owner the late stop would shut down the NEW core, and
+ * the new start could meet the old one still running ("already started"). The owner is the only one whose stop
+ * counts, and a new owner stops the previous core first.
+ */
+class CoreLifecycle {
+    private val lock = Any()
+    private var owner: Any? = null
+    private var ownerStop: (() -> Unit)? = null
+
+    fun start(who: Any, stopNative: () -> Unit, startNative: () -> Unit) = synchronized(lock) {
+        val previous = ownerStop
+        if (owner != null && owner !== who && previous != null) {
+            runCatching(previous)
+            owner = null
+            ownerStop = null
+        }
+        startNative()
+        owner = who
+        ownerStop = stopNative
+    }
+
+    /** Stops the core only if [who] still owns it. */
+    fun stop(who: Any, stopNative: () -> Unit) = synchronized(lock) {
+        if (owner !== who) return@synchronized
+        owner = null
+        ownerStop = null
+        stopNative()
+    }
+}
+
+/**
  * Owns the Go core inside the :vpn process. Lazy: nothing is loaded until
  * [ensureStarted], so the process that only shows the UI never pays for it.
  * The bearer token is generated per start, lives in memory only, and reaches the
  * UI through the binder; it is never logged or written to disk.
  */
-internal class CoreHost(private val context: Context, private val platform: Platform) {
+internal class CoreHost(
+    private val context: Context,
+    private val platform: Platform,
+    private val lifecycle: CoreLifecycle = PROCESS_LIFECYCLE,
+) {
     private val lock = Any()
     private var endpoint: CoreEndpoint? = null
 
@@ -32,7 +68,7 @@ internal class CoreHost(private val context: Context, private val platform: Plat
     fun stop() {
         synchronized(lock) {
             if (endpoint == null) return
-            runCatching { Mobile.stop() }
+            lifecycle.stop(this) { runCatching { Mobile.stop() } }
             endpoint = null
         }
     }
@@ -54,8 +90,11 @@ internal class CoreHost(private val context: Context, private val platform: Plat
             setTimeZone(java.util.TimeZone.getDefault().id)
         }
         try {
-            Mobile.start(options, platform)
+            lifecycle.start(this, { Mobile.stop() }) { Mobile.start(options, platform) }
         } catch (e: Exception) {
+            throw CoreStartException("core failed to start: ${e.message}", e)
+        } catch (e: LinkageError) {
+            // libgojni.so missing or wrong for this ABI: the same "core failed to start" path, not a process crash.
             throw CoreStartException("core failed to start: ${e.message}", e)
         }
         return CoreEndpoint(socket.absolutePath, token)
@@ -68,6 +107,7 @@ internal class CoreHost(private val context: Context, private val platform: Plat
     }
 
     private companion object {
+        val PROCESS_LIFECYCLE = CoreLifecycle()
         const val SOCKET_NAME = "lavray.sock"
         const val TOKEN_BYTES = 32
     }

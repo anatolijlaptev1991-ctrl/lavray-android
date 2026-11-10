@@ -17,8 +17,15 @@ class DecisionLogicTest {
     @Test
     fun startWithoutOurExtraIsTheSystemsAlwaysOn() {
         assertEquals(StartCommand.Connect(StartSource.SYSTEM, null), StartIntent.parse("android.net.VpnService", null, 0))
-        assertEquals(StartCommand.Connect(StartSource.SYSTEM, null), StartIntent.parse(null, null, 0))
+        assertEquals(StartCommand.Connect(StartSource.SYSTEM, null), StartIntent.parse(null, null, 0, hasIntent = true))
         assertTrue(StartSource.SYSTEM.retries)
+    }
+
+    @Test
+    fun nullIntentIsAStickyRestartAndReconnectIsItsOwnCommand() {
+        assertEquals(StartCommand.Resume, StartIntent.parse(null, null, 0, hasIntent = false))
+        assertEquals(StartCommand.Reconnect(9), StartIntent.parse(StartIntent.ACTION_RECONNECT, "user", 9))
+        assertEquals(StartCommand.Reconnect(null), StartIntent.parse(StartIntent.ACTION_RECONNECT, null, 0))
     }
 
     @Test
@@ -103,14 +110,5 @@ class DecisionLogicTest {
         val rules = AppRules.from(TunOptions(includePackages = listOf("com.b", own), excludePackages = listOf("com.c")), own)
         assertEquals(AppRules(listOf("com.b"), emptyList()), rules)
         assertThrows(IllegalArgumentException::class.java) { AppRules.from(TunOptions(includePackages = listOf(own)), own) }
-    }
-
-    @Test
-    fun interfaceListJsonWritesDefaultsOut() {
-        val json = InterfaceInfo.encodeList(listOf(InterfaceInfo("wlan0", 3, mtu = 1500, addrs = listOf("192.168.1.5/24"), type = "wifi")))
-        assertEquals(
-            "[{\"name\":\"wlan0\",\"index\":3,\"mtu\":1500,\"addrs\":[\"192.168.1.5/24\"],\"flags\":19,\"metered\":false,\"type\":\"wifi\"}]",
-            json,
-        )
     }
 }

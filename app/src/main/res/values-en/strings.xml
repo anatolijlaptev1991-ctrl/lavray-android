@@ -327,10 +327,16 @@
     <string name="notif_connecting">Connecting…</string>
     <string name="notif_disconnecting">Disconnecting…</string>
     <string name="notif_error">Connection failed</string>
+    <string name="notif_failure_apps_none">None of the selected apps is installed. Choose the apps again in Settings.</string>
+    <string name="notif_failure_no_server">No server is selected. Choose a server and connect again.</string>
     <string name="notif_failure_title">Could not connect</string>
     <string name="notif_idle">Not connected</string>
     <string name="notif_permission_text">Open the app to allow the VPN again.</string>
     <string name="notif_permission_title">VPN permission needed</string>
+    <string name="notif_protection_off_text">The tunnel did not recover in time. Your apps now use the normal connection.</string>
+    <string name="notif_protection_off_title">Protection is off</string>
+    <string name="notif_stopped_text">Open the app to turn the VPN back on.</string>
+    <string name="notif_stopped_title">The VPN stopped</string>
     <string name="notif_waiting_network">Waiting for network</string>
     <string name="onb_src_happ_d">Paste an encrypted subscription link — decrypted locally</string>
     <string name="out_block">Block</string>
@@ -596,7 +602,7 @@
     <string name="tun_exclAddrErr">Not an address or network:</string>
     <string name="tun_exclHint">One value per line</string>
     <string name="tun_ipv6">IPv6 through the tunnel</string>
-    <string name="tun_ipv6_d">Off: IPv6 traffic is not routed into the tunnel and uses your normal connection.</string>
+    <string name="tun_ipv6_d">Off: IPv6 of tunnelled apps is blocked (not sent directly); those apps use IPv4 only.</string>
     <string name="tun_mtu">MTU</string>
     <string name="tun_mtuErr">MTU must be from 1280 to 9000</string>
     <string name="tun_mtu_d">Largest packet the tunnel carries. Lower it if some sites hang while others work.</string>
