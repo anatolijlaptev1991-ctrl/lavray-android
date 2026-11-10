@@ -46,6 +46,8 @@ data class StatsState(
     val total: TrafficPair = TrafficPair(),
     val groups: List<GroupLine> = emptyList(),
     val error: ErrorKind? = null,
+    /** A live session has reported on this screen, so the stored totals are out of date once it ends. */
+    val sessionSeen: Boolean = false,
 )
 
 /** Pure mapping from core messages to what the screen shows. */
@@ -65,11 +67,18 @@ object StatsMapper {
             .sortedByDescending { it.traffic.total }
 
     fun names(groups: List<Group>): Map<Long, String> = groups.associate { it.id to it.name }
+
+    fun afterFrame(s: StatsState, snap: StatsSnapshot): StatsState =
+        s.copy(session = s.session.apply(snap), tags = tags(snap), error = null, sessionSeen = true)
+
+    /** The session is over: its speed and tags go; the caller reloads the totals when [StatsState.sessionSeen] was set. */
+    fun afterEnd(s: StatsState): StatsState = s.copy(session = TrafficReading.Empty, tags = emptyList(), sessionSeen = false)
 }
 
 /**
  * Traffic statistics: the live session from the stats stream (open only while the screen is visible and a tunnel is
- * up) and the totals and per-group summary from two unary calls made once when the screen opens.
+ * up) and the totals and per-group summary from unary calls made when the screen opens and again when the session
+ * that was shown ends.
  */
 class StatisticsModel(private val session: CoreSession) {
     private val mutable = MutableStateFlow(StatsState())
@@ -99,11 +108,16 @@ class StatisticsModel(private val session: CoreSession) {
         StreamBackoff.run(
             open = { session.stream { statsSubscribe(SubscribeStatsRequest(intervalMs = INTERVAL_MS)) } },
             onError = { kind -> mutable.update { it.copy(error = kind) } },
-            onFrame = { snap -> mutable.update { it.copy(session = it.session.apply(snap), tags = StatsMapper.tags(snap), error = null) } },
+            onFrame = { snap -> mutable.update { StatsMapper.afterFrame(it, snap) } },
         )
     }
 
-    fun endSession() = mutable.update { it.copy(session = TrafficReading.Empty, tags = emptyList()) }
+    /** The tunnel went down: the live part is cleared and, if a session was shown, the totals are read again to include it. */
+    suspend fun endSession() {
+        val seen = mutable.value.sessionSeen
+        mutable.update(StatsMapper::afterEnd)
+        if (seen) load()
+    }
 
     private companion object {
         const val INTERVAL_MS = 1000
