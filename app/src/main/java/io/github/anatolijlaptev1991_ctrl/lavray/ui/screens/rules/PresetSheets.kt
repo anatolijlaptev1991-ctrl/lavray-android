@@ -73,7 +73,7 @@ private fun MenuRow(icon: LavIcon, text: String, onClick: () -> Unit, danger: Bo
 private fun NewSheet(actions: PresetSheetActions, close: () -> Unit) {
     LavSheet(stringResource(R.string.rt_new), close) {
         if (actions.active != null) {
-            MenuRow(LavIcon.Copy, stringResource(R.string.rt_saveAs), { actions.show(PresetSheet.Name(NameMode.SaveAs, actions.active)) })
+            MenuRow(LavIcon.Duplicate, stringResource(R.string.rt_saveAs), { actions.show(PresetSheet.Name(NameMode.SaveAs, actions.active)) })
         }
         MenuRow(LavIcon.Plus, stringResource(R.string.rt_newEmpty), { actions.show(PresetSheet.Name(NameMode.Empty, null)) })
         MenuRow(LavIcon.Download, stringResource(R.string.rt_importPreset), { close(); actions.onImport() })
@@ -89,7 +89,7 @@ private fun CardMenuSheet(p: RoutingPreset, actions: PresetSheetActions, close: 
     val copyName = stringResource(R.string.rt_copyName, presetTitle(p))
     LavSheet(presetTitle(p), close) {
         if (!p.builtin) MenuRow(LavIcon.Pencil, stringResource(R.string.rt_rename), { actions.show(PresetSheet.Name(NameMode.Rename, p)) })
-        MenuRow(LavIcon.Copy, stringResource(R.string.rt_duplicate), {
+        MenuRow(LavIcon.Duplicate, stringResource(R.string.rt_duplicate), {
             close()
             actions.model.copy(p.id, copyName, activateIt = false)
         })

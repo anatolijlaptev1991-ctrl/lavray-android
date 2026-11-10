@@ -169,7 +169,7 @@ class SubscriptionsModel(
             // A core that closes the stream with an error after the confirm frame is asking, not failing.
             if (out.wouldRemove == null) {
                 if (e.kind == ErrorKind.CoreUnavailable) out.coreProblem = e.kind
-                out.failure = SubscriptionLogic.failureOf(e.cause?.message.orEmpty())
+                out.failure = SubscriptionLogic.failureOf(e.cause?.message.orEmpty(), System.currentTimeMillis())
             }
         }
         dispatch(SubscriptionsAction.UpdateFinished)
@@ -179,7 +179,7 @@ class SubscriptionsModel(
     private fun note(out: UpdateOutcome, ev: SubscriptionProgress) {
         when (ev.phase) {
             SubscriptionProgress.Phase.PHASE_CONFIRM_REQUIRED -> out.wouldRemove = ev.wouldRemoveCount ?: 0
-            SubscriptionProgress.Phase.PHASE_FAILED -> out.failure = SubscriptionLogic.failureOf(ev.detail.orEmpty())
+            SubscriptionProgress.Phase.PHASE_FAILED -> out.failure = SubscriptionLogic.failureOf(ev.detail.orEmpty(), System.currentTimeMillis())
             SubscriptionProgress.Phase.PHASE_DONE -> out.done = true
             else -> Unit
         }
@@ -199,7 +199,7 @@ class SubscriptionsModel(
             }
             out.coreProblem != null -> mutableEvents.tryEmit(SubscriptionsEvent.Failed(out.coreProblem ?: ErrorKind.Generic))
             else -> {
-                val f = out.failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE)
+                val f = out.failure ?: SubFailure.fromCode(SubFailure.GENERIC_CODE, System.currentTimeMillis())
                 dispatch(SubscriptionsAction.NoteFailure(id, f))
                 mutableEvents.tryEmit(SubscriptionsEvent.UpdateFailed(f))
             }
@@ -215,7 +215,7 @@ class SubscriptionsModel(
                 tally = SubscriptionLogic.tally(tally, ev.phase)
                 when (ev.phase) {
                     SubscriptionProgress.Phase.PHASE_FAILED ->
-                        dispatch(SubscriptionsAction.NoteFailure(ev.groupId, SubscriptionLogic.failureOf(ev.detail.orEmpty())))
+                        dispatch(SubscriptionsAction.NoteFailure(ev.groupId, SubscriptionLogic.failureOf(ev.detail.orEmpty(), System.currentTimeMillis())))
                     SubscriptionProgress.Phase.PHASE_DONE -> dispatch(SubscriptionsAction.DropFailure(ev.groupId))
                     else -> Unit
                 }

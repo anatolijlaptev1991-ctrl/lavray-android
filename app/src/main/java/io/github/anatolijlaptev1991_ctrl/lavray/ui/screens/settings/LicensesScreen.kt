@@ -36,7 +36,7 @@ fun LicensesScreen() {
                 Component(R.string.lic_android_ui)
                 Component(R.string.lic_zxing)
                 Component(R.string.lic_go)
-                Component(R.string.lic_geo, R.string.lic_geoTbd)
+                Component(R.string.lic_geo, R.string.lic_geoData)
             }
         }
         LavText(stringResource(R.string.lic_source_d), style = Lav.type.small, color = Lav.colors.textSecondary)

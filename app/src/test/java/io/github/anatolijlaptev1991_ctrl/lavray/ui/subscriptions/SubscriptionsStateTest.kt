@@ -11,6 +11,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubFail
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubSettingKeys
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionEdit
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionLogic
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsAction
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsReducer
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsState
@@ -190,5 +191,70 @@ class SubscriptionsStateTest {
         assertTrue(off.skipAutoUpdate)
         assertEquals("bob", off.httpBasicUser)
         assertFalse(SubscriptionEdit.withAutoUpdate(off, on = true).skipAutoUpdate)
+    }
+}
+
+/** The failure store keeps no clock of the core, so a later successful update must retire the failure by its time. */
+class SubscriptionFailureClockTest {
+    private fun group(id: Long, lastUpdate: Long?) =
+        SubRow.from(Group(id = id, name = "s$id", subscriptionUrl = "https://h$id.example/x", lastUpdateMs = lastUpdate), count = 2)
+
+    private val failedAt = SubFailure.fromCode("404", atMs = 1_000L)
+
+    @Test fun anUpdateAfterTheFailureRetiresIt() {
+        val s = SubscriptionsState(failures = mapOf(1L to failedAt))
+        val after = SubscriptionsReducer.reduce(s, SubscriptionsAction.Loaded(listOf(group(1, lastUpdate = 2_000L))))
+        assertTrue(after.failures.isEmpty())
+        assertNull(after.rows.single().failure)
+    }
+
+    @Test fun aFailureAfterTheLastUpdateStays() {
+        val s = SubscriptionsState(failures = mapOf(1L to failedAt))
+        val after = SubscriptionsReducer.reduce(s, SubscriptionsAction.Loaded(listOf(group(1, lastUpdate = 500L))))
+        assertEquals(failedAt, after.rows.single().failure)
+    }
+
+    @Test fun aSubscriptionThatNeverUpdatedKeepsItsFailure() {
+        val s = SubscriptionsState(failures = mapOf(1L to failedAt))
+        val after = SubscriptionsReducer.reduce(s, SubscriptionsAction.Loaded(listOf(group(1, lastUpdate = null))))
+        assertEquals(failedAt, after.rows.single().failure)
+    }
+
+    @Test fun aFailureWithoutATimeFromAnOlderBuildIsRetiredByAnyRecordedUpdate() {
+        val old = SubFailure.fromCode("timeout")
+        val s = SubscriptionsState(failures = mapOf(1L to old))
+        assertTrue(SubscriptionsReducer.reduce(s, SubscriptionsAction.Loaded(listOf(group(1, lastUpdate = 10L)))).failures.isEmpty())
+    }
+
+    @Test fun restoredFailuresAreCheckedAgainstTheRowsAlreadyLoaded() {
+        val loaded = SubscriptionsReducer.reduce(SubscriptionsState(), SubscriptionsAction.Loaded(listOf(group(1, lastUpdate = 2_000L))))
+        val after = SubscriptionsReducer.reduce(loaded, SubscriptionsAction.FailuresRestored(mapOf(1L to failedAt)))
+        assertTrue(after.failures.isEmpty())
+        assertNull(after.rows.single().failure)
+    }
+
+    @Test fun theTimeSurvivesTheStore() {
+        val text = SubFailureStore.encode(mapOf(1L to failedAt, 2L to SubFailure.fromCode("timeout")))
+        val back = SubFailureStore.decode(text)
+        assertEquals(failedAt, back[1L])
+        assertEquals(SubFailure.fromCode("timeout"), back[2L])
+        // The older format had the bare code.
+        assertEquals(SubFailure.fromCode("404"), SubFailureStore.decode("""{"5":"404"}""")[5L])
+        assertTrue(SubFailureStore.decode("""{"5":"404@-3"}""").isEmpty())
+    }
+
+    @Test fun supersededIsAboutTheGroupsOwnTime() {
+        assertTrue(SubscriptionLogic.superseded(failedAt, 1_000L))
+        assertFalse(SubscriptionLogic.superseded(failedAt, 999L))
+        assertFalse(SubscriptionLogic.superseded(failedAt, null))
+    }
+}
+
+class SubscriptionsEmptyStateTest {
+    @Test fun theEmptyStateIsOnlyForALoadedEmptyListWithoutAnError() {
+        val loaded = SubscriptionsState(loading = false)
+        assertTrue(io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.isEmptyList(loaded))
+        assertFalse(io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.isEmptyList(loaded.copy(loading = true)))
+        assertFalse(io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.isEmptyList(loaded.copy(error = ErrorKind.CoreUnavailable)))
     }
 }

@@ -111,6 +111,7 @@
     <string name="chk_route_result">%1$s → %2$s · правило: %3$s</string>
     <string name="chk_run">Запустить проверку</string>
     <string name="chk_server_t">Сервер доступен</string>
+    <string name="chk_st_off">не подключено</string>
     <string name="chk_st_run">проверяю…</string>
     <string name="chk_st_skip">не проверено</string>
     <string name="chk_sub_t">Подписка активна</string>
@@ -240,12 +241,18 @@
     <string name="imp_clipNote">LAVRay читает буфер только когда вы открываете это окно</string>
     <string name="imp_clipPaste">Вставить</string>
     <string name="imp_do">Импортировать</string>
+    <string name="imp_err_line">Строка %1$s из вставленного текста отклонена. Проверьте эту ссылку или уберите её и повторите.</string>
     <string name="imp_fileHint_phone">Выберите файл: YAML, base64 или список ссылок.</string>
     <string name="imp_fileTooLarge">Файл слишком большой: предел для импорта — %1$s МБ</string>
     <string name="imp_file_choose">Выбрать файл…</string>
     <string name="imp_file_unreadable">Не удалось прочитать файл. Выберите другой файл.</string>
     <string name="imp_hint">Вставьте любую ссылку — зашифрованные ссылки расшифруем автоматически</string>
     <string name="imp_httpWarn">Ссылка без шифрования: провайдер и сеть увидят адрес подписки</string>
+    <string name="imp_issue_rest">Остальные строки импортируются без неё.</string>
+    <string name="imp_issue_ss_b64">Ключевая часть ссылки ss:// не является корректным base64. Чаще всего при копировании пропали замыкающие знаки «=»: допишите их или попросите ссылку ещё раз.</string>
+    <string name="imp_issue_ss_method">В ссылке ss:// указан шифр, который приложение не поддерживает.</string>
+    <string name="imp_issue_ss_pair">В ключевой части ссылки ss:// нет шифра и пароля.</string>
+    <string name="imp_issue_t">Строку %1$s нельзя импортировать</string>
     <string name="imp_link">Ссылка</string>
     <string name="imp_name">Имя подписки (необязательно)</string>
     <string name="imp_prev_doc">Файл или текст со списком профилей</string>
@@ -273,7 +280,7 @@
     <string name="lic_app">LAVRay — GPL-3.0</string>
     <string name="lic_core">Ядро на основе sing-box — GPL-3.0</string>
     <string name="lic_geo">Наборы geosite и geoip — MetaCubeX, v2fly</string>
-    <string name="lic_geoTbd">лицензии наборов уточняются</string>
+    <string name="lic_geoData">Отдельные файлы данных, не часть программы: каждый набор остаётся под лицензией его авторов, она указана в уведомлении, которое публикуется с каждым выпуском.</string>
     <string name="lic_go">Среда выполнения и стандартная библиотека Go — BSD-3-Clause; прочие модули Go — по их собственным лицензиям</string>
     <string name="lic_source_d">Исходный код каждого выпуска и полный список сторонних компонентов с их лицензиями находятся в репозиториях проекта.</string>
     <string name="lic_title">Лицензии и компоненты</string>

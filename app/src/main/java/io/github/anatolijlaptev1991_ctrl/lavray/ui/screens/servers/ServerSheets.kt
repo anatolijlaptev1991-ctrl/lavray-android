@@ -128,7 +128,7 @@ private fun RowMenuSheet(row: ServerRow, env: SheetEnv, close: () -> Unit) {
             close()
             scope.launch { env.model.shareLink(row.id)?.let { env.show(ServerSheet.Qr(row.name, it)) } }
         })
-        MenuRow(LavIcon.Copy, stringResource(R.string.srv_menu_clone), { close(); env.model.clone(setOf(row.id)) })
+        MenuRow(LavIcon.Duplicate, stringResource(R.string.srv_menu_clone), { close(); env.model.clone(setOf(row.id)) })
         MenuRow(LavIcon.Folder, stringResource(R.string.srv_menu_move), { env.show(ServerSheet.Move(setOf(row.id))) })
         if (env.canReorder) {
             MenuRow(LavIcon.ArrowUp, stringResource(R.string.srv_move_up), { close(); env.model.reorder(row.id, up = true) })

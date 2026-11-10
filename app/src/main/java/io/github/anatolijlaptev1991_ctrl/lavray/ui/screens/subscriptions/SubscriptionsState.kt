@@ -102,13 +102,14 @@ sealed interface SubscriptionsAction {
 object SubscriptionsReducer {
     fun reduce(s: SubscriptionsState, a: SubscriptionsAction): SubscriptionsState = when (a) {
         is SubscriptionsAction.Loaded -> {
-            // A failure of a subscription that no longer exists is forgotten, as on the desktop.
-            val alive = a.rows.mapTo(HashSet()) { it.id }
-            val failures = s.failures.filterKeys { it in alive }
+            val failures = liveFailures(a.rows, s.failures)
             s.copy(rows = withFailures(a.rows, failures), failures = failures, loading = false, error = null)
         }
         is SubscriptionsAction.Failed -> s.copy(loading = false, error = a.kind)
-        is SubscriptionsAction.FailuresRestored -> s.copy(failures = a.failures, rows = withFailures(s.rows, a.failures))
+        is SubscriptionsAction.FailuresRestored -> {
+            val failures = if (s.rows.isEmpty()) a.failures else liveFailures(s.rows, a.failures)
+            s.copy(failures = failures, rows = withFailures(s.rows, failures))
+        }
         is SubscriptionsAction.NoteFailure -> setFailures(s, s.failures + (a.id to a.failure))
         is SubscriptionsAction.DropFailure -> setFailures(s, s.failures - a.id)
         is SubscriptionsAction.UpdateStarted -> s.copy(busy = Busy.One(a.id), progress = UpdateProgress(groupId = a.id))
@@ -119,6 +120,15 @@ object SubscriptionsReducer {
         SubscriptionsAction.UpdateFinished -> s.copy(busy = Busy.Idle, progress = UpdateProgress())
         is SubscriptionsAction.Confirm -> s.copy(confirm = a.ask)
         is SubscriptionsAction.Removed -> setFailures(s.copy(rows = s.rows.filterNot { it.id == a.id }), s.failures - a.id)
+    }
+
+    /**
+     * A failure of a subscription that no longer exists is forgotten, as on the desktop; so is one that a later successful
+     * update (seen in the group's own update time) has made out of date.
+     */
+    internal fun liveFailures(rows: List<SubRow>, failures: Map<Long, SubFailure>): Map<Long, SubFailure> {
+        val byId = rows.associateBy { it.id }
+        return failures.filter { (id, f) -> byId[id]?.let { !SubscriptionLogic.superseded(f, it.lastUpdateMs) } == true }
     }
 
     private fun setFailures(s: SubscriptionsState, failures: Map<Long, SubFailure>): SubscriptionsState =

@@ -111,6 +111,7 @@
     <string name="chk_route_result">%1$s → %2$s · Regel: %3$s</string>
     <string name="chk_run">Prüfung starten</string>
     <string name="chk_server_t">Server ist erreichbar</string>
+    <string name="chk_st_off">nicht verbunden</string>
     <string name="chk_st_run">prüfe…</string>
     <string name="chk_st_skip">nicht geprüft</string>
     <string name="chk_sub_t">Abo ist aktiv</string>
@@ -240,12 +241,18 @@
     <string name="imp_clipNote">LAVRay liest die Zwischenablage nur, wenn du dieses Fenster öffnest</string>
     <string name="imp_clipPaste">Einfügen</string>
     <string name="imp_do">Importieren</string>
+    <string name="imp_err_line">Zeile %1$s des eingefügten Textes wurde abgelehnt. Prüfen Sie den Link oder entfernen Sie ihn und versuchen Sie es erneut.</string>
     <string name="imp_fileHint_phone">Wähle eine Datei: YAML, Base64 oder eine Liste von Links.</string>
     <string name="imp_fileTooLarge">Die Datei ist zu groß: Das Importlimit beträgt %1$s MB</string>
     <string name="imp_file_choose">Datei wählen …</string>
     <string name="imp_file_unreadable">Die Datei konnte nicht gelesen werden. Wähle eine andere.</string>
     <string name="imp_hint">Füge einen beliebigen Link ein — verschlüsselte Links werden automatisch entschlüsselt</string>
     <string name="imp_httpWarn">Unverschlüsselter Link: Anbieter und Netz sehen die Abo-Adresse</string>
+    <string name="imp_issue_rest">Die übrigen Zeilen werden ohne sie importiert.</string>
+    <string name="imp_issue_ss_b64">Der Schlüsselteil dieses ss://-Links ist kein gültiges Base64. Oft gehen beim Kopieren die abschließenden =-Zeichen verloren: Ergänzen Sie sie oder fragen Sie den Link erneut an.</string>
+    <string name="imp_issue_ss_method">Dieser ss://-Link nennt ein Verschlüsselungsverfahren, das die App nicht unterstützt.</string>
+    <string name="imp_issue_ss_pair">Im Schlüsselteil dieses ss://-Links stehen weder Verfahren noch Passwort.</string>
+    <string name="imp_issue_t">Zeile %1$s kann nicht importiert werden</string>
     <string name="imp_link">Link</string>
     <string name="imp_name">Abo-Name (optional)</string>
     <string name="imp_prev_doc">Eine Datei oder ein Text mit einer Profilliste</string>
@@ -273,7 +280,7 @@
     <string name="lic_app">LAVRay — GPL-3.0</string>
     <string name="lic_core">Core auf Basis von sing-box — GPL-3.0</string>
     <string name="lic_geo">geosite- und geoip-Sätze — MetaCubeX, v2fly</string>
-    <string name="lic_geoTbd">Lizenzen der Sätze werden geklärt</string>
+    <string name="lic_geoData">Eigenständige Datendateien, nicht Teil des Programms: Jeder Satz bleibt unter der Lizenz seiner Autoren, die in der mit jeder Version veröffentlichten Hinweisdatei genannt ist.</string>
     <string name="lic_go">Go-Laufzeit und Standardbibliothek — BSD-3-Clause; weitere Go-Module unter ihren eigenen Lizenzen</string>
     <string name="lic_source_d">Der Quellcode jeder Version sowie die vollständige Liste der Drittkomponenten samt Lizenzen liegen in den Projekt-Repositories.</string>
     <string name="lic_title">Lizenzen und Komponenten</string>

@@ -112,7 +112,7 @@ class IncomingIntentTest {
 class ImportTabTest {
     @Test
     fun leavingTheLinkTabForgetsTheTypedLink() {
-        val typed = ImportUi(open = true, tab = ImportTab.Link, payload = "ss://x@h:1", input = LinkClassifier.classify("ss://x@h:1"))
+        val typed = ImportUi(open = true, tab = ImportTab.Link, payload = "ss://YWVzLTEyOC1nY206cGFzcw==@h:1", input = LinkClassifier.classify("ss://YWVzLTEyOC1nY206cGFzcw==@h:1"))
         assertTrue(typed.canSubmit)
         val file = typed.switchedTo(ImportTab.File)
         assertEquals(ImportTab.File, file.tab)
@@ -122,7 +122,7 @@ class ImportTabTest {
 
     @Test
     fun tappingTheCurrentTabKeepsThePayload() {
-        val typed = ImportUi(open = true, tab = ImportTab.Link, payload = "ss://x@h:1", input = LinkClassifier.classify("ss://x@h:1"))
+        val typed = ImportUi(open = true, tab = ImportTab.Link, payload = "ss://YWVzLTEyOC1nY206cGFzcw==@h:1", input = LinkClassifier.classify("ss://YWVzLTEyOC1nY206cGFzcw==@h:1"))
         assertEquals(typed, typed.switchedTo(ImportTab.Link))
     }
 }

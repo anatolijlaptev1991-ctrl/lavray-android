@@ -111,6 +111,7 @@
     <string name="chk_route_result">%1$s → %2$s · 规则：%3$s</string>
     <string name="chk_run">开始检查</string>
     <string name="chk_server_t">服务器可达</string>
+    <string name="chk_st_off">未连接</string>
     <string name="chk_st_run">检查中…</string>
     <string name="chk_st_skip">未检查</string>
     <string name="chk_sub_t">订阅有效</string>
@@ -240,12 +241,18 @@
     <string name="imp_clipNote">LAVRay 仅在打开此窗口时读取剪贴板</string>
     <string name="imp_clipPaste">粘贴</string>
     <string name="imp_do">导入</string>
+    <string name="imp_err_line">粘贴内容的第 %1$s 行被拒绝。请检查该链接或将其删除后重试。</string>
     <string name="imp_fileHint_phone">选择文件：YAML、base64 或链接列表。</string>
     <string name="imp_fileTooLarge">文件过大：导入上限为 %1$s MB</string>
     <string name="imp_file_choose">选择文件…</string>
     <string name="imp_file_unreadable">无法读取该文件。请选择其他文件。</string>
     <string name="imp_hint">粘贴任意链接——加密链接会自动解密</string>
     <string name="imp_httpWarn">链接未加密：服务商和网络都会看到订阅地址</string>
+    <string name="imp_issue_rest">其余各行会照常导入。</string>
+    <string name="imp_issue_ss_b64">此 ss:// 链接的密钥部分不是有效的 base64。复制时常会丢掉末尾的 = 号：请补上，或重新获取链接。</string>
+    <string name="imp_issue_ss_method">此 ss:// 链接指定的加密方式应用不支持。</string>
+    <string name="imp_issue_ss_pair">此 ss:// 链接的密钥部分里没有加密方式和密码。</string>
+    <string name="imp_issue_t">第 %1$s 行无法导入</string>
     <string name="imp_link">链接</string>
     <string name="imp_name">订阅名称（可选）</string>
     <string name="imp_prev_doc">包含配置列表的文件或文本</string>
@@ -273,7 +280,7 @@
     <string name="lic_app">LAVRay — GPL-3.0</string>
     <string name="lic_core">基于 sing-box 的内核 — GPL-3.0</string>
     <string name="lic_geo">geosite 与 geoip 数据集 — MetaCubeX、v2fly</string>
-    <string name="lic_geoTbd">数据集许可正在确认</string>
+    <string name="lic_geoData">独立的数据文件，不属于程序本身：每个规则集仍遵循其作者的许可证，许可证写在每个版本随附发布的声明中。</string>
     <string name="lic_go">Go 运行时和标准库 — BSD-3-Clause；其他 Go 模块遵循各自许可证</string>
     <string name="lic_source_d">每个版本的源代码，以及第三方组件及其许可证的完整列表，都在项目仓库中。</string>
     <string name="lic_title">许可与组件</string>

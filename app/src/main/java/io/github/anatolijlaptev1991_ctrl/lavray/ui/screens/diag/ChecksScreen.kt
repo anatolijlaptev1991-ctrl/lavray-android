@@ -143,6 +143,7 @@ private fun rowVisual(state: RowState): RowVisual = when (state) {
     RowState.Warn -> RowVisual(StatusTone.Connecting, LavIcon.Alert, R.string.st_warn)
     RowState.Fail -> RowVisual(StatusTone.Error, LavIcon.Close, R.string.st_fail)
     RowState.Skipped -> RowVisual(StatusTone.Neutral, LavIcon.Info, R.string.chk_st_skip)
+    RowState.Off -> RowVisual(StatusTone.Neutral, LavIcon.Plug, R.string.chk_st_off)
 }
 
 private fun runFix(action: FixAction, nav: Navigator, context: Context) {

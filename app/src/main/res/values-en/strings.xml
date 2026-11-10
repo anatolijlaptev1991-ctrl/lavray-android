@@ -111,6 +111,7 @@
     <string name="chk_route_result">%1$s → %2$s · rule: %3$s</string>
     <string name="chk_run">Run the check</string>
     <string name="chk_server_t">Server is reachable</string>
+    <string name="chk_st_off">not connected</string>
     <string name="chk_st_run">checking…</string>
     <string name="chk_st_skip">not checked</string>
     <string name="chk_sub_t">Subscription is active</string>
@@ -240,12 +241,18 @@
     <string name="imp_clipNote">LAVRay reads the clipboard only when you open this window</string>
     <string name="imp_clipPaste">Paste</string>
     <string name="imp_do">Import</string>
+    <string name="imp_err_line">Line %1$s of what you pasted was refused. Check that link or remove it, then try again.</string>
     <string name="imp_fileHint_phone">Choose a file: YAML, base64 or a list of links.</string>
     <string name="imp_fileTooLarge">The file is too large: the import limit is %1$s MB</string>
     <string name="imp_file_choose">Choose a file…</string>
     <string name="imp_file_unreadable">Could not read the file. Choose another one.</string>
     <string name="imp_hint">Paste any link — encrypted links are decrypted automatically</string>
     <string name="imp_httpWarn">Unencrypted link: your provider and network will see the subscription address</string>
+    <string name="imp_issue_rest">The other lines are imported without it.</string>
+    <string name="imp_issue_ss_b64">The key part of this ss:// link is not valid base64. Often the closing = signs were cut off when it was copied; add them or ask for the link again.</string>
+    <string name="imp_issue_ss_method">This ss:// link names a cipher the app does not support.</string>
+    <string name="imp_issue_ss_pair">The key part of this ss:// link has no cipher and password in it.</string>
+    <string name="imp_issue_t">Line %1$s cannot be imported</string>
     <string name="imp_link">Link</string>
     <string name="imp_name">Subscription name (optional)</string>
     <string name="imp_prev_doc">A file or text with a list of profiles</string>
@@ -273,7 +280,7 @@
     <string name="lic_app">LAVRay — GPL-3.0</string>
     <string name="lic_core">Core based on sing-box — GPL-3.0</string>
     <string name="lic_geo">geosite and geoip sets — MetaCubeX, v2fly</string>
-    <string name="lic_geoTbd">set licenses are being confirmed</string>
+    <string name="lic_geoData">Separate data files, not part of the program: each set stays under its authors’ own license, named in the notice published with every release.</string>
     <string name="lic_go">Go runtime and standard library — BSD-3-Clause; other Go modules under their own licenses</string>
     <string name="lic_source_d">The source code of every release, with the complete list of third-party components and their licenses, is in the project repositories.</string>
     <string name="lic_title">Licenses and components</string>

@@ -27,15 +27,20 @@ class SubFailureStore(context: Context) {
         private val serializer = MapSerializer(String.serializer(), String.serializer())
 
         fun encode(failures: Map<Long, SubFailure>): String =
-            Json.encodeToString(serializer, failures.entries.associate { it.key.toString() to it.value.code })
+            Json.encodeToString(serializer, failures.entries.associate { it.key.toString() to encodeOne(it.value) })
+
+        /** The code, and after an at sign the time of the failure; the older format had the code alone. */
+        private fun encodeOne(f: SubFailure): String = if (f.atMs > 0) f.code + "@" + f.atMs else f.code
 
         /** Damaged or foreign data gives an empty map, never a crash; entries with a bad id or code are dropped. */
         fun decode(text: String?): Map<Long, SubFailure> {
             if (text.isNullOrBlank()) return emptyMap()
             val stored = runCatching { Json.decodeFromString(serializer, text) }.getOrElse { return emptyMap() }
-            return stored.mapNotNull { (id, code) ->
+            return stored.mapNotNull { (id, text) ->
                 val key = id.toLongOrNull() ?: return@mapNotNull null
-                if (code.isBlank() || code.length > MAX_CODE) null else key to SubFailure.fromCode(code)
+                val code = text.substringBefore('@')
+                val at = text.substringAfter('@', "").toLongOrNull() ?: 0L
+                if (code.isBlank() || code.length > MAX_CODE || at < 0) null else key to SubFailure.fromCode(code, at)
             }.toMap()
         }
     }

@@ -7,15 +7,19 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscriptionProgress
 /** The wording of a failed update; the dictionary text for each is picked by the screen. */
 enum class SubErrorKind { Auth, NotFound, Timeout, Zero, Generic }
 
-/** Last failed update of one subscription: a short code (an HTTP status, "timeout", "zero", "error") and its kind. */
+/**
+ * Last failed update of one subscription: a short code (an HTTP status, "timeout", "zero", "error"), its kind and when
+ * it happened ([atMs], 0 when unknown). The time lets a later successful update, which the core records in the group
+ * itself (also an automatic one that this screen never saw), retire the failure.
+ */
 @Immutable
-data class SubFailure(val kind: SubErrorKind, val code: String) {
+data class SubFailure(val kind: SubErrorKind, val code: String, val atMs: Long = 0L) {
     /** The code is worth showing next to the text only when it says more than "something failed". */
     val showCode: Boolean get() = code != GENERIC_CODE
 
     companion object {
         const val GENERIC_CODE = "error"
-        fun fromCode(code: String): SubFailure = SubFailure(SubscriptionLogic.kindOf(code), code)
+        fun fromCode(code: String, atMs: Long = 0L): SubFailure = SubFailure(SubscriptionLogic.kindOf(code), code, atMs)
     }
 }
 
@@ -67,7 +71,13 @@ object SubscriptionLogic {
         else -> SubErrorKind.Generic
     }
 
-    fun failureOf(raw: String): SubFailure = SubFailure.fromCode(errorCode(raw))
+    fun failureOf(raw: String, atMs: Long = 0L): SubFailure = SubFailure.fromCode(errorCode(raw), atMs)
+
+    /**
+     * True when the subscription has been updated successfully since this failure: the group's last update time is
+     * not older than the failure. A failure without a time (stored by an older build) is retired by any recorded update.
+     */
+    fun superseded(failure: SubFailure, lastUpdateMs: Long?): Boolean = lastUpdateMs != null && lastUpdateMs >= failure.atMs
 
     /**
      * When the subscription updates next: last update plus the interval (its own, otherwise the one the

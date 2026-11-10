@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,29 +108,40 @@ private fun NavEntry(item: NavItem, selected: Boolean, onClick: () -> Unit, modi
     }
 }
 
-/** Tabs inside a section (WAI-ARIA tabs pattern): equal width, 48 dp tall, accent underline on the selected one. */
+/**
+ * Tabs inside a section (WAI-ARIA tabs pattern): equal width, 48 dp tall, accent underline on the selected one.
+ * When a label does not fit its share (a large system font), that tab widens to its text and the row scrolls
+ * sideways instead of ending the label in an ellipsis; the selected tab is brought into view. At the normal text
+ * size every tab is exactly an equal share, as before.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LavTabs(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val c = Lav.colors
-    Row(modifier.fillMaxWidth()) {
-        labels.forEachIndexed { index, label ->
-            val selected = index == selectedIndex
-            Column(
-                Modifier
-                    .weight(1f)
-                    .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // No weight here: inside a Column that gets the screen height as its maximum, a weighted child
-                // would swallow all of it and push the bottom navigation off the screen.
-                Box(Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-                    LavText(
-                        label, style = if (selected) Lav.type.bodyStrong else Lav.type.body,
-                        color = if (selected) c.textPrimary else c.textTertiary,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val share = maxWidth / labels.size.coerceAtLeast(1)
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            labels.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                val requester = remember { BringIntoViewRequester() }
+                LaunchedEffect(selected) { if (selected) requester.bringIntoView() }
+                Column(
+                    Modifier
+                        .widthIn(min = share)
+                        .width(IntrinsicSize.Max)
+                        .bringIntoViewRequester(requester)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                        LavText(
+                            label, style = if (selected) Lav.type.bodyStrong else Lav.type.body,
+                            color = if (selected) c.textPrimary else c.textTertiary,
+                            maxLines = 1,
+                        )
+                    }
+                    Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) c.accent else c.borderSubtle))
                 }
-                Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) c.accent else c.borderSubtle))
             }
         }
     }

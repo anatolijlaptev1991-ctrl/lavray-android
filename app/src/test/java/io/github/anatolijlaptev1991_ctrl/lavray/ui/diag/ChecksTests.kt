@@ -113,3 +113,34 @@ class ChecksTitleTest {
         assertEquals(R.string.chk_time_phone, ChecksMapper.title(CheckKind.CHECK_KIND_CLOCK_SKEW))
     }
 }
+
+/** With no tunnel the core words the tunnel check as a failure ("no_connection"); that must read as "not connected", not as an error. */
+class ChecksDisconnectedTest {
+    private fun result(kind: CheckKind, status: SelfCheckResult.Status, detail: String?) = SelfCheckResult(kind, status, "", detail)
+
+    @Test fun aTunnelFailureWithNoConnectionIsTheOffStateNotAnError() {
+        val rows = ChecksMapper.rows(listOf(result(CheckKind.CHECK_KIND_PROXY_ACTIVE, SelfCheckResult.Status.STATUS_FAIL, "no_connection")))
+        assertEquals(RowState.Off, rows.single().state)
+        assertEquals(DetailText.None, rows.single().detail)
+    }
+
+    @Test fun unspecifiedRowsThatNameNoConnectionAreOffToo() {
+        val rows = ChecksMapper.rows(listOf(result(CheckKind.CHECK_KIND_DNS_RESOLVES, SelfCheckResult.Status.STATUS_UNSPECIFIED, "no_connection")))
+        assertEquals(RowState.Off, rows.single().state)
+    }
+
+    @Test fun aRealFailureStaysAFailure() {
+        val rows = ChecksMapper.rows(listOf(result(CheckKind.CHECK_KIND_PROXY_ACTIVE, SelfCheckResult.Status.STATUS_FAIL, "connection reset")))
+        assertEquals(RowState.Fail, rows.single().state)
+    }
+
+    @Test fun offRowsAreNotAProblemAndNotAnAllClear() {
+        val rows = ChecksMapper.rows(
+            listOf(
+                result(CheckKind.CHECK_KIND_CORE_ALIVE, SelfCheckResult.Status.STATUS_OK, "0.9.3"),
+                result(CheckKind.CHECK_KIND_PROXY_ACTIVE, SelfCheckResult.Status.STATUS_FAIL, "no_connection"),
+            ),
+        )
+        assertEquals(CheckSummary.Partial(1, 2), ChecksMapper.summary(rows))
+    }
+}

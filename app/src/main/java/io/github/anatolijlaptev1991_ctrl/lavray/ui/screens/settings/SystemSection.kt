@@ -43,6 +43,7 @@ fun SystemSection() {
                 title = stringResource(R.string.set_alwayson_t),
                 paragraphs = listOf(R.string.set_alwayson_d, R.string.set_lockdown_d, R.string.set_alwayson_note),
                 button = stringResource(R.string.set_alwayson_open),
+                icon = LavIcon.Lock,
             ) { open(context, Settings.ACTION_VPN_SETTINGS) }
             BatteryBlock(context)
         }
@@ -60,15 +61,16 @@ private fun BatteryBlock(context: Context) {
         title = stringResource(R.string.set_battery_t),
         paragraphs = listOf(if (exempt) R.string.set_battery_off else R.string.set_battery_on, R.string.set_battery_d),
         button = stringResource(R.string.set_battery_open),
+        icon = LavIcon.Battery,
     ) { open(context, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS) }
 }
 
 @Composable
-private fun Explained(title: String, paragraphs: List<Int>, button: String, onOpen: () -> Unit) {
+private fun Explained(title: String, paragraphs: List<Int>, button: String, icon: LavIcon, onOpen: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         LavText(title, style = Lav.type.bodyStrong)
         paragraphs.forEach { LavText(stringResource(it), style = Lav.type.small, color = Lav.colors.textSecondary) }
-        LavButton(button, onOpen, icon = LavIcon.Sliders)
+        LavButton(button, onOpen, icon = icon)
     }
 }
 

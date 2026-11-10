@@ -69,11 +69,15 @@ fun SubscriptionsScreen() {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Toolbar(state, onAdd = { sheet = SubSheet.Add }, onUpdateAll = { model.updateAll() })
+        // The empty state carries its own "Add subscription" button; a second one in the toolbar would only repeat it.
+        if (!isEmptyList(state)) Toolbar(state, onAdd = { sheet = SubSheet.Add }, onUpdateAll = { model.updateAll() })
         Body(state, actions, onAdd = { sheet = SubSheet.Add }, onRetry = { model.refresh() })
     }
     SubscriptionSheets(sheet, state.confirm, sheetEnv)
 }
+
+/** Loaded, no error and nothing in the list: the screen shows its empty state. */
+internal fun isEmptyList(state: SubscriptionsState): Boolean = !state.loading && state.error == null && state.rows.isEmpty()
 
 @Composable
 private fun Toolbar(state: SubscriptionsState, onAdd: () -> Unit, onUpdateAll: () -> Unit) {
@@ -102,7 +106,7 @@ private fun Body(state: SubscriptionsState, actions: CardActions, onAdd: () -> U
             stringResource(R.string.core_err_t), stringResource(state.error.textRes()),
             actions = { LavButton(stringResource(R.string.err_retry), onRetry, variant = ButtonVariant.Primary) },
         )
-        state.rows.isEmpty() -> LavEmptyState(
+        isEmptyList(state) -> LavEmptyState(
             stringResource(R.string.subs_empty_t), text = stringResource(R.string.subs_empty_d), icon = LavIcon.Rss,
             actions = { LavButton(stringResource(R.string.subs_add), onAdd, variant = ButtonVariant.Primary, icon = LavIcon.Plus) },
         )

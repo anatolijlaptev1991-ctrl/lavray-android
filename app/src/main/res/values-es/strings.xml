@@ -111,6 +111,7 @@
     <string name="chk_route_result">%1$s → %2$s · regla: %3$s</string>
     <string name="chk_run">Ejecutar comprobación</string>
     <string name="chk_server_t">El servidor es accesible</string>
+    <string name="chk_st_off">no conectado</string>
     <string name="chk_st_run">comprobando…</string>
     <string name="chk_st_skip">sin comprobar</string>
     <string name="chk_sub_t">La suscripción está activa</string>
@@ -240,12 +241,18 @@
     <string name="imp_clipNote">LAVRay lee el portapapeles solo cuando abres esta ventana</string>
     <string name="imp_clipPaste">Pegar</string>
     <string name="imp_do">Importar</string>
+    <string name="imp_err_line">Se rechazó la línea %1$s del texto pegado. Revisa ese enlace o quítalo e inténtalo de nuevo.</string>
     <string name="imp_fileHint_phone">Elige un archivo: YAML, base64 o una lista de enlaces.</string>
     <string name="imp_fileTooLarge">El archivo es demasiado grande: el límite de importación es %1$s MB</string>
     <string name="imp_file_choose">Elegir archivo…</string>
     <string name="imp_file_unreadable">No se pudo leer el archivo. Elige otro.</string>
     <string name="imp_hint">Pega cualquier enlace: los enlaces cifrados se descifran automáticamente</string>
     <string name="imp_httpWarn">Enlace sin cifrar: tu proveedor y la red verán la dirección de la suscripción</string>
+    <string name="imp_issue_rest">Las demás líneas se importan sin ella.</string>
+    <string name="imp_issue_ss_b64">La parte de la clave de este enlace ss:// no es base64 válido. A menudo se pierden los signos = finales al copiarlo: añádelos o pide el enlace de nuevo.</string>
+    <string name="imp_issue_ss_method">Este enlace ss:// indica un cifrado que la app no admite.</string>
+    <string name="imp_issue_ss_pair">La parte de la clave de este enlace ss:// no contiene cifrado ni contraseña.</string>
+    <string name="imp_issue_t">La línea %1$s no se puede importar</string>
     <string name="imp_link">Enlace</string>
     <string name="imp_name">Nombre de la suscripción (opcional)</string>
     <string name="imp_prev_doc">Un archivo o texto con una lista de perfiles</string>
@@ -273,7 +280,7 @@
     <string name="lic_app">LAVRay — GPL-3.0</string>
     <string name="lic_core">Núcleo basado en sing-box — GPL-3.0</string>
     <string name="lic_geo">Conjuntos geosite y geoip — MetaCubeX, v2fly</string>
-    <string name="lic_geoTbd">licencias de los conjuntos en confirmación</string>
+    <string name="lic_geoData">Archivos de datos independientes, no parte del programa: cada conjunto sigue bajo la licencia de sus autores, indicada en el aviso que se publica con cada versión.</string>
     <string name="lic_go">Entorno de ejecución y biblioteca estándar de Go — BSD-3-Clause; otros módulos de Go con sus propias licencias</string>
     <string name="lic_source_d">El código fuente de cada versión y la lista completa de componentes de terceros con sus licencias están en los repositorios del proyecto.</string>
     <string name="lic_title">Licencias y componentes</string>

@@ -10,7 +10,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.RunSelfCheckRequest.Chec
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SelfCheckResult
 
 /** Row state of one self-check; mirrors desktop screen_diag.tsx RunState. */
-enum class RowState { Pending, Ok, Warn, Fail, Skipped }
+/** [Off]: there is no tunnel to test. That is the normal state of a disconnected phone, never a failure. */
+enum class RowState { Pending, Ok, Warn, Fail, Skipped, Off }
 
 /** What a "fix" button does; the screen maps each to navigation or a system settings page. */
 enum class FixAction { OpenDns, OpenSubscriptions, SyncClock, GoToConnection }
@@ -51,7 +52,7 @@ object ChecksMapper {
 
     fun rows(results: List<SelfCheckResult>): List<CheckRow> =
         results.filter { it.kind !in hidden }.map { r ->
-            val state = stateOf(r.status)
+            val state = rowStateOf(r)
             CheckRow(r.kind, state, detailOf(r, state), fixOf(r.fixCode))
         }
 
@@ -61,13 +62,19 @@ object ChecksMapper {
     fun summary(rows: List<CheckRow>): CheckSummary? {
         if (rows.isEmpty() || rows.any { it.state == RowState.Pending }) return null
         val bad = rows.count { it.state == RowState.Fail || it.state == RowState.Warn }
-        val skipped = rows.count { it.state == RowState.Skipped }
+        val skipped = rows.count { it.state == RowState.Skipped || it.state == RowState.Off }
         return when {
             bad > 0 -> CheckSummary.Problems(bad)
             skipped > 0 -> CheckSummary.Partial(skipped, rows.size)
             else -> CheckSummary.AllGood
         }
     }
+
+    /** The core words "there is no connection" as a failure of the tunnel check; with no tunnel that is not a fault. */
+    private const val NO_CONNECTION = "no_connection"
+
+    internal fun rowStateOf(r: SelfCheckResult): RowState =
+        if (r.detail?.trim() == NO_CONNECTION && r.status != SelfCheckResult.Status.STATUS_OK && r.status != SelfCheckResult.Status.STATUS_WARN) RowState.Off else stateOf(r.status)
 
     internal fun stateOf(status: SelfCheckResult.Status): RowState = when (status) {
         SelfCheckResult.Status.STATUS_OK -> RowState.Ok
@@ -83,11 +90,11 @@ object ChecksMapper {
      */
     internal fun detailOf(r: SelfCheckResult, state: RowState): DetailText {
         val text = r.detail?.trim().orEmpty()
-        if (text.isEmpty()) return DetailText.None
+        if (text.isEmpty() || state == RowState.Off) return DetailText.None
         codeText(r.kind, text)?.let { return DetailText.Res(it) }
         return when (state) {
             RowState.Ok -> DetailText.Raw(text)
-            RowState.Skipped, RowState.Pending -> DetailText.None
+            RowState.Skipped, RowState.Pending, RowState.Off -> DetailText.None
             RowState.Warn, RowState.Fail ->
                 if (measured(text) || r.kind == CheckKind.CHECK_KIND_SUBSCRIPTION_OK) DetailText.Raw(text) else DetailText.Res(R.string.chk_d_generic)
         }

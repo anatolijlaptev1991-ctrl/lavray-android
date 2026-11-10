@@ -12,8 +12,13 @@ import androidx.compose.runtime.Immutable
 sealed interface ImportInput {
     data object Empty : ImportInput
 
-    /** One or more share links of known schemes; [skipped] lines had an unknown scheme. */
-    data class Links(val links: List<String>, val schemes: List<String>, val skipped: Int) : ImportInput
+    /**
+     * One or more share links of known schemes; [skipped] lines had an unknown scheme. [issues] are links of a known
+     * scheme that the core would refuse, so [readable] is what the import can really bring in.
+     */
+    data class Links(val links: List<String>, val schemes: List<String>, val skipped: Int, val issues: List<LinkIssue> = emptyList()) : ImportInput {
+        val readable: Int get() = links.size - issues.size
+    }
 
     /** A single http(s) address: a subscription. [insecure] is plain http (the provider and the network see it). */
     data class SubscriptionUrl(val url: String, val insecure: Boolean) : ImportInput
@@ -50,12 +55,13 @@ object LinkClassifier {
         val text = raw?.trim().orEmpty()
         if (text.isEmpty()) return ImportInput.Empty
         if (text.length > MAX_TEXT_CHARS) return ImportInput.Unrecognized
-        val lines = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
-        if (lines.all { schemeOf.matches(it) }) return classifyUrls(lines)
+        val numbered = text.lineSequence().mapIndexed { i, l -> (i + 1) to l.trim() }.filter { it.second.isNotEmpty() }.toList()
+        val lines = numbered.map { it.second }
+        if (lines.all { schemeOf.matches(it) }) return classifyUrls(lines, numbered.map { it.first })
         return classifyDocument(text)
     }
 
-    private fun classifyUrls(lines: List<String>): ImportInput {
+    private fun classifyUrls(lines: List<String>, lineNumbers: List<Int>): ImportInput {
         val schemes = lines.map { schemeOf.matchEntire(it)!!.groupValues[1].lowercase() }
         if (lines.size == 1) {
             val s = schemes[0]
@@ -68,6 +74,9 @@ object LinkClassifier {
             links = known.map { lines[it] },
             schemes = known.map { schemes[it] }.distinct(),
             skipped = lines.size - known.size,
+            issues = known.mapNotNull { i ->
+                if (schemes[i] != "ss") null else SsLinkCheck.check(lines[i])?.let { LinkIssue(lineNumbers[i], it, mask(lines[i])) }
+            },
         )
     }
 

@@ -83,7 +83,9 @@ private fun ImportSheet(ui: ImportUi, model: ImportModel) {
         }
         ui.note?.let { NoteBanner(it) }
         Preview(ui)
-        ui.error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes())) }
+        ui.error?.let { kind ->
+            LavBanner(StatusTone.Error, ui.errorLine?.let { stringResource(R.string.imp_err_line, it.toString()) } ?: stringResource(kind.textRes()))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End)) {
             LavButton(stringResource(R.string.common_cancel), model::close, variant = ButtonVariant.Ghost)
             LavButton(
@@ -184,11 +186,17 @@ private fun Preview(ui: ImportUi) {
     when (val input = ui.input) {
         ImportInput.Empty -> Unit
         ImportInput.Unrecognized -> if (ui.payload.isNotBlank()) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_unrecognized))
-        is ImportInput.Links -> LavText(
-            pluralStringResource(R.plurals.pl_srv, input.links.size, input.links.size) +
-                " · " + input.schemes.joinToString(", ") { it.uppercase() },
-            style = Lav.type.bodyStrong,
-        )
+        is ImportInput.Links -> {
+            // Only what the core will really take is counted: a line it would refuse is named, not promised.
+            if (input.readable > 0) {
+                LavText(
+                    pluralStringResource(R.plurals.pl_srv, input.readable, input.readable) +
+                        " · " + input.schemes.joinToString(", ") { it.uppercase() },
+                    style = Lav.type.bodyStrong,
+                )
+            }
+            input.issues.forEach { IssueBanner(it, othersStay = input.readable > 0) }
+        }
         is ImportInput.SubscriptionUrl -> {
             LavText(stringResource(R.string.imp_prev_subUrl), style = Lav.type.bodyStrong)
             if (input.insecure) LavBanner(StatusTone.Connecting, stringResource(R.string.imp_httpWarn))
@@ -196,6 +204,19 @@ private fun Preview(ui: ImportUi) {
         is ImportInput.EncryptedLink -> LavText(stringResource(R.string.onb_src_happ_d), style = Lav.type.bodyStrong)
         is ImportInput.Document -> LavText(stringResource(R.string.imp_prev_doc), style = Lav.type.bodyStrong)
     }
+}
+
+@Composable
+private fun IssueBanner(issue: LinkIssue, othersStay: Boolean) {
+    val why = stringResource(
+        when (issue.problem) {
+            LinkProblem.SsBase64 -> R.string.imp_issue_ss_b64
+            LinkProblem.SsPair -> R.string.imp_issue_ss_pair
+            LinkProblem.SsMethod -> R.string.imp_issue_ss_method
+        },
+    )
+    val rest = if (othersStay) " " + stringResource(R.string.imp_issue_rest) else ""
+    LavBanner(StatusTone.Connecting, stringResource(R.string.imp_issue_t, issue.line.toString()), text = why + rest + "\n" + issue.masked)
 }
 
 // ---- clipboard and file helpers (main-thread clipboard, IO-thread file)

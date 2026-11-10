@@ -16,11 +16,14 @@ import java.io.IOException
 /** What went wrong, in terms the UI can word for a person. The wording lives in [errorText]. */
 enum class ErrorKind { CoreUnavailable, NotImplemented, Precondition, InvalidInput, NotFound, Generic }
 
-/** Outcome of one core call. Never carries a raw exception text to the screen. */
+/**
+ * Outcome of one core call. Never carries a raw exception text to the screen; [line] is the one number the core names
+ * when it refuses text that was pasted or loaded ("line 3"), so the screen can point at it.
+ */
 sealed interface CoreResult<out T> {
     data class Ok<T>(val value: T) : CoreResult<T>
     /** [reason] is the core's ErrorInfo.reason when it sent one, for screens that word errors by reason (backup). */
-    data class Fail(val kind: ErrorKind, val reason: String? = null) : CoreResult<Nothing>
+    data class Fail(val kind: ErrorKind, val reason: String? = null, val line: Int? = null) : CoreResult<Nothing>
 }
 
 fun Throwable.errorKind(): ErrorKind = when {
@@ -87,7 +90,8 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
                     retried = true
                     continue
                 }
-                return CoreResult.Fail(e.errorKind(), (e as? ApiException)?.reason)
+                val api = e as? ApiException
+                return CoreResult.Fail(e.errorKind(), api?.reason, if (e.errorKind() == ErrorKind.InvalidInput) CoreMessages.lineOf(api?.message) else null)
             }
         }
     }

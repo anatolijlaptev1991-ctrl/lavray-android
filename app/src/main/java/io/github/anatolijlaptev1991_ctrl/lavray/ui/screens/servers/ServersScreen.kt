@@ -282,7 +282,7 @@ private fun SelectionBar(state: ServersState, model: ServersModel, onMove: () ->
         LavIconButton(LavIcon.Close, stringResource(R.string.srv_selClear), { model.dispatch(ServersAction.ClearSelection) })
         LavText(stringResource(R.string.srv_selected, state.selection.size.toString()), Modifier.weight(1f), style = Lav.type.bodyStrong)
         LavIconButton(LavIcon.List, stringResource(R.string.srv_select_all), { model.dispatch(ServersAction.SelectAllVisible) })
-        LavIconButton(LavIcon.Copy, stringResource(R.string.srv_menu_clone), { model.clone(state.selection); model.dispatch(ServersAction.ClearSelection) })
+        LavIconButton(LavIcon.Duplicate, stringResource(R.string.srv_menu_clone), { model.clone(state.selection); model.dispatch(ServersAction.ClearSelection) })
         LavIconButton(LavIcon.Folder, stringResource(R.string.srv_move), onMove)
         LavIconButton(LavIcon.Trash, stringResource(R.string.srv_delSel), onDelete, tint = c.errorText)
     }

@@ -30,11 +30,14 @@ data class ImportUi(
     val input: ImportInput = ImportInput.Empty,
     val busy: Boolean = false,
     val error: ErrorKind? = null,
+    /** The line of the pasted text the core named when it refused the content, if it named one. */
+    val errorLine: Int? = null,
     /** Shown when a QR image or file could not be read or held nothing recognisable. */
     val note: ImportNote? = null,
 ) {
     val payloadLarge: Boolean get() = payload.length > FIELD_LIMIT
-    val canSubmit: Boolean get() = !busy && input != ImportInput.Empty && input != ImportInput.Unrecognized
+    val canSubmit: Boolean get() = !busy && input != ImportInput.Empty && input != ImportInput.Unrecognized &&
+        !(input is ImportInput.Links && input.readable == 0)
 
     companion object {
         const val FIELD_LIMIT = 20_000
@@ -47,7 +50,7 @@ data class ImportUi(
  */
 fun ImportUi.switchedTo(next: ImportTab): ImportUi =
     if (next == tab) copy(note = null, error = null)
-    else copy(tab = next, payload = "", input = ImportInput.Empty, note = null, error = null)
+    else copy(tab = next, payload = "", input = ImportInput.Empty, note = null, error = null, errorLine = null)
 
 enum class ImportNote { QrNotFound, QrUnreadable, FileUnreadable, FileTooLarge, NothingRecognised }
 
@@ -84,7 +87,7 @@ class ImportModel(
     fun selectTab(tab: ImportTab) = mutable.update { it.switchedTo(tab) }
 
     fun setPayload(text: String) {
-        mutable.update { it.copy(payload = text, note = null, error = null) }
+        mutable.update { it.copy(payload = text, note = null, error = null, errorLine = null) }
         scope.launch(Dispatchers.Default) {
             val input = LinkClassifier.classify(text)
             mutable.update { cur -> if (cur.payload == text) cur.copy(input = input) else cur }
@@ -105,7 +108,7 @@ class ImportModel(
     fun submit(targetGroupId: Long?) {
         val cur = mutable.value
         if (!cur.canSubmit) return
-        mutable.update { it.copy(busy = true, error = null) }
+        mutable.update { it.copy(busy = true, error = null, errorLine = null) }
         scope.launch(Dispatchers.IO) {
             val request = ImportContentRequest(content = cur.payload, targetGroupId = targetGroupId)
             when (val r = session.call { profileImportContent(request) }) {
@@ -115,7 +118,7 @@ class ImportModel(
                     servers.refresh()
                     mutableEvents.tryEmit(ImportEvent.Imported(added, subscription = r.value.createdGroupId != null))
                 }
-                is CoreResult.Fail -> mutable.update { it.copy(busy = false, error = r.kind) }
+                is CoreResult.Fail -> mutable.update { it.copy(busy = false, error = r.kind, errorLine = r.line) }
             }
         }
     }
