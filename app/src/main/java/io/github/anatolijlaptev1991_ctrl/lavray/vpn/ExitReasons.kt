@@ -27,6 +27,9 @@ object ExitReasons {
         else -> null
     }
 
+    /** Exits the person caused (force-stop, ending the process): like Disconnect, they end the wish to be connected. */
+    fun isDeliberate(code: String?): Boolean = code == "user_stopped" || code == "user_requested"
+
     /** The reason of the newest recorded exit of this app's :vpn process, or null when unknown or below API 30. */
     fun lastVpnExit(context: Context): String? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null

@@ -39,6 +39,9 @@ class UpdateReceiver : BroadcastReceiver() {
 internal interface BootActions {
     fun consentGranted(): Boolean
 
+    /** Why the newest :vpn process ended (API 30+), or null; asked only for an update that would restore a wish. */
+    fun lastExitReason(): String?
+
     /** Starts the service as a boot start. Throws a RuntimeException when the system refuses. */
     fun startService()
     fun notifyPermissionNeeded()
@@ -50,6 +53,12 @@ internal object BootLogic {
     fun run(trigger: BootTrigger, autoConnect: Boolean, intent: TunnelIntent, actions: BootActions) {
         // A wish from before a reboot reads as cleared (the boot count differs): only auto-connect carries it over.
         val want = intent.snapshot.wantConnected
+        // An update delivered to an app the person force-stopped must not bring the tunnel back: the last :vpn process
+        // that ended was ended by the person, and the update kill of a running tunnel is a later exit.
+        if (trigger == BootTrigger.UPDATE && want && ExitReasons.isDeliberate(actions.lastExitReason())) {
+            intent.onUserDisconnect()
+            return
+        }
         val wanted = if (trigger == BootTrigger.BOOT) autoConnect else want
         val consent = wanted && actions.consentGranted()
         when (BootPolicy.decide(trigger, autoConnect, want, consent)) {
@@ -84,10 +93,12 @@ internal object BootFlow {
         if (outcome == SwitchOutcome.FAILED_STILL_DISABLED || outcome == SwitchOutcome.FAILED_STAYS_ENABLED) {
             Log.w(TAG, "boot receiver switch failed: $outcome")
         }
-        val intent = TunnelIntent(prefs) { BootCount.read(context) }
+        val intent = TunnelIntent(prefs, { BootCount.read(context) }, { BootId.current })
         BootLogic.run(trigger, prefs.autoConnect, intent, object : BootActions {
             // Calling prepare() from a receiver is not described by the docs; treated as "no consent" on failure.
             // It can make this app the prepared VPN package when another one is; a start follows, so that is acceptable.
+            override fun lastExitReason(): String? = ExitReasons.lastVpnExit(context)
+
             override fun consentGranted() = runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
 
             override fun startService() {

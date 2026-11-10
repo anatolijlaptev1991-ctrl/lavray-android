@@ -90,6 +90,9 @@ internal object VpnNotifications {
     private fun failureText(kind: String?): Int? = when (kind) {
         FailureKind.NO_SERVER -> R.string.notif_failure_no_server
         FailureKind.APPS_NONE -> R.string.notif_failure_apps_none
+        FailureKind.REPEATED_CRASH -> R.string.notif_failure_repeated_crash
+        FailureKind.CORE_STOP_TIMEOUT -> R.string.notif_failure_core_stop_timeout
+        FailureKind.PROTECTION_OFF -> R.string.notif_protection_off_text
         else -> null
     }
 

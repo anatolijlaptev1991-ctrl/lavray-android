@@ -383,7 +383,9 @@
     <string name="notif_disconnecting">Disconnecting…</string>
     <string name="notif_error">Connection failed</string>
     <string name="notif_failure_apps_none">None of the selected apps is installed. Choose the apps again in Settings.</string>
+    <string name="notif_failure_core_stop_timeout">The VPN core did not stop in time and was restarted. Open the app to connect again.</string>
     <string name="notif_failure_no_server">No server is selected. Choose a server and connect again.</string>
+    <string name="notif_failure_repeated_crash">The VPN service stopped repeatedly and was not restarted. Open the app to connect again.</string>
     <string name="notif_failure_title">Could not connect</string>
     <string name="notif_idle">Not connected</string>
     <string name="notif_permission_text">Open the app to allow the VPN again.</string>

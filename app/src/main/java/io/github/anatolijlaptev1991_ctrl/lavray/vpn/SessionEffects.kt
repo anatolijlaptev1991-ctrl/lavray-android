@@ -47,6 +47,12 @@ internal sealed interface SessionEffect {
     data class ScheduleHold(val delayMs: Long) : SessionEffect
     data object CancelHold : SessionEffect
 
+    /** Wake the loop after [delayMs]: the tunnel may by then have stayed connected long enough. */
+    data class ScheduleStable(val delayMs: Long) : SessionEffect
+
+    /** End the :vpn process (a hung Go runtime cannot be recovered in place). Always the last effect. */
+    data object KillProcess : SessionEffect
+
     /** Close the held interface; [onlyGeneration] null closes whatever is held, otherwise only that generation. */
     data class ReleaseTun(val onlyGeneration: Int?) : SessionEffect
 

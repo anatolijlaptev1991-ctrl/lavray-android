@@ -383,7 +383,9 @@
     <string name="notif_disconnecting">Отключение…</string>
     <string name="notif_error">Не удалось подключиться</string>
     <string name="notif_failure_apps_none">Ни одно из выбранных приложений не установлено. Выберите приложения заново в настройках.</string>
+    <string name="notif_failure_core_stop_timeout">Ядро VPN не остановилось вовремя и было перезапущено. Откройте приложение, чтобы подключиться заново.</string>
     <string name="notif_failure_no_server">Сервер не выбран. Выберите сервер и подключитесь снова.</string>
+    <string name="notif_failure_repeated_crash">Служба VPN останавливалась снова и снова и больше не перезапускается. Откройте приложение, чтобы подключиться заново.</string>
     <string name="notif_failure_title">Не удалось подключиться</string>
     <string name="notif_idle">Не подключено</string>
     <string name="notif_permission_text">Откройте приложение, чтобы снова разрешить VPN.</string>

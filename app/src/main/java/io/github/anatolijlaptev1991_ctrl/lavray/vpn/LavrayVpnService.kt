@@ -22,6 +22,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.MainActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The tunnel, in its own process (:vpn): the interpreter of [SessionEngine]. One coroutine consumes every event in
@@ -56,6 +58,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         data class GraceElapsed(val token: Int) : Event
         data class TunEstablished(val generation: Int, val skipped: List<String>) : Event
         data class RestrictedStart(val message: String?, val seq: Long) : Event
+        data object KeepAliveRefused : Event
         data class Abandoned(val seq: Long) : Event
         data object Poke : Event
         data object Revoked : Event
@@ -71,6 +74,14 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     /** The newest command from the person; commands older than it that are still queued are stale. */
     private val userSeq = AtomicLong(0)
 
+    /** A job slot written from several threads (Binder, IO, the loop): swapping it cancels the previous one. */
+    private class JobSlot {
+        private val ref = AtomicReference<Job?>()
+        fun set(job: Job) { ref.getAndSet(job)?.cancel() }
+        fun cancel() { ref.getAndSet(null)?.cancel() }
+        val isActive: Boolean get() = ref.get()?.isActive == true
+    }
+
     /** The startId of the newest start: stopSelf(startId) does nothing when a newer start has arrived since. */
     @Volatile private var lastStartId = 0
 
@@ -82,6 +93,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     private lateinit var fg: ServiceForeground
     private lateinit var engine: SessionEngine
     private lateinit var bootSetting: AutoConnectSetting
+    private lateinit var userCommands: UserCommands
 
     @Volatile private var client: LavrayClient? = null
     @Volatile private var endpoint: CoreEndpoint? = null
@@ -89,13 +101,16 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     /** Set from Go threads while the interface is built; read by the attempt that asked for it. */
     @Volatile private var tunFailure: TunFailure? = null
 
+    // These two are written from Binder and IO threads as well as the loop.
+    private val eventsJob = JobSlot()
+    private val busyWake = JobSlot()
+
     // The fields below are touched only by the event loop.
     private var attemptJob: Job? = null
     private var retryJob: Job? = null
     private var graceJob: Job? = null
     private var holdJob: Job? = null
-    private var eventsJob: Job? = null
-    private var busyJob: Job? = null
+    private var stableJob: Job? = null
 
     private val platformEvents = object : PlatformListener {
         override fun onTunEstablished(generation: Int, skippedPackages: List<String>) {
@@ -112,7 +127,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         live.incrementAndGet()
         VpnNotifications.ensureChannels(this)
         prefs = VpnPrefs(this)
-        wish = TunnelIntent(prefs) { BootCount.read(this) }
+        wish = TunnelIntent(prefs, { BootCount.read(this) }, { BootId.current })
         bootSetting = BootComponents.setting(this, prefs)
         fg = ServiceForeground(this)
         val cm = getSystemService(ConnectivityManager::class.java)
@@ -130,6 +145,22 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             onLost = { post(Event.Auto(AutoEvent.NetworkLost)) },
         )
         engine = SessionEngine(this, wish)
+        userCommands = UserCommands(
+            userSeq, wish,
+            { action, profileId, seq ->
+                val start = Intent(this, LavrayVpnService::class.java)
+                    .putExtra(StartIntent.EXTRA_SOURCE, StartSource.USER.wire)
+                    .putExtra(StartIntent.EXTRA_PROFILE_ID, profileId)
+                    .putExtra(StartIntent.EXTRA_SEQ, seq)
+                if (action != null) start.setAction(action)
+                startForegroundService(start)
+            },
+            { command, seq -> post(Event.Command(command, seq)) },
+            { message, seq ->
+                publishNow(VpnStatus(VpnState.ERROR, message, lastFailure = message, failureKind = FailureKind.RESTRICTED_START))
+                post(Event.Abandoned(seq))
+            },
+        )
         // Before any command can arrive: a wish left by a dead process of this boot is an unexpected stop. The exit
         // reason (a Binder call) is read only then.
         engine.onCreated { ExitReasons.lastVpnExit(this) }
@@ -146,30 +177,32 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             intent?.getLongExtra(StartIntent.EXTRA_PROFILE_ID, 0L) ?: 0L,
             hasIntent = intent != null,
         )
-        var seq = intent?.getLongExtra(StartIntent.EXTRA_SEQ, 0L) ?: 0L
-        when (command) {
-            // A start that was promised to become foreground must do so within seconds, whatever follows. When the
-            // system refuses, nothing is started: the failure is recorded and shown, and the service stops.
-            is StartCommand.Connect, is StartCommand.Reconnect -> if (!fg.enter(firstModel())) {
-                post(Event.RestrictedStart(null, seq))
-                return START_NOT_STICKY
+        val route = StartRouter.route(
+            command,
+            intent?.getLongExtra(StartIntent.EXTRA_SEQ, 0L) ?: 0L,
+            { fg.enter(firstModel()) },
+            { userCommands.takeDisconnect() },
+            { busyHold.clear() },
+        )
+        return when (route) {
+            is StartRoute.Deliver -> {
+                post(Event.Command(route.command, route.seq))
+                // Sticky: after the process dies the system restarts the service with a null intent, and
+                // [StartCommand.Resume] reconnects only if the tunnel was wanted, consent is there, and the process has
+                // not died repeatedly.
+                START_STICKY
             }
-            // A background restart or a keep-alive is best effort: the tunnel and the operation matter more than the notification.
-            StartCommand.Resume -> fg.enter(firstModel())
-            StartCommand.KeepAlive -> if (!fg.enter(firstModel())) {
-                // The start promised a foreground service and the system refuses: end the holds so the service can stop
-                // (a service that never calls startForeground after startForegroundService is killed with a crash).
-                busyHold.clear()
+            // The foreground promise could not be kept: nothing is started, the failure is recorded and shown, and the
+            // started state ends (whether or not the UI is bound).
+            is StartRoute.RefusedForeground -> {
+                post(Event.RestrictedStart(null, route.seq))
+                START_NOT_STICKY
             }
-            StartCommand.Disconnect -> {
-                seq = userSeq.incrementAndGet()
-                wish.onUserDisconnect()
+            StartRoute.KeepAliveRefused -> {
+                post(Event.KeepAliveRefused)
+                START_NOT_STICKY
             }
         }
-        post(Event.Command(command, seq))
-        // Sticky: after the process dies the system restarts the service with a null intent, and [StartCommand.Resume]
-        // reconnects only if the tunnel was wanted, consent is there, and the process has not died repeatedly.
-        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -232,34 +265,11 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         return checkNotNull(endpoint)
     }
 
-    override fun connect(profileId: Long) = startViaIntent(null, profileId)
+    override fun connect(profileId: Long) = userCommands.connect(profileId)
 
-    override fun reconnect(profileId: Long) = startViaIntent(StartIntent.ACTION_RECONNECT, profileId)
+    override fun reconnect(profileId: Long) = userCommands.reconnect(profileId)
 
-    private fun startViaIntent(action: String?, profileId: Long) {
-        // Entry point that carries the person's intent: the wish is written here, before the start, with commit(): a
-        // process that dies a moment later must still be restored. The number orders this command against later ones.
-        val seq = userSeq.incrementAndGet()
-        wish.onConnectRequested()
-        val start = Intent(this, LavrayVpnService::class.java)
-            .putExtra(StartIntent.EXTRA_SOURCE, StartSource.USER.wire)
-            .putExtra(StartIntent.EXTRA_PROFILE_ID, profileId)
-            .putExtra(StartIntent.EXTRA_SEQ, seq)
-        if (action != null) start.setAction(action)
-        try {
-            startForegroundService(start)
-        } catch (e: RuntimeException) {
-            wish.onGaveUp(FailureKind.RESTRICTED_START, e.message, wasEstablished = false)
-            publishNow(VpnStatus(VpnState.ERROR, e.message, lastFailure = e.message, failureKind = FailureKind.RESTRICTED_START))
-            post(Event.Abandoned(seq))
-        }
-    }
-
-    override fun disconnect() {
-        val seq = userSeq.incrementAndGet()
-        wish.onUserDisconnect()
-        post(Event.Command(StartCommand.Disconnect, seq))
-    }
+    override fun disconnect() = userCommands.disconnect()
 
     override val autoConnect: Boolean get() = prefs.autoConnect
 
@@ -273,28 +283,40 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             prefs.appSelection = value
         }
 
-    override fun beginBusy(token: String, timeoutMs: Long) {
-        val deadline = busyHold.begin(nowMono(), token, timeoutMs)
+    override fun beginBusy(token: String, timeoutMs: Long): Boolean {
+        busyHold.begin(nowMono(), token, timeoutMs)
         // A process kept alive for a long operation is a started, foreground service: the keep-alive start does that.
         try {
             startForegroundService(Intent(this, LavrayVpnService::class.java).setAction(StartIntent.ACTION_KEEP_ALIVE))
         } catch (e: RuntimeException) {
-            Log.w(TAG, "keep-alive start refused: ${e.javaClass.simpleName}")
+            // Nothing keeps the process alive: the hold is not in force, and the caller is told.
+            Log.w(TAG, "keep-alive start refused: " + e.javaClass.simpleName)
+            busyHold.end(token)
+            return false
         }
-        scheduleBusyWake(deadline)
+        rearmBusyWake()
+        return true
     }
 
     override fun endBusy(token: String) {
         busyHold.end(token)
+        rearmBusyWake()
         post(Event.Poke)
     }
 
-    private fun scheduleBusyWake(deadline: Long) {
-        busyJob?.cancel()
-        busyJob = scope.launch {
-            delay((deadline - nowMono()).coerceAtLeast(0) + 1)
-            post(Event.Poke)
-        }
+    /** One wake-up job for the earliest deadline of any hold; it re-arms itself for the next until none is left. */
+    private fun rearmBusyWake() {
+        busyWake.cancel()
+        if (busyHold.delayUntilNext(nowMono()) == null) return
+        busyWake.set(
+            scope.launch {
+                while (true) {
+                    val wait = busyHold.delayUntilNext(nowMono()) ?: break
+                    delay(wait)
+                    post(Event.Poke)
+                }
+            },
+        )
     }
 
     // ---- event loop
@@ -329,6 +351,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         is Event.GraceElapsed -> engine.onGraceElapsed(event.token)
         is Event.TunEstablished -> engine.onTunEstablished(event.generation, event.skipped)
         is Event.RestrictedStart -> engine.onRestrictedStart(event.message, event.seq)
+        Event.KeepAliveRefused -> engine.onKeepAliveRefused()
         is Event.Abandoned -> engine.onCommandAbandoned(event.seq)
         Event.Poke -> engine.onPoke()
         Event.Revoked -> engine.onRevoked()
@@ -377,12 +400,31 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
                     }
                 }
                 SessionEffect.CancelHold -> holdJob?.cancel()
+                is SessionEffect.ScheduleStable -> {
+                    stableJob?.cancel()
+                    stableJob = scope.launch {
+                        delay(effect.delayMs + 1)
+                        post(Event.Poke)
+                    }
+                }
+                SessionEffect.KillProcess -> {
+                    // The Go core cannot be stopped: a fresh process is the only way out. The failure is already recorded.
+                    Log.e(TAG, "core stop hung; ending the process")
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                }
                 is SessionEffect.ReleaseTun ->
                     if (effect.onlyGeneration == null) platform.releaseTun() else platform.releaseTunIfCurrent(effect.onlyGeneration)
                 SessionEffect.DisconnectCore -> {
-                    val cut = disconnectCore()
-                    if (cut != null) run(engine.onCoreCutLoose(timedOut = cut.timedOut))
-                    run(engine.onDisconnectDone())
+                    var cut: CutLoose? = null
+                    try {
+                        cut = disconnectCore()
+                    } finally {
+                        // Whatever happened to the stop, the engine must leave "disconnecting" and the interface must go.
+                        withContext(NonCancellable) {
+                            if (cut != null) run(engine.onCoreCutLoose(timedOut = cut.timedOut))
+                            run(engine.onDisconnectDone())
+                        }
+                    }
                 }
                 is SessionEffect.Alert -> alert(effect.alert)
                 SessionEffect.CancelAlert -> VpnNotifications.cancelAlert(this)
@@ -453,10 +495,11 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
 
     /** One subscription per core, kept open and re-seeded for as long as this client is the one in use. */
     private fun startEventStream(c: LavrayClient) {
-        eventsJob?.cancel()
-        eventsJob = scope.launch(Dispatchers.IO) {
-            CoreWatcher.keep(ClientCoreApi(c), { post(Event.Core(it)) }, { client === c })
-        }
+        eventsJob.set(
+            scope.launch(Dispatchers.IO) {
+                CoreWatcher.keep(ClientCoreApi(c), { post(Event.Core(it)) }, { client === c })
+            },
+        )
     }
 
     private class CutLoose(val timedOut: Boolean)
@@ -481,7 +524,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
      */
     private suspend fun forceStopCore(): CutLoose {
         Log.w(TAG, "core did not answer Disconnect in time; stopping it")
-        eventsJob?.cancel()
+        eventsJob.cancel()
         coreMutex.withLock {
             client = null
             endpoint = null

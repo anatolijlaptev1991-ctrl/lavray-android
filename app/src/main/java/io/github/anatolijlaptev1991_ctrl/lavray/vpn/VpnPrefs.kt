@@ -34,6 +34,7 @@ class VpnPrefs(context: Context) : TunnelStore {
         failureReason = prefs.getString(KEY_FAILURE_REASON, null),
         resumeAttempts = prefs.getInt(KEY_RESUME_ATTEMPTS, 0),
         bootCount = prefs.getInt(KEY_BOOT_COUNT, -1),
+        bootId = prefs.getString(KEY_BOOT_ID, null),
     )
 
     override fun save(state: PersistedTunnel) {
@@ -47,6 +48,7 @@ class VpnPrefs(context: Context) : TunnelStore {
             .putString(KEY_FAILURE_REASON, state.failureReason)
             .putInt(KEY_RESUME_ATTEMPTS, state.resumeAttempts)
             .putInt(KEY_BOOT_COUNT, state.bootCount)
+            .putString(KEY_BOOT_ID, state.bootId)
             .commit()
     }
 
@@ -63,6 +65,7 @@ class VpnPrefs(context: Context) : TunnelStore {
         const val KEY_FAILURE_REASON = "failure_reason"
         const val KEY_RESUME_ATTEMPTS = "resume_attempts"
         const val KEY_BOOT_COUNT = "boot_count"
+        const val KEY_BOOT_ID = "boot_id"
     }
 }
 
@@ -72,5 +75,18 @@ object BootCount {
         android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
     } catch (_: RuntimeException) {
         -1
+    }
+}
+
+/** The kernel's id of this boot, or null when the file cannot be read; stable for the life of the process. */
+object BootId {
+    val current: String? by lazy {
+        try {
+            java.io.File("/proc/sys/kernel/random/boot_id").readText().trim().takeIf { it.isNotEmpty() }
+        } catch (_: java.io.IOException) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
     }
 }

@@ -40,7 +40,8 @@ internal object StatusModel {
             i.phase == AutoPhase.ATTEMPTING && (core.state == VpnState.IDLE || core.state == VpnState.ERROR) ->
                 VpnStatus(VpnState.CONNECTING)
             // A deliberate disconnect never ends in a displayed error: the core reports its aborted start as ERROR.
-            i.phase == AutoPhase.STOPPED && core.state == VpnState.ERROR -> VpnStatus(VpnState.IDLE)
+            // A core that finished connecting just before it saw the Disconnect is not a connected tunnel either.
+            i.phase == AutoPhase.STOPPED && (core.state == VpnState.ERROR || core.state == VpnState.CONNECTED) -> VpnStatus(VpnState.IDLE)
             else -> core
         }
         return shown.copy(

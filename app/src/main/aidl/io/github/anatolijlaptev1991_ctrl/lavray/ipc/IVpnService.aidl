@@ -51,8 +51,10 @@ interface IVpnService {
      * Keeps the :vpn process (and the core inside it) alive while a long operation that runs in the core is under way,
      * for example a backup restore, even if the UI unbinds. token names the hold; timeoutMs is a hard cap (clamped to
      * 15 minutes). Call endBusy with the same token when done; a hold the UI forgets ends by itself at its deadline.
+     * Returns true when the hold is in force; false when the system refused to keep the service in the foreground
+     * (the hold was dropped and nothing keeps the process alive). Callers that ignore the result keep working.
      */
-    void beginBusy(String token, long timeoutMs);
+    boolean beginBusy(String token, long timeoutMs);
 
     void endBusy(String token);
 }

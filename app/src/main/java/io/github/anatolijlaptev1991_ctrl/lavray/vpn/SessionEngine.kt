@@ -28,7 +28,10 @@ internal class SessionEngine(
     private var attemptProfile: Long? = null
     private var attemptGeneration = 0
     private var disconnectFirst = false
-    private var disconnecting = false
+    /** A deliberate disconnect waits for the core (the interface is still held until [onDisconnectDone]). */
+    var disconnecting = false
+        private set
+    private var connectedSince: Long? = null
     private var knownTunGeneration = 0
     private var holdTunGeneration: Int? = null
     private var holdUntilMono = 0L
@@ -61,22 +64,25 @@ internal class SessionEngine(
     fun onConnect(source: StartSource, profile: Long?, seq: Long): List<SessionEffect> {
         handledSeq = maxOf(handledSeq, seq)
         if (source == StartSource.USER && seq < env.latestUserSeq()) return finish(Out())
-        return connect(source, profile, reconnecting = false)
+        // The newest command settles the wish: its binder write and its number are taken by two threads without a lock,
+        // so the write may have been overtaken by an older command's; a stale command never reaches this line.
+        return connect(source, profile, reconnecting = false, reassertWish = source == StartSource.USER)
     }
 
     fun onReconnect(profile: Long?, seq: Long): List<SessionEffect> {
         handledSeq = maxOf(handledSeq, seq)
         if (seq < env.latestUserSeq()) return finish(Out())
         val source = if (machine.state.retries) StartSource.SYSTEM else StartSource.USER
-        return connect(source, profile, reconnecting = true)
+        return connect(source, profile, reconnecting = true, reassertWish = true)
     }
 
-    private fun connect(source: StartSource, profile: Long?, reconnecting: Boolean): List<SessionEffect> {
+    private fun connect(source: StartSource, profile: Long?, reconnecting: Boolean, reassertWish: Boolean = false): List<SessionEffect> {
         val out = Out()
         val consent = env.consentGranted()
         // Only entry points that carry intent write the wish: the person's tap did (binder), boot did (receiver).
-        // The system's Always-on carries it here. A USER start executes a request that was already written.
-        if (consent && source == StartSource.SYSTEM) wish.onConnectRequested()
+        // The system's Always-on carries it here. A USER start executes a request that was already written, and
+        // re-asserts it only when it is the newest command of the person (see [reassertWish]).
+        if (consent && (source == StartSource.SYSTEM || reassertWish)) wish.onConnectRequested()
         if (profile != null) requestedProfile = profile
         // A rebuild asks the core to stop first; harmless when it is idle, and it never skips the switch.
         disconnectFirst = reconnecting && consent
@@ -158,7 +164,19 @@ internal class SessionEngine(
         val out = Out()
         wish.onGaveUp(FailureKind.RESTRICTED_START, message, wasEstablished = false)
         out += SessionEffect.Alert(AlertKind.Failure(FailureKind.RESTRICTED_START, message))
-        return finish(out)
+        return endStartedState(finish(out))
+    }
+
+    /**
+     * A keep-alive start was refused foreground: the promise of a foreground service is unmet, so the started state
+     * must end (a bound UI keeps the binding, which is not what the promise is about).
+     */
+    fun onKeepAliveRefused(): List<SessionEffect> = endStartedState(finish(Out()))
+
+    /** Ends the started state unless a tunnel runs: stopping then would take the tunnel down with it. */
+    private fun endStartedState(effects: List<SessionEffect>): List<SessionEffect> {
+        if (isCoreActive() || machine.state.pending || SessionEffect.StopSelf in effects) return effects
+        return effects + SessionEffect.StopSelf
     }
 
     // ---- events
@@ -171,6 +189,9 @@ internal class SessionEngine(
 
     private fun applyCore(status: CoreStatus, out: Out) {
         coreStatus = status
+        // A core that finished connecting just before it saw our Disconnect delivers CONNECTED, DISCONNECTING, IDLE
+        // late: for a session the person ended they are not news (no grace period, no "tunnel lost").
+        if (disconnecting || machine.state.phase == AutoPhase.STOPPED) return
         watch.onCore(status.state, attemptRunning).forEach { out.link(it) }
     }
 
@@ -217,8 +238,15 @@ internal class SessionEngine(
     fun onCoreCutLoose(timedOut: Boolean): List<SessionEffect> {
         coreEpoch++
         coreStatus = coreStatus?.copy(state = CoreState.CORE_STATE_IDLE, lastError = null)
-        if (timedOut) wish.onFailureNoted(FailureKind.CORE_STOP_TIMEOUT, "the core did not stop in time")
-        return finish(Out())
+        val out = Out()
+        if (timedOut) {
+            wish.onFailureNoted(FailureKind.CORE_STOP_TIMEOUT, STOP_TIMEOUT_MESSAGE)
+            out += SessionEffect.Alert(AlertKind.Failure(FailureKind.CORE_STOP_TIMEOUT, STOP_TIMEOUT_MESSAGE))
+        }
+        val effects = finish(out)
+        // A Go runtime whose stop never returns holds the core lock for good: no later start in this process can
+        // succeed. The failure is recorded and published; a fresh process is the only way out. The wish is already clear.
+        return if (timedOut) effects + SessionEffect.KillProcess else effects
     }
 
     /** A command of the person that will never reach the loop (its start was refused): it no longer counts as queued. */
@@ -304,6 +332,7 @@ internal class SessionEngine(
         val commandQueued = env.latestUserSeq() > handledSeq
         val transition = watch.inGrace || holdUntilMono != 0L || commandQueued
         val busy = env.busy()
+        trackStability(out)
         out += SessionEffect.SetForeground(ShutdownPolicy.shouldBeForeground(active, pending, transition, busy))
         out += SessionEffect.Publish(computeStatus())
         if (ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)) {
@@ -313,6 +342,26 @@ internal class SessionEngine(
             out += SessionEffect.StopSelf
         }
         return out.toList()
+    }
+
+    /**
+     * The crash counter of [ResumePolicy] resets only once the tunnel has stayed CONNECTED for [STABLE_MS]: a native
+     * crash a few seconds after CONNECTED must still count.
+     */
+    private fun trackStability(out: Out) {
+        val connected = coreStatus?.state == CoreState.CORE_STATE_CONNECTED && !disconnecting && machine.state.phase != AutoPhase.STOPPED
+        if (!connected) {
+            connectedSince = null
+            return
+        }
+        val now = env.nowMono()
+        val since = connectedSince
+        if (since == null) {
+            connectedSince = now
+            out += SessionEffect.ScheduleStable(STABLE_MS)
+        } else if (now - since >= STABLE_MS && wish.snapshot.resumeAttempts > 0) {
+            wish.onStable()
+        }
     }
 
     /** The rule is [BlackholePolicy]: keep the interface blocked only while the app itself rebuilds an established tunnel. */
@@ -392,6 +441,12 @@ internal class SessionEngine(
     }
 
     /** The effects collected by one input, in order. */
+    companion object {
+        /** How long a tunnel must stay CONNECTED before the crash counter of [ResumePolicy] is cleared. */
+        const val STABLE_MS = 3 * 60_000L
+        const val STOP_TIMEOUT_MESSAGE = "the core did not stop in time"
+    }
+
     private class Out {
         private val list = ArrayList<SessionEffect>()
 
