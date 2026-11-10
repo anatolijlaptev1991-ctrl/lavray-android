@@ -12,3 +12,6 @@ local.properties
 *.iml
 .kotlin/
 /app/libs/*.jar
+
+# рабочие копии агентов
+/.claude/
