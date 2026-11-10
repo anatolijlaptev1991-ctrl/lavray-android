@@ -2,6 +2,7 @@
 package io.github.anatolijlaptev1991_ctrl.lavray.vpn
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,7 +13,7 @@ class AppRuleApplierTest {
 
     @Test
     fun missingSelectedAppIsSkippedAndReported() {
-        val r = AppRuleApplier.apply(AppRules(listOf("com.a", "com.gone", "com.b"), emptyList()), add)
+        val r = AppRuleApplier.apply(AppRules(listOf("com.a", "com.gone", "com.b"), emptyList()), add = add)
         assertEquals(listOf("com.a", "com.b"), r.applied)
         assertEquals(listOf("com.gone"), r.skipped)
     }
@@ -20,20 +21,20 @@ class AppRuleApplierTest {
     @Test
     fun allowListResolvingToNothingIsTheOnlyFatalCase() {
         assertThrows(NoAllowedAppsException::class.java) {
-            AppRuleApplier.apply(AppRules(listOf("com.gone", "com.gone2"), emptyList()), add)
+            AppRuleApplier.apply(AppRules(listOf("com.gone", "com.gone2"), emptyList()), add = add)
         }
     }
 
     @Test
     fun missingExcludedAppNeedsNoRuleButIsReported() {
-        val r = AppRuleApplier.apply(AppRules(emptyList(), listOf("com.gone", "com.a")), add)
+        val r = AppRuleApplier.apply(AppRules(emptyList(), listOf("com.gone", "com.a")), add = add)
         assertEquals(listOf("com.a"), r.applied)
         assertEquals(listOf("com.gone"), r.skipped)
     }
 
     @Test
     fun excludeModeWithNothingInstalledStillBuilds() {
-        val r = AppRuleApplier.apply(AppRules(emptyList(), listOf("com.gone")), add)
+        val r = AppRuleApplier.apply(AppRules(emptyList(), listOf("com.gone")), add = add)
         assertTrue(r.applied.isEmpty())
         assertEquals(listOf("com.gone"), r.skipped)
     }
@@ -114,6 +115,36 @@ class AppRuleApplierTest {
         val spec = TunSpec.of(options, AppRules(listOf("com.a"), emptyList())) { InstalledApps.UNKNOWN_UID }
         assertTrue(spec.missing.isEmpty())
         assertEquals(listOf(InstalledApps.UNKNOWN_UID), spec.uids)
+    }
+
+    // V-10: Android keeps the uids of the interface it replaces when the list of names is the same list.
+    @Test
+    fun theSameAppsCanBeHandedAsAnotherList() {
+        for (rules in listOf(AppRules(listOf("com.a", "com.gone", "com.b"), emptyList()), AppRules(emptyList(), listOf("com.a", "com.b")))) {
+            val once = ArrayList<String>()
+            val twice = ArrayList<String>()
+            val first = AppRuleApplier.apply(rules) { pkg, _ -> once += pkg; pkg in installed }
+            val second = AppRuleApplier.apply(rules, twice = true) { pkg, _ -> twice += pkg; pkg in installed }
+            assertEquals("what is in the tunnel does not change", first, second)
+            assertTrue("the system sees another list", once.filter { it in installed } != twice.filter { it in installed })
+            assertEquals("the same apps", once.filter { it in installed }.toSet(), twice.filter { it in installed }.toSet())
+            assertEquals("an installed name is the one repeated", "com.a", twice.last())
+        }
+    }
+
+    @Test
+    fun onlyTheSameNamesWithOtherAppsBehindThemNeedFreshUids() {
+        val rules = AppRules(listOf("com.a", "com.b"), emptyList())
+        val held = TunSpec.of(options, rules) { uids[it] }
+        assertFalse("nothing changed", TunSpec.uidsStale(held, TunSpec.of(options, rules) { uids[it] }))
+        assertFalse("another MTU is not about apps", TunSpec.uidsStale(held, TunSpec.of(options.copy(mtu = 1500), rules) { uids[it] }))
+        assertTrue("installed again: a new uid", TunSpec.uidsStale(held, TunSpec.of(options, rules) { (uids + ("com.b" to 10_077))[it] }))
+        assertTrue("removed", TunSpec.uidsStale(held, TunSpec.of(options, rules) { (uids - "com.b")[it] }))
+        val oneMissing = TunSpec.of(options, rules) { (uids - "com.b")[it] }
+        assertTrue("installed since", TunSpec.uidsStale(oneMissing, held))
+        assertFalse("other names are another list for the system anyway",
+            TunSpec.uidsStale(held, TunSpec.of(options, AppRules(listOf("com.a"), emptyList())) { uids[it] }))
+        assertTrue("built from something unknown: resolve anew", TunSpec.uidsStale(null, held))
     }
 
     @Test

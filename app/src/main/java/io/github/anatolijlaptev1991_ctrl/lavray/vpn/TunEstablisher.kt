@@ -49,6 +49,15 @@ internal data class TunSpec(
             val missing = AppRuleApplier.resolve(rules) { uids[it] != null }.skipped
             return TunSpec(options.mtu, options.inet4, options.inet6, options.dns, rules, missing, names.mapNotNull { uids[it] })
         }
+
+        /**
+         * Whether the interface that is still up carries uids that are not true for [next]. [held] is what that interface
+         * was built from, null when that is not known. The names are the same and the apps behind them are not: one was
+         * installed, removed or installed again. Android would then keep the old uids (see [AppRuleApplier.apply]), so the
+         * new interface must make it resolve the names anew. Other names are another list anyway.
+         */
+        fun uidsStale(held: TunSpec?, next: TunSpec): Boolean =
+            held == null || (held.rules == next.rules && (held.uids != next.uids || held.missing != next.missing))
     }
 }
 
@@ -80,11 +89,18 @@ internal class TunEstablisher(
     private val uidOf: (pkg: String) -> Int? = { pkg -> InstalledApps.uidOf(service.packageManager, pkg) },
     private val appSelection: () -> AppSelection = { AppSelection() },
 ) {
+    /** Whether the interface built last got its first app name twice; only [establish] touches it, one call at a time. */
+    @Volatile private var namedTwice = false
+
     /**
      * Opens the interface [spec] describes. The caller keeps the descriptor open for as long as the tunnel
      * should exist (the core gets its own duplicate) and closes it to remove the interface.
+     *
+     * [freshUids]: the interface this one replaces is still up and its uids are stale ([TunSpec.uidsStale]). The list of
+     * names handed to the Builder is then made to differ from the previous one, so Android resolves the names anew;
+     * otherwise it is handed exactly as last time, and Android may swap the device in place, as it always did.
      */
-    fun establish(spec: TunSpec): TunBuilt {
+    fun establish(spec: TunSpec, freshUids: Boolean = false): TunBuilt {
         require(spec.inet4.isNotEmpty() || spec.inet6.isNotEmpty()) { "TUN options carry no address" }
         val builder = service.Builder().setSession(sessionName)
         if (spec.mtu > 0) builder.setMtu(spec.mtu)
@@ -95,12 +111,14 @@ internal class TunEstablisher(
         for (server in spec.dns) builder.addDnsServer(server)
         // Every selected name goes to the Builder, the missing ones too: the system resolves names this app cannot see
         // (an app without a launcher entry) and ignores the ones that are not there.
-        val refused = applyAppRules(builder, spec.rules).skipped
+        val twice = namedTwice != freshUids
+        val refused = applyAppRules(builder, spec.rules, twice).skipped
         // The platform derives "metered" from the underlying networks we keep in sync with
         // setUnderlyingNetworks; the default (always metered) would throttle apps on Wi-Fi.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
         configureIntent?.let { builder.setConfigureIntent(it) }
         val pfd = builder.establish() ?: throw IOException("VPN permission is not granted")
+        namedTwice = twice
         return TunBuilt(pfd, (spec.missing + refused).distinct(), refused)
     }
 
@@ -117,8 +135,8 @@ internal class TunEstablisher(
         throw NoAllowedAppsException()
     }
 
-    private fun applyAppRules(builder: VpnService.Builder, rules: AppRules): AppliedRules =
-        AppRuleApplier.apply(rules) { pkg, allowed ->
+    private fun applyAppRules(builder: VpnService.Builder, rules: AppRules, twice: Boolean): AppliedRules =
+        AppRuleApplier.apply(rules, twice) { pkg, allowed ->
             try {
                 if (allowed) builder.addAllowedApplication(pkg) else builder.addDisallowedApplication(pkg)
                 true

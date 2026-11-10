@@ -48,7 +48,10 @@ internal class VpnPlatform(
             // for a moment, keeping it does not. Only a change of the interface itself (MTU, addresses, DNS, the app
             // list, or which of the listed apps are installed) builds a new one.
             handoff.handHeld(spec) { generation -> onTunReady(generation, spec.missing) }?.let { return it }
-            establisher.establish(spec)
+            // The interface the system still has is replaced in place. If it was built for the same names but other
+            // apps were behind them then (one was installed or installed again since), Android must resolve them anew.
+            val freshUids = tun.isHeld() && TunSpec.uidsStale(tun.heldSpec() as? TunSpec, spec)
+            establisher.establish(spec, freshUids)
         } catch (e: NoAllowedAppsException) {
             events.onTunFailed(TunFailure(FailureKind.APPS_NONE, e.message))
             throw e

@@ -67,6 +67,20 @@ class TunHolderTest {
     }
 
     @Test
+    fun theHolderSaysWhatTheHeldInterfaceWasBuiltFrom() {
+        val holder = TunHolder<Fake>()
+        assertEquals(null, holder.heldSpec())
+        holder.replace(Fake(), spec = "a")
+        assertEquals("a", holder.heldSpec())
+        holder.replace(Fake())
+        assertEquals("held, built from something unknown", null, holder.heldSpec())
+        assertTrue(holder.isHeld())
+        holder.replace(Fake(), spec = "b")
+        holder.release()
+        assertEquals(null, holder.heldSpec())
+    }
+
+    @Test
     fun newerTunnelClosesTheOlder() {
         val holder = TunHolder<Fake>()
         val first = Fake()

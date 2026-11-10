@@ -32,8 +32,15 @@ object AppRuleApplier {
     /**
      * [add] hands one package to the Builder (allowed or disallowed as the mode requires) and returns false when
      * the platform does not know it. In allow-list mode an empty result is the one fatal case.
+     *
+     * [twice] hands the first accepted name a second time. The apps in the tunnel are the same (the system collects
+     * uids into a set), but the list the system sees is another list, and that is the point: when an interface replaces
+     * one that is still up and the lists of names are equal, Android keeps the uids it resolved for the old interface
+     * (Vpn.updateLinkPropertiesInPlaceIfPossible) and only swaps the device. An app that was installed or installed
+     * again in between, under the same name and a new uid, stays outside the tunnel. A list that differs makes Android
+     * register the VPN network anew, resolving every name again, before it drops the old one.
      */
-    fun apply(rules: AppRules, add: (pkg: String, allowed: Boolean) -> Boolean): AppliedRules {
+    fun apply(rules: AppRules, twice: Boolean = false, add: (pkg: String, allowed: Boolean) -> Boolean): AppliedRules {
         val allowMode = rules.allowed.isNotEmpty()
         val names = if (allowMode) rules.allowed else rules.disallowed
         val applied = ArrayList<String>()
@@ -43,6 +50,7 @@ object AppRuleApplier {
         }
         // An empty allow-list would silently tunnel every app: refuse instead.
         if (allowMode && applied.isEmpty()) throw NoAllowedAppsException()
+        if (twice) applied.firstOrNull()?.let { add(it, allowMode) }
         return AppliedRules(applied, skipped)
     }
 }

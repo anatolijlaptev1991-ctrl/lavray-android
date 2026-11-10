@@ -75,6 +75,10 @@ internal class TunHolder<T : Closeable> {
     @Synchronized
     fun isHeld(): Boolean = current != null
 
+    /** What the held interface was built from; null when nothing is held or that is not known. */
+    @Synchronized
+    fun heldSpec(): Any? = if (current != null) currentSpec else null
+
     private fun closeQuietly(resource: T?) {
         try {
             resource?.close()
