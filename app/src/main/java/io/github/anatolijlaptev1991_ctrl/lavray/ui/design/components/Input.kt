@@ -71,10 +71,11 @@ fun LavTextField(
                 .background(c.bgSurface2, shape)
                 .border(if (focused || error != null) 2.dp else 1.dp, frame, shape)
                 .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (leading != null) LavIconView(leading, c.textTertiary, size = 18.dp)
+            // A multi-line field keeps the icon level with the first line, not the middle of the box.
+            if (leading != null) Box(Modifier.padding(top = if (singleLine) 0.dp else 15.dp)) { LavIconView(leading, c.textTertiary, size = 18.dp) }
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
                 if (value.isEmpty() && placeholder != null) {
                     LavText(placeholder, style = textStyle, color = c.textTertiary, maxLines = 1)

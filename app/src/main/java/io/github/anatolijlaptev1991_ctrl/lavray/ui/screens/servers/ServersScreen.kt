@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ fun ServersScreen() {
     val phase = phaseOf(vpn.state)
     val connect = rememberVpnConnect()
     var sheet by remember { mutableStateOf<ServerSheet?>(null) }
+    val scope = rememberCoroutineScope()
     val current by rememberUpdatedState(state)
 
     LaunchedEffect(Unit) {
@@ -99,6 +101,7 @@ fun ServersScreen() {
         onConnect = connect,
         onCopied = { env.toast.show(env.appContext.getString(R.string.toast_copied)) },
         show = { sheet = it },
+        scope = scope,
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -153,14 +156,14 @@ private fun Toolbar(state: ServersState, onAdd: () -> Unit, onView: () -> Unit, 
 
 @Composable
 private fun FilterRows(state: ServersState, model: ServersModel) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         FilterChip(R.string.filter_all, state.filter == ServerFilter.All) { model.dispatch(ServersAction.Filter(ServerFilter.All)) }
         FilterChip(R.string.filter_fav, state.filter == ServerFilter.Favorites) { model.dispatch(ServersAction.Filter(ServerFilter.Favorites)) }
         FilterChip(R.string.filter_fast, state.filter == ServerFilter.Fast) { model.dispatch(ServersAction.Filter(ServerFilter.Fast)) }
         FilterChip(R.string.filter_down, state.filter == ServerFilter.Down) { model.dispatch(ServersAction.Filter(ServerFilter.Down)) }
     }
     if (state.groups.size > 1) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilterChip(R.string.filter_subAll, state.scope == GroupScope.All) { model.dispatch(ServersAction.Scope(GroupScope.All)) }
             FilterChip(R.string.srv_manual, state.scope == GroupScope.Manual) { model.dispatch(ServersAction.Scope(GroupScope.Manual)) }
             state.groups.forEach { g ->

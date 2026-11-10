@@ -9,6 +9,7 @@ import android.os.PersistableBundle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -22,8 +23,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -80,6 +82,8 @@ class SheetEnv(
     val onConnect: (Long) -> Unit,
     val onCopied: () -> Unit,
     val show: (ServerSheet?) -> Unit,
+    /** Outlives the sheets: an action that closes its sheet and then works on must not run in the sheet's own scope. */
+    val scope: CoroutineScope,
 )
 
 @Composable
@@ -108,7 +112,7 @@ private fun MenuRow(icon: LavIcon, text: String, onClick: () -> Unit, danger: Bo
 @Composable
 private fun RowMenuSheet(row: ServerRow, env: SheetEnv, close: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val scope = env.scope
     LavSheet(row.name, close) {
         MenuRow(LavIcon.Plug, stringResource(R.string.conn_connect), { close(); env.onConnect(row.id) })
         MenuRow(LavIcon.Star, stringResource(if (row.favorite) R.string.prof_favRm else R.string.prof_favAdd), { close(); env.model.toggleFavorite(row) })
@@ -248,7 +252,9 @@ private fun QrSheet(name: String, link: String, close: () -> Unit) {
     LavSheet(stringResource(R.string.qr_title), close) {
         LavBanner(StatusTone.Connecting, stringResource(R.string.qr_secretWarn))
         when (val st = state) {
-            is QrState.Ready -> QrView(st.matrix, stringResource(R.string.qr_alt, name), Modifier.widthIn(max = 320.dp).fillMaxWidth())
+            is QrState.Ready -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                QrView(st.matrix, stringResource(R.string.qr_alt, name), Modifier.widthIn(max = 320.dp).fillMaxWidth())
+            }
             QrState.TooLong -> LavText(stringResource(R.string.qr_tooLong), style = Lav.type.body, color = Lav.colors.textSecondary)
             QrState.Loading -> Unit
         }
