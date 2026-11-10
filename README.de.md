@@ -19,18 +19,21 @@
 
 *Die Screenshots stammen von einem Emulator, die Oberfläche ist auf Englisch.*
 
-> **Stand: Version 0.9.3, noch nicht auf einem echten Smartphone getestet.** Die App wurde auf einem Android-16-Emulator (x86_64) gebaut und geprüft. Eine Checkliste für den Test auf dem Smartphone steht in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russisch).
+> **Stand: Version 0.9.4. Auf einem Android-16-Emulator (x86_64) geprüft; der Eigentümer testet sie auf einem echten Smartphone.** Diese Version folgt auf ein vollständiges Audit: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md) (Russisch). Eine Checkliste für den Test auf dem Smartphone steht in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russisch).
 
 ## Funktionen
 
 - **Server und Gruppen:** Suche, Favoriten, Filter „Schnelle“ und „Unerreichbar“, Sortierung, Verschieben zwischen Gruppen, Kopien und ein QR-Code für jeden Server.
-- **Abos** mit zeitgesteuerter Aktualisierung und Rückkehr zum letzten funktionierenden Stand.
+- **Abos** mit zeitgesteuerter Aktualisierung und Rückkehr zum letzten funktionierenden Stand. Ein Abo-Link, auch ein verschlüsselter, legt beim Import das Abo an und lädt sofort die Server; die Meldung nennt die tatsächliche Zahl der Server.
 - **Import:** Link, Zwischenablage, QR-Code (Kamera oder Bild) und Datei. Links wie `vless://`, `vmess://`, `trojan://`, `ss://`, `hy2://`, `tuic://` lassen sich aus einer anderen App in LAVRay öffnen oder über „Teilen“ senden. Es wird erst importiert, wenn du bestätigst.
+- **Ehrlicher Verbindungsstatus:** Nach dem Verbinden prüft der Core, ob der Datenverkehr wirklich über den Server läuft, und der Bildschirm zeigt das Ergebnis. „Kanal ist geschützt“ steht nur, wenn kein Problem gefunden wurde.
+- **Änderungen, die einen Neustart brauchen** (Routing-Set, DNS, MTU, App-Liste), sind mit „gilt nach dem Neustart“ markiert, und die App bietet den Neustart an.
 - **Latenztest** für alle Server und ein URL-Test.
 - **Routing-Sets:** „Global“, „Alles durch den Proxy“, „Alles direkt“, **LAV Preset RU** (Revision 3, standardmäßig aktiv: russische Seiten und Spiele direkt, alles andere über den Proxy) und LAV Preset CN. Eigene Sets, Import und Export sowie eine Prüfung, wohin eine Adresse geroutet wird.
 - **DNS**, **Verbindungen**, **Protokoll**, **Statistik** und der Bildschirm „Warum funktioniert es nicht?“.
 - **Tunnel pro App:** alle Apps, nur ausgewählte oder alle außer ausgewählten.
-- **Automatisches Verbinden nach dem Neustart** mit dem zuletzt genutzten Server und Unterstützung für das systemweite Always-on-VPN.
+- **Automatisches Verbinden nach dem Neustart** mit dem zuletzt genutzten Server und Unterstützung für das systemweite Always-on-VPN. Der Tunnel kommt nach einem App-Update und nach dem Beenden des Dienstes durch das System zurück.
+- **Kein direkter Datenverkehr, während der Tunnel neu aufgebaut wird:** Beim Serverwechsel oder bei „Neu verbinden“ wird der Datenverkehr der Apps höchstens 30 Sekunden lang angehalten, nicht direkt gesendet.
 - **Sicherung** in eine verschlüsselte Datei über die Dateiauswahl des Systems.
 - **Fünf Oberflächensprachen** (Русский, English, 中文, Español, Deutsch), helles und dunkles Design, mehrere Akzentfarben.
 
@@ -40,13 +43,13 @@ Die Protokolle entsprechen der Desktop-Version: VLESS (auch REALITY), VMess, Tro
 
 ## Herunterladen
 
-Die APKs liegen auf der Seite [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases); die neueste Version ist [v0.9.3](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.3). Für jede CPU-Architektur gibt es eine eigene Datei:
+Die APKs liegen auf der Seite [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases); die neueste Version ist [v0.9.4](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.4). Für jede CPU-Architektur gibt es eine eigene Datei:
 
 | Datei | Wofür | Dateigröße |
 |---|---|---|
-| `LAVRay-<Version>-arm64-v8a.apk` | fast alle aktuellen Smartphones und Tablets | 20,65 MB |
-| `LAVRay-<Version>-armeabi-v7a.apk` | alte 32-Bit-Geräte | 21,24 MB |
-| `LAVRay-<Version>-x86_64.apk` | Emulatoren und Chromebooks | 21,97 MB |
+| `LAVRay-<Version>-arm64-v8a.apk` | fast alle aktuellen Smartphones und Tablets | 16,06 MB |
+| `LAVRay-<Version>-armeabi-v7a.apk` | alte 32-Bit-Geräte | 16,53 MB |
+| `LAVRay-<Version>-x86_64.apk` | Emulatoren und Chromebooks | 17,13 MB |
 | `SHA256SUMS` | Prüfsummen | — |
 
 Wenn du unsicher bist, nimm `arm64-v8a`. Die Größen stammen aus [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russisch).
@@ -103,7 +106,7 @@ Zertifikat `CN=LAVRay, O=LAVRay`, SHA-256-Fingerabdruck: `fe058a98b9abb7ba8c853c
 
 ### Tunnel pro App
 
-„Einstellungen“ → „Tunnel“ → „Apps im Tunnel“: alle Apps, nur ausgewählte oder alle außer ausgewählten. LAVRay selbst bleibt immer außerhalb des Tunnels. Eine Änderung gilt ab der nächsten Verbindung.
+„Einstellungen“ → „Tunnel“ → „Apps im Tunnel“: alle Apps, nur ausgewählte oder alle außer ausgewählten. LAVRay selbst bleibt immer außerhalb des Tunnels. Eine Änderung gilt nach dem erneuten Verbinden: Die App bietet „Jetzt neu verbinden“ an.
 
 ### Einstellungen
 
@@ -124,7 +127,8 @@ Die Seite „Updates“ öffnet nur die Release-Seite. Die App fragt das Netz ni
 - Schalte „Beim Start des Telefons verbinden“ ein: Nach einem Neustart verbindet sich die App mit dem zuletzt genutzten Server. Android sendet das Boot-Signal erst nach der **ersten Entsperrung** des Telefons.
 - Ist das Telefon ohne Netz gestartet (zum Beispiel im Flugmodus), wartet die App still und verbindet sich, sobald ein Netz da ist. Es gibt keine Timer und kein Polling.
 - Am zuverlässigsten ist das systemweite **Always-on-VPN**. In LAVRay: „Einstellungen“ → „System“ → „VPN-Einstellungen öffnen“. Es öffnet sich die VPN-Liste von Android: Tippe auf das Zahnrad neben LAVRay und aktiviere „Always-on-VPN“ und, falls gewünscht, „Verbindungen ohne VPN blockieren“ (die Namen hängen vom Gerät ab). LAVRay sieht diese Schalter nicht und kann sie nicht ändern. Startet das System die App, behandelt sie das als Always-on-Start und verbindet den zuletzt genutzten Server.
-- Eine zwangsweise beendete App erhält das Boot-Signal erst, wenn du sie wieder öffnest.
+- Eine zwangsweise beendete App erhält das Boot-Signal erst, wenn du sie wieder öffnest. Ein erzwungenes Beenden in den Android-Einstellungen schaltet den Tunnel ab, und er kommt nicht von selbst zurück: Das ist Absicht.
+- Beendet das System den VPN-Dienst, startet er neu und baut den Tunnel wieder auf, und die App zeigt einen Hinweis mit der Ursache. Nach einem App-Update kommt ein eingeschalteter Tunnel wieder hoch.
 - Herstelleroberflächen (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) können den Autostart blockieren oder den Dienst bei ausgeschaltetem Bildschirm beenden. Nimm LAVRay dann in die Ausnahmen der Autostart- und Akkuverwaltung auf. Mehr dazu in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russisch).
 - Nimmt dir eine andere VPN-App die Zustimmung weg, zeigt LAVRay die Benachrichtigung „VPN-Berechtigung erforderlich“: Öffne die App und bestätige erneut.
 
@@ -132,18 +136,18 @@ Die Seite „Updates“ öffnet nur die Release-Seite. Die App fragt das Netz ni
 
 ## Messwerte
 
-Alle Zahlen stammen aus [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russisch) und wurden **auf einem x86_64-Android-16-Emulator (2 vCPU) gemessen, nicht auf einem Smartphone**. Auf einem echten Gerät weichen sie ab.
+Alle Zahlen stammen aus [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russisch) Start, Speicher und Geschwindigkeit wurden **auf einem x86_64-Android-16-Emulator (2 vCPU) gemessen, nicht auf einem Smartphone**; auf einem echten Gerät weichen sie ab. Die APK-Größen stammen aus den Build-Dateien.
 
 | Messgröße | Wert (Emulator) |
 |---|---|
-| APK-Größe: arm64-v8a / armeabi-v7a / x86_64 | 20,65 / 21,24 / 21,97 MB |
+| APK-Größe: arm64-v8a / armeabi-v7a / x86_64 | 16,06 / 16,53 / 17,13 MB (aus den Build-Artefakten, nicht vom Emulator; bei 0.9.3 waren es 20,65 / 21,24 / 21,97) |
 | Kaltstart der Oberfläche, Median | etwa 1,26 s (1259,5 ms, 16 Starts) |
 | Speicher des Prozesses `:vpn` im Leerlauf (verbunden, Bildschirm aus) | etwa 67 MB PSS |
 | Wakelocks, Alarme und Jobs im Leerlauf | keine |
 | „Verbinden“-Tipp bis zur ersten Antwort durch den Tunnel, Median | 844 ms (lokaler Testserver) |
 | MTU 9000 gegenüber 1500, Durchsatz durch den Tunnel | 4,1-mal schneller im Download, 2,4-mal im Upload (Teststand im Emulator, kein echtes Netz) |
 
-Nicht gemessen: Akkuverbrauch, Geschwindigkeit auf einem echten Smartphone, Betrieb auf arm64 und armeabi-v7a.
+Die übrigen Zeilen wurden für 0.9.3 gemessen und nach den Änderungen von 0.9.4 nicht neu gemessen. Nicht gemessen: Akkuverbrauch, Geschwindigkeit auf einem echten Smartphone, Betrieb auf arm64 und armeabi-v7a.
 
 ---
 
@@ -160,6 +164,9 @@ Die Kamera dient nur zum Lesen von QR-Codes. Die Zwischenablage liest die App nu
 - **Kein Selbst-Update:** Neue Versionen installierst du von Hand von der Release-Seite.
 - **Einige Desktop-Funktionen fehlen**, darunter der Server-Editor, der „Vollständige Test“ und der Assistent beim ersten Start. Die vollständige Liste mit Gründen steht in [docs/NOT-PORTED.md](docs/NOT-PORTED.md) (Russisch).
 - **XHTTP-Transport:** Links werden importiert, der Core unterstützt ihn aber noch nicht.
+- **Tor ist aus dem Build entfernt:** Es braucht eine externe Datei, die Android nicht hat. Der Tunnel läuft immer auf gVisor, ohne Stack-Auswahl.
+- **Nur das systemweite Always-on-VPN mit „Verbindungen ohne VPN blockieren“ bleibt geschlossen, wenn die App stirbt.** Das Anhalten des Datenverkehrs in der App dauert höchstens 30 Sekunden.
+- **Ein Abo auf einer Adresse im lokalen Netz lässt sich nicht anlegen:** Der Core nimmt solche Adressen nicht an.
 - **Nicht auf einem echten Smartphone getestet.**
 
 ---

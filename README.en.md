@@ -19,18 +19,21 @@
 
 *Screenshots were taken on an emulator, with the English interface.*
 
-> **Status: version 0.9.3, not yet tested on a real phone.** The app was built and checked on an Android 16 emulator (x86_64). A checklist for testing on a phone is in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russian).
+> **Status: version 0.9.4. Checked on an Android 16 emulator (x86_64); the owner is testing it on a real phone.** This version follows a full audit: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md) (Russian). A checklist for testing on a phone is in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russian).
 
 ## Features
 
 - **Servers and groups:** search, favorites, "Fast" and "Unreachable" filters, sorting, moving between groups, copies, a QR code for each server.
-- **Subscriptions** with scheduled updates and a rollback to the last good state.
+- **Subscriptions** with scheduled updates and a rollback to the last good state. A subscription link, including an encrypted one, creates the subscription on import and loads its servers at once; the message gives the real number of servers.
 - **Import:** link, clipboard, QR code (camera or image), file. Links such as `vless://`, `vmess://`, `trojan://`, `ss://`, `hy2://`, `tuic://` can be opened in LAVRay from another app or sent with "Share". Nothing is imported until you confirm.
+- **Honest connection state:** after connecting, the core checks whether traffic really passes through the server, and the screen shows the result. "Channel is protected" appears only when no problem was found.
+- **Changes that need a restart** (route preset, DNS, MTU, the app list) are marked "applies after the restart", and the app offers to restart.
 - **Latency test** for all servers and a URL test.
 - **Route presets:** "Global", "Route everything through the proxy", "Route everything directly", **LAV Preset RU** (revision 3, active by default: Russian sites and games go direct, everything else goes through the proxy) and LAV Preset CN. Your own presets, import and export, and a "where does this address go" check.
 - **DNS**, **connections**, **log**, **statistics**, and a "Why isn’t it working?" screen.
 - **Per-app tunnel:** all apps, only selected apps, or all except selected.
-- **Auto-connect after reboot** to the last server, and support for the system Always-on VPN.
+- **Auto-connect after reboot** to the last server, and support for the system Always-on VPN. The tunnel is restored after an app update and after the system kills the service.
+- **No direct traffic while the tunnel is rebuilt:** when you switch server or tap "Reconnect", apps’ traffic is held, not sent directly, for at most 30 seconds.
 - **Backup** to an encrypted file through the system file picker.
 - **Five interface languages** (Русский, English, 中文, Español, Deutsch), light and dark themes, several accents.
 
@@ -40,16 +43,16 @@ Protocols are the same as on the desktop: VLESS (including REALITY), VMess, Troj
 
 ## Download
 
-APKs are on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) page; the latest release is [v0.9.3](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.3). There is one file per CPU architecture:
+APKs are on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) page; the latest release is [v0.9.4](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.4). There is one file per CPU architecture:
 
 | File | For | File size |
 |---|---|---|
-| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 20.65 MB |
-| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 21.24 MB |
-| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 21.97 MB |
+| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 16.06 MB |
+| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 16.53 MB |
+| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 17.13 MB |
 | `SHA256SUMS` | checksums | — |
 
-If you are not sure, take `arm64-v8a`. Sizes are from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian).
+If you are not sure, take `arm64-v8a`. Sizes are from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian), section 10; the file size on the release page may differ by a fraction of a megabyte.
 
 **Verify the file.** Download the APK and `SHA256SUMS` into the same folder:
 
@@ -103,7 +106,7 @@ Certificate `CN=LAVRay, O=LAVRay`, SHA-256 fingerprint: `fe058a98b9abb7ba8c853c0
 
 ### Per-app tunnel
 
-"Settings" → "Tunnel" → "Apps in the tunnel": all apps, only selected, or all except selected. LAVRay itself always stays outside the tunnel. A change applies from the next connection.
+"Settings" → "Tunnel" → "Apps in the tunnel": all apps, only selected, or all except selected. LAVRay itself always stays outside the tunnel. A change applies after a reconnect: the app offers "Reconnect now".
 
 ### Settings
 
@@ -124,7 +127,8 @@ The "Updates" page only opens the releases page. The app does not contact the ne
 - Turn on "Connect when the phone starts": after a reboot the app connects to the last server. Android sends the boot signal only after the **first unlock** of the phone.
 - If the phone booted with no network (for example, in airplane mode), the app waits quietly and connects when a network appears. There are no timers or polling.
 - The most reliable way is the system **Always-on VPN**. In LAVRay: "Settings" → "System" → "Open VPN settings". This opens Android's VPN list: tap the gear next to LAVRay and turn on "Always-on VPN" and, if you want, "Block connections without VPN" (names vary by phone). LAVRay cannot see or change those switches. When the system starts the app, it treats it as an Always-on start and connects the last server.
-- An app that was force-stopped does not get the boot signal until you open it again.
+- An app that was force-stopped does not get the boot signal until you open it again. A force-stop in Android settings turns the tunnel off and it does not come back by itself: this is intended.
+- If the system kills the VPN service, it restarts and brings the tunnel back, and the app shows a banner with the reason. After an app update, a tunnel that was on comes back up.
 - Manufacturer skins (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) may block autostart or kill the service when the screen is off. Then add LAVRay to the autostart and battery manager exceptions. More in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russian).
 - If another VPN app takes over the consent, LAVRay shows a "VPN permission needed" notification: open the app and confirm again.
 
@@ -132,18 +136,18 @@ The "Updates" page only opens the releases page. The app does not contact the ne
 
 ## Measurements
 
-All numbers come from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian) and were measured **on an x86_64 Android 16 emulator (2 vCPU), not on a phone**. On a real device the numbers will differ.
+All numbers come from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian) Startup, memory and speed were measured **on an x86_64 Android 16 emulator (2 vCPU), not on a phone**; on a real device the numbers will differ. APK sizes are taken from the build files.
 
 | Metric | Value (emulator) |
 |---|---|
-| APK size: arm64-v8a / armeabi-v7a / x86_64 | 20.65 / 21.24 / 21.97 MB |
+| APK size: arm64-v8a / armeabi-v7a / x86_64 | 16.06 / 16.53 / 17.13 MB (from build artifacts, not from the emulator; 0.9.3 was 20.65 / 21.24 / 21.97) |
 | UI cold start, median | about 1.26 s (1259.5 ms, 16 runs) |
 | `:vpn` process memory when idle (connected, screen off) | about 67 MB PSS |
 | Wakelocks, alarms and jobs when idle | none |
 | "Connect" tap to first reply through the tunnel, median | 844 ms (local test server) |
 | MTU 9000 vs 1500, tunnel throughput | 4.1x faster down, 2.4x faster up (test bench inside the emulator, not a real network) |
 
-Not measured: battery drain, speed on a real phone, running on arm64 and armeabi-v7a.
+The other rows were measured for 0.9.3 and not re-measured after the 0.9.4 changes. Not measured: battery drain, speed on a real phone, running on arm64 and armeabi-v7a.
 
 ---
 
@@ -160,6 +164,9 @@ The camera is used only to read QR codes. The app reads the clipboard only when 
 - **No self-update:** new versions are installed by hand from the releases page.
 - **Some desktop features are missing**, including a server editor, the "Full test" and the first-run wizard. The full list with reasons is in [docs/NOT-PORTED.md](docs/NOT-PORTED.md) (Russian).
 - **XHTTP transport:** links import, but the core does not support it yet.
+- **Tor is removed from the build:** it needs an external file that Android does not have. The tunnel always runs on gVisor, with no stack choice.
+- **Only the system Always-on VPN with "Block connections without VPN" stays closed if the app dies.** Holding traffic inside the app lasts at most 30 seconds.
+- **A subscription on a local-network address cannot be created:** the core does not accept such addresses.
 - **Not tested on a real phone.**
 
 ---
