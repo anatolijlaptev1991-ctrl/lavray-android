@@ -205,6 +205,35 @@ class ReviewR6Tests {
         scope.cancel()
     }
 
+    // R8 Q5: the start time of the core is read over a call; the closed notes must not show while it is on its way.
+    @Test fun aRecreatedScreenKeepsTheNotesClosedWhileTheCoreIsBeingAsked() = runBlocking {
+        val memory = TunnelMemory()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val first = model(MutableStateFlow(up()), scope, memory)
+        withTimeout(5_000) { first.healthBasis.first { it != null } }
+        first.dismissWarnings()
+
+        val answer = kotlinx.coroutines.CompletableDeferred<Long?>()
+        val status = MutableStateFlow(VpnStatus.IDLE)
+        val second = ConnectionModel(CoreSession({ CoreEndpoint("/x", "t") }), scope, status, { true }, { answer.await() }, { 6_000L }, memory)
+        status.value = up()
+        withTimeout(5_000) { second.health.first { it.tunnel == 1 } }
+        assertEquals("closed until the core has said which run this is", 1, second.dismissed.value.warningsOfTunnel)
+        answer.complete(5_000L)
+        withTimeout(5_000) { second.healthBasis.first { it != null } }
+        assertEquals("the same run: closed for good", 1, second.dismissed.value.warningsOfTunnel)
+        scope.cancel()
+    }
+
+    @Test fun aScreenThatNeverClosedTheNotesShowsThemFromTheStart() = runBlocking {
+        val memory = TunnelMemory()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model = model(MutableStateFlow(up()), scope, memory)
+        withTimeout(5_000) { model.healthBasis.first { it != null } }
+        assertEquals(0, model.dismissed.value.warningsOfTunnel)
+        scope.cancel()
+    }
+
     @Test fun aTunnelWithAnotherCoreStartTimeStartsClean() = runBlocking {
         val memory = TunnelMemory()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

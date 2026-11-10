@@ -115,6 +115,9 @@ class ConnectionModel(
 
     @Volatile private var sight = TunnelSight()
 
+    /** True from the start until this model's first tunnel is identified: an earlier closing of the notes is taken to be about it. */
+    @Volatile private var closingPresumed = false
+
     /** Notices the person closed; each is forgotten when its cause ends, so the next one is shown again. Kept in [memory]. */
     val dismissed: StateFlow<Dismissed> = memory.dismissed
 
@@ -124,14 +127,19 @@ class ConnectionModel(
 
     /** The core's notes are shown once per connection: this closes them for the tunnel that is up now. */
     fun dismissWarnings() {
+        closingPresumed = false
         memory.closeWarningsFor(mutableBasis.value?.takeIf { it.tunnel == sight.tunnel }?.startedAtMs)
         memory.update { it.withWarnings(sight.tunnel) }
     }
 
     init {
         // This model numbers its tunnels from 1 again: a closing recorded under the numbers of an earlier screen means nothing
-        // here. The notes of the SAME core run are found again by its start time when its basis is taken.
-        memory.update { it.withWarnings(0) }
+        // here. The notes of the SAME core run are found again by its start time when its basis is taken. That takes a call to
+        // the core, so until it has answered, a closing that exists is taken to be about this model's first tunnel: the notes
+        // the person closed do not flash on a recreated screen. If the tunnel turns out to be another core run, [onStatus]
+        // takes the presumption back and its notes show.
+        closingPresumed = memory.warningsClosedFor != null
+        memory.update { it.withWarnings(if (closingPresumed) FIRST_TUNNEL else 0) }
         scope.launch { status.collect(::onStatus) }
     }
 
@@ -154,7 +162,12 @@ class ConnectionModel(
                     // The same core run as the one whose notes were closed (the Activity was recreated): they stay closed.
                     // Before the basis is published: whoever sees the basis of this tunnel must find its notes already
                     // closed, or the closed banner shows for a moment (and a test that waits for the basis fails by chance).
-                    if (basis.startedAtMs != null && basis.startedAtMs == memory.warningsClosedFor) memory.update { it.withWarnings(tunnel) }
+                    if (basis.startedAtMs != null && basis.startedAtMs == memory.warningsClosedFor) {
+                        memory.update { it.withWarnings(tunnel) }
+                    } else if (closingPresumed && tunnel == FIRST_TUNNEL) {
+                        memory.update { if (it.warningsOfTunnel == FIRST_TUNNEL) it.withWarnings(0) else it }
+                    }
+                    closingPresumed = false
                     mutableBasis.value = basis
                 }
             }
@@ -221,6 +234,9 @@ class ConnectionModel(
 
     private companion object {
         const val STATS_INTERVAL_MS = 1000
+
+        /** The number [TunnelSight] gives the first tunnel a model sees. */
+        const val FIRST_TUNNEL = 1
 
         suspend fun readStartedAt(session: CoreSession): Long? =
             (session.call { coreGetStatus() } as? CoreResult.Ok)?.value?.startedAtMs?.takeIf { it > 0 }

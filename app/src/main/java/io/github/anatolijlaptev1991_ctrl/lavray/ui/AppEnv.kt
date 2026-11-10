@@ -65,8 +65,6 @@ class AppEnv(
     init {
         // The service cut the Go core loose and started it anew: the endpoint (and its token) is not the one the client holds.
         scope.launch { controller.status.map { it.coreEpoch }.distinctUntilChanged().collect(session::onCoreEpoch) }
-        // A restore that ended while no screen existed: its outcome is told now.
-        RestoreNews.process.take()?.let { toast.show(appContext.getString(it)) }
         // A tap that never reached the service must not look like a tap that did nothing.
         scope.launch { controller.droppedCommands.collect { toast.show(appContext.getString(R.string.vpn_unreachable)) } }
     }
@@ -124,6 +122,23 @@ class AppEnv(
                 override suspend fun end(token: String) = controller.endBusy(token)
             },
         )
+    }
+
+    init {
+        // A restore whose own screen was gone when it ended: this screen tells the outcome, at once if it is waiting, or the
+        // moment it arrives (the person came back while the restore started by the previous screen was still running),
+        // and reloads the data: the reload that restore asked for went to models nobody shows any more.
+        // Kept below every property it touches: the collector runs on another thread and may start before the constructor ends.
+        scope.launch {
+            RestoreNews.process.waiting.collect { waiting ->
+                if (waiting != null) {
+                    RestoreNews.process.take()?.let { text ->
+                        serversChanged()
+                        toast.show(appContext.getString(text))
+                    }
+                }
+            }
+        }
     }
 
     /** The Activity may be gone by the time a restore ends (Back from the root screen): then the next one tells its outcome. */

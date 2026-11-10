@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -149,6 +150,21 @@ class BackupHoldTest {
         assertEquals(1, reasons.size)
         assertEquals(model.state.value.error, reasons.single())
         assertFalse(model.state.value.restored)
+    }
+
+    // R8 Q4: the person came back while the restore of the previous screen was still running.
+    @Test fun aScreenThatIsAlreadyOpenIsToldTheMomentTheOutcomeArrives() = runBlocking {
+        val news = io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.RestoreNews()
+        val told = kotlinx.coroutines.CompletableDeferred<Int>()
+        val watcher = CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            news.waiting.collect { waiting -> if (waiting != null) news.take()?.let { told.complete(it) } }
+        }
+        assertFalse("nothing to tell yet", told.isCompleted)
+        news.leave(R.string.bk_done)
+        assertEquals(R.string.bk_done, kotlinx.coroutines.withTimeout(5_000) { told.await() })
+        assertEquals("told once: nothing is left for a later screen", null, news.take())
+        assertEquals(null, news.waiting.value)
+        watcher.cancel()
     }
 
     @Test fun theNewsOfARestoreIsToldOnce() {
