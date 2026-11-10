@@ -31,7 +31,7 @@ val measureBuild = providers.gradleProperty("lavray.measure").map { it.toBoolean
 // versionCode of an APK is baseVersionCode * 10 + the index of its ABI (abiVersionIndex): the three ABI APKs must not
 // share one code, or a 32-bit APK installs over a 64-bit one as a plain update and silently drops the app to a 32-bit
 // runtime. scripts/ci-apk.sh verify checks the result; keep the name and the literal on one line.
-val baseVersionCode = 903
+val baseVersionCode = 904
 val abiVersionIndex = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
 
 android {
@@ -43,7 +43,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = baseVersionCode
-        versionName = "0.9.3"
+        versionName = "0.9.4"
     }
 
     signingConfigs {
