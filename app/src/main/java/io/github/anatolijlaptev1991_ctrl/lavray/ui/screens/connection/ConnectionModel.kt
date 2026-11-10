@@ -22,6 +22,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.StreamFailure
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -84,9 +85,16 @@ class ConnectionModel(private val session: CoreSession, private val scope: Corou
     private val mutable = MutableStateFlow(ConnectionInfo())
     val info: StateFlow<ConnectionInfo> = mutable.asStateFlow()
 
-    /** Reads the core. [selectedId] is the server the person last chose; a running tunnel overrides it. */
+    private var refreshJob: Job? = null
+
+    /**
+     * Reads the core. [selectedId] is the server the person last chose; a running tunnel overrides it. A newer call
+     * replaces the one still running: otherwise an older pass, finishing last, would write the state of a moment ago.
+     */
+    @Synchronized
     fun refresh(selectedId: Long) {
-        scope.launch(Dispatchers.IO) {
+        refreshJob?.cancel()
+        refreshJob = scope.launch(Dispatchers.IO) {
             val status = session.call { coreGetStatus() }
             if (status is CoreResult.Fail) {
                 mutable.value = mutable.value.copy(loaded = true, error = status.kind)
