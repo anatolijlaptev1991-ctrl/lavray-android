@@ -14,7 +14,6 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatusWire
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.StartIntent
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.VpnBinder
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 
 /**
  * UI-process side of the :vpn service. [bind] returns at once; the system starts
@@ -33,16 +34,17 @@ class VpnController(context: Context) {
     private val app = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutableStatus = MutableStateFlow(VpnStatus.IDLE)
-    // Replaced on the main thread at unbind and disconnect, read from IO coroutines: volatile, and always completed
-    // through the deferred captured when its connection arrived, never through whatever the field holds later.
-    @Volatile private var ready = CompletableDeferred<IVpnService>()
+    // Replaced on the main thread at unbind, disconnect and rebind, awaited from IO coroutines: a connection completes the
+    // deferred captured when it arrived, and replacing the gate fails everyone still waiting on the old binding.
+    private val ready = ServiceGate<IVpnService>()
     private var bound = false
-    @Volatile private var service: IVpnService? = null
+    @Volatile private var connected: IVpnService? = null
 
     val status: StateFlow<VpnStatus> = mutableStatus
 
     // connect, reconnect and disconnect reach the service in the order they were called.
-    private val commands = SerialCalls<IVpnService>(scope) { ready.await() }
+    private val commands = SerialCalls<IVpnService>(scope) { service() }
+    private val holds = HoldRegistry<IVpnService>()
 
     private val observer = object : IVpnObserver.Stub() {
         override fun onStatus(state: Int, error: String?, detail: String?) {
@@ -53,8 +55,8 @@ class VpnController(context: Context) {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val api = IVpnService.Stub.asInterface(service)
-            this@VpnController.service = api
-            val pending = ready
+            this@VpnController.connected = api
+            val pending = ready.capture()
             scope.launch {
                 runCatching { api.registerObserver(observer) }
                 pending.complete(api)
@@ -62,8 +64,8 @@ class VpnController(context: Context) {
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            service = null
-            ready = CompletableDeferred()
+            connected = null
+            ready.replace()
             mutableStatus.value = VpnStatus.IDLE
         }
 
@@ -89,12 +91,12 @@ class VpnController(context: Context) {
 
     fun unbind() {
         if (!bound) return
-        val api = service
-        service = null
+        val api = connected
+        connected = null
         scope.launch { runCatching { api?.unregisterObserver(observer) } }
         app.unbindService(connection)
         bound = false
-        ready = CompletableDeferred()
+        ready.replace()
     }
 
     fun close() {
@@ -102,9 +104,16 @@ class VpnController(context: Context) {
         scope.cancel()
     }
 
+    /**
+     * The bound service, waiting for the binding at most [BIND_WAIT_MS]. A service that never binds fails the caller with
+     * [ServiceNotBoundException] instead of suspending it for ever (a settings screen would otherwise hold its mutex
+     * indefinitely); a binding replaced meanwhile fails at once (see [ServiceGate]).
+     */
+    private suspend fun service(): IVpnService = withTimeoutOrNull(BIND_WAIT_MS) { ready.await() } ?: throw ServiceNotBoundException()
+
     /** Where the core listens and the token that opens it; starts the core if needed. */
     suspend fun endpoint(): CoreEndpoint = withContext(Dispatchers.IO) {
-        val bundle = ready.await().endpoint()
+        val bundle = service().endpoint()
         CoreEndpoint(
             checkNotNull(bundle.getString(VpnBinder.KEY_PATH)),
             checkNotNull(bundle.getString(VpnBinder.KEY_TOKEN)),
@@ -128,20 +137,20 @@ class VpnController(context: Context) {
         commands.submit { it.disconnect() }
     }
 
-    suspend fun isAutoConnectEnabled(): Boolean = withContext(Dispatchers.IO) { ready.await().isAutoConnectEnabled() }
+    suspend fun isAutoConnectEnabled(): Boolean = withContext(Dispatchers.IO) { service().isAutoConnectEnabled() }
 
     /** The per-app choice kept by the :vpn process. */
-    suspend fun appSelection(): AppSelection = withContext(Dispatchers.IO) { AppSelection.parse(ready.await().getAppSelection()) }
+    suspend fun appSelection(): AppSelection = withContext(Dispatchers.IO) { AppSelection.parse(service().getAppSelection()) }
 
     /** Saves the choice; it applies the next time the tunnel is built. */
-    suspend fun setAppSelection(selection: AppSelection) = withContext(Dispatchers.IO) { ready.await().setAppSelection(selection.toJson()) }
+    suspend fun setAppSelection(selection: AppSelection) = withContext(Dispatchers.IO) { service().setAppSelection(selection.toJson()) }
 
     /**
      * Writes the "connect at phone start" setting and the boot receiver. True only when the value is really in force
      * afterwards; false (or an exception from the binder) means the stored value is the old one, so the switch must
      * show the old value.
      */
-    suspend fun setAutoConnect(enabled: Boolean): Boolean = withContext(Dispatchers.IO) { ready.await().setAutoConnectEnabled(enabled) }
+    suspend fun setAutoConnect(enabled: Boolean): Boolean = withContext(Dispatchers.IO) { service().setAutoConnectEnabled(enabled) }
 
     /** Fire and forget: kept for callers that cannot wait. A failed write is lost here; prefer [setAutoConnect]. */
     fun setAutoConnectEnabled(enabled: Boolean) {
@@ -152,7 +161,22 @@ class VpnController(context: Context) {
      * Keeps the :vpn process alive while a long operation that runs in the core (a backup restore) is under way, even if
      * the UI unbinds. [token] names the hold, [timeoutMs] is a hard cap (the service clamps it to 15 minutes).
      */
-    suspend fun beginBusy(token: String, timeoutMs: Long): Boolean = withContext(Dispatchers.IO) { ready.await().beginBusy(token, timeoutMs) }
+    suspend fun beginBusy(token: String, timeoutMs: Long): Boolean {
+        val bound = service()
+        return holds.begin(token, bound) { it.beginBusy(token, timeoutMs) }
+    }
 
-    suspend fun endBusy(token: String) = withContext(Dispatchers.IO) { ready.await().endBusy(token) }
+    /**
+     * Ends the hold on the service that accepted it, bounded, whether or not the UI is bound now. Never waits for a bind,
+     * never throws; a hold that was not accepted is nothing to end.
+     */
+    suspend fun endBusy(token: String) = holds.end(token) { it.endBusy(token) }
+
+    private companion object {
+        /** A cold :vpn process is up in a couple of seconds; a service that is not bound after this is not coming. */
+        const val BIND_WAIT_MS = 10_000L
+    }
 }
+
+/** The service did not bind in time (or the binding was replaced): a call that needs it fails with this, never hangs. */
+class ServiceNotBoundException : IOException("the VPN service is not bound")
