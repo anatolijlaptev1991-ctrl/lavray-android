@@ -50,13 +50,19 @@ class ConnectionsModel(private val session: CoreSession) {
         mutableError.value = null
     }
 
-    /** Closes one connection; the next frame shows it gone. */
-    suspend fun close(id: String): CoreResult<Unit> = when (val r = session.call { connectionCloseConnection(CloseConnectionRequest(id)) }) {
-        is CoreResult.Ok -> CoreResult.Ok(Unit)
-        is CoreResult.Fail -> r
-    }
+    /** Closes one connection; the next frame shows it gone. A connection that is gone already is what was asked for. */
+    suspend fun close(id: String): CoreResult<Unit> = closeOutcome(
+        when (val r = session.call { connectionCloseConnection(CloseConnectionRequest(id)) }) {
+            is CoreResult.Ok -> CoreResult.Ok(Unit)
+            is CoreResult.Fail -> r
+        },
+    )
 
     companion object {
+        /** NOT_FOUND means the connection ended on its own before the tap: the goal is met, so it is no error (the desktop ignores it too). */
+        internal fun closeOutcome(r: CoreResult<Unit>): CoreResult<Unit> =
+            if (r is CoreResult.Fail && r.kind == ErrorKind.NotFound) CoreResult.Ok(Unit) else r
+
         const val INTERVAL_MS = 1000
         const val ACTIVE_LIMIT = 500
     }

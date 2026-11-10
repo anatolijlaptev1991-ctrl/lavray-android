@@ -19,6 +19,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -170,6 +171,7 @@ class BackupModel(
     }
 
     // ATOMIC: even a job cancelled before it started runs its `finally`, so the busy flag set by [claim] is always cleared.
+    @OptIn(DelicateCoroutinesApi::class)
     private fun launchOp(body: suspend () -> Unit): Job = scope.launch(start = CoroutineStart.ATOMIC) {
         try {
             body()

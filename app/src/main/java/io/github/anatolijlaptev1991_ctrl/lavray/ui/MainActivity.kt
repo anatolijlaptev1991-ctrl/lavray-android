@@ -22,6 +22,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.AppShell
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.LocalNavigator
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.nav.rememberNavigator
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppIcons
 
 /**
  * The only activity. onCreate does what the first frame needs and nothing more: read the small UI preferences
@@ -76,6 +77,12 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         offerIncoming(intent)
+    }
+
+    /** The UI went out of sight: app icons are only worth their memory while the picker is on screen, and they reload when it is. */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) AppIcons.clear()
     }
 
     override fun onDestroy() {

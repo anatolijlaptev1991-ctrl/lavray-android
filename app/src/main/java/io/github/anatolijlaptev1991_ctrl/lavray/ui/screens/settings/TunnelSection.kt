@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -122,6 +121,7 @@ private fun PerAppBlock() {
             modifier = Modifier.padding(horizontal = 4.dp),
         )
     }
+    SkippedAppsNote(current)
     if (current.mode == AppMode.Only && current.packages.isEmpty()) {
         LavBanner(StatusTone.Connecting, stringResource(R.string.apps_only_empty), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }

@@ -94,6 +94,7 @@ fun AppPickerScreen() {
             )
             LavSwitchRow(stringResource(R.string.apps_system), showSystem, { showSystem = it })
             LavText(stringResource(R.string.apps_count, chosen.size.toString()), style = Lav.type.caption, color = Lav.colors.textTertiary)
+            SkippedAppsNote(selection, Modifier)
         }
         val shown = list
         when {

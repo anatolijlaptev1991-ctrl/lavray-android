@@ -146,3 +146,17 @@ class ConnectionsTests {
         assertFalse(opens < 2)
     }
 }
+
+/** Defect 7 of the API audit: closing a connection that already ended is not an error. */
+class CloseOutcomeTest {
+    @Test fun aConnectionThatIsGoneAlreadyCountsAsClosed() {
+        assertTrue(io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.ConnectionsModel.closeOutcome(
+            io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail(ErrorKind.NotFound),
+        ) is io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Ok)
+    }
+
+    @Test fun otherFailuresStayFailures() {
+        val fail = io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail(ErrorKind.CoreUnavailable)
+        assertEquals(fail, io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag.ConnectionsModel.closeOutcome(fail))
+    }
+}
