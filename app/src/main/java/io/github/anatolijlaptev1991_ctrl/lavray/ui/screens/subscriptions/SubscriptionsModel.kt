@@ -103,27 +103,23 @@ class SubscriptionsModel(
         return false
     }
 
+    /**
+     * Runs [body] holding the claim of [claimRun]. The claim is released when the job completes however it completes, also
+     * when it is cancelled before its first line ran (a `finally` inside the body would never be reached then and the next
+     * update would be refused as "busy" until the process dies).
+     */
+    private fun launchClaimed(body: suspend () -> Unit): Job =
+        scope.launch(Dispatchers.IO) { body() }.also { job -> job.invokeOnCompletion { running.set(false) } }
+
     fun update(id: Long, confirm: Boolean = false) {
         if (!claimRun()) return
         val name = rawGroups[id]?.name.orEmpty()
-        runJob = scope.launch(Dispatchers.IO) {
-            try {
-                settle(id, name, confirm, runUpdate(id, name, confirm))
-            } finally {
-                running.set(false)
-            }
-        }
+        runJob = launchClaimed { settle(id, name, confirm, runUpdate(id, name, confirm)) }
     }
 
     fun updateAll() {
         if (!claimRun()) return
-        runJob = scope.launch(Dispatchers.IO) {
-            try {
-                runUpdateAll()
-            } finally {
-                running.set(false)
-            }
-        }
+        runJob = launchClaimed { runUpdateAll() }
     }
 
     /** Called when the screen stops: a running stream is cancelled, which aborts its socket. */

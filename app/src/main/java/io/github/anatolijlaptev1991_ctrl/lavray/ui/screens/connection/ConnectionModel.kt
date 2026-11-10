@@ -97,6 +97,8 @@ class ConnectionModel(
     /** When the core started the tunnel it runs now (epoch millis); null when it cannot be read. */
     private val startedAtReader: suspend () -> Long? = { readStartedAt(session) },
     private val clock: () -> Long = System::currentTimeMillis,
+    /** What survives the Activity: closed notices and the basis of the tunnel that runs on. */
+    private val memory: TunnelMemory = TunnelMemory(),
 ) {
     private val mutable = MutableStateFlow(ConnectionInfo())
     val info: StateFlow<ConnectionInfo> = mutable.asStateFlow()
@@ -113,19 +115,23 @@ class ConnectionModel(
 
     @Volatile private var sight = TunnelSight()
 
-    private val mutableDismissed = MutableStateFlow(Dismissed())
+    /** Notices the person closed; each is forgotten when its cause ends, so the next one is shown again. Kept in [memory]. */
+    val dismissed: StateFlow<Dismissed> = memory.dismissed
 
-    /** Notices the person closed; each is forgotten when its cause ends, so the next one is shown again. */
-    val dismissed: StateFlow<Dismissed> = mutableDismissed.asStateFlow()
+    fun dismissStop() = memory.update { it.withStop() }
 
-    fun dismissStop() = mutableDismissed.update { it.withStop() }
-
-    fun dismissFailure(kind: String) = mutableDismissed.update { it.withFailure(kind) }
+    fun dismissFailure(kind: String) = memory.update { it.withFailure(kind) }
 
     /** The core's notes are shown once per connection: this closes them for the tunnel that is up now. */
-    fun dismissWarnings() = mutableDismissed.update { it.withWarnings(sight.tunnel) }
+    fun dismissWarnings() {
+        memory.closeWarningsFor(mutableBasis.value?.takeIf { it.tunnel == sight.tunnel }?.startedAtMs)
+        memory.update { it.withWarnings(sight.tunnel) }
+    }
 
     init {
+        // This model numbers its tunnels from 1 again: a closing recorded under the numbers of an earlier screen means nothing
+        // here. The notes of the SAME core run are found again by its start time when its basis is taken.
+        memory.update { it.withWarnings(0) }
         scope.launch { status.collect(::onStatus) }
     }
 
@@ -135,23 +141,30 @@ class ConnectionModel(
      */
     private fun onStatus(status: VpnStatus) {
         val before = sight
-        sight = before.next(status.state)
+        sight = before.after(status)
         mutableHealth.value = HealthSignal.of(status, sight.tunnel)
-        mutableDismissed.update { it.after(status) }
+        memory.update { it.after(status) }
         if (sight.tunnel != before.tunnel) {
             val tunnel = sight.tunnel
             scope.launch {
                 val basis = basisFor(tunnel)
                 // A newer tunnel may have come up while the readings were under way: they describe the older one.
-                if (sight.tunnel == tunnel) mutableBasis.value = basis
+                if (sight.tunnel == tunnel) {
+                    mutableBasis.value = basis
+                    memory.remember(basis)
+                    // The same core run as the one whose notes were closed (the Activity was recreated): they stay closed.
+                    if (basis.startedAtMs != null && basis.startedAtMs == memory.warningsClosedFor) memory.update { it.withWarnings(tunnel) }
+                }
             }
         }
     }
 
     private suspend fun basisFor(tunnel: Int): HealthBasis {
-        val enabled = healthCheckReader()
         val startedAt = startedAtReader()
-        return HealthBasis.firstSight(tunnel, startedAt, enabled, clock())
+        // The same core run seen again by a new Activity: what was found out about it stays true, and it is not "first seen
+        // long after it started" just because this screen is new.
+        memory.basisFor(startedAt, tunnel)?.let { return it }
+        return HealthBasis.firstSight(tunnel, startedAt, healthCheckReader(), clock())
     }
 
     private var refreshJob: Job? = null

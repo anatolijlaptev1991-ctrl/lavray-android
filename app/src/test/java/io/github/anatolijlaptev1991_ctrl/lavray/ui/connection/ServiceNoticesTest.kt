@@ -58,6 +58,8 @@ class ServiceNoticesTest {
         // The service reports the same stop again and again: still hidden.
         assertNull(notices(stopped.copy(error = "x"), gone.after(stopped)).stop)
         // The tunnel came back (the flag is cleared): the dismissal is forgotten, so the next stop is shown.
+        // The service process was replaced: a default IDLE arrives first and must not bring the closed notice back.
+        assertTrue(gone.after(VpnStatus.IDLE).stop)
         val after = gone.after(VpnStatus(VpnState.CONNECTED))
         assertFalse(after.stop)
         assertNotNull(notices(stopped, after).stop)
@@ -97,7 +99,10 @@ class ServiceNoticesTest {
         // In the ERROR state the state card words it already.
         assertNull(notices(off.copy(state = VpnState.ERROR, error = "x")).silentFailure)
         assertEquals("dismissed once, hidden until it ends", null, notices(off, Dismissed().withFailure(FailureKind.PROTECTION_OFF)).silentFailure)
-        assertEquals(null, Dismissed().withFailure(FailureKind.PROTECTION_OFF).after(VpnStatus(VpnState.IDLE)).failureKind)
+        // A default IDLE (all a freshly bound controller knows) proves nothing: the notice stays closed. A connected tunnel ends it.
+        assertEquals(FailureKind.PROTECTION_OFF, Dismissed().withFailure(FailureKind.PROTECTION_OFF).after(VpnStatus(VpnState.IDLE)).failureKind)
+        assertEquals(null, Dismissed().withFailure(FailureKind.PROTECTION_OFF).after(VpnStatus(VpnState.CONNECTED)).failureKind)
+        assertEquals(null, Dismissed().withFailure(FailureKind.PROTECTION_OFF).after(VpnStatus(VpnState.ERROR, failureKind = "connect_failed")).failureKind)
     }
 
     @Test fun aCoreThatWouldNotStopIsToldOnceTheTunnelIsDown() {

@@ -71,11 +71,14 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
     @Volatile private var cached: LavrayClient? = null
     @Volatile private var epoch = 0
 
+    /** Makes "epoch is still what it was, so keep the client" one step with respect to [onCoreEpoch]'s "new epoch, drop the client". */
+    private val epochGuard = Any()
+
     suspend fun client(): LavrayClient = cached ?: lock.withLock {
         cached ?: run {
-            val seen = epoch
+            val seen = synchronized(epochGuard) { epoch }
             // An endpoint fetched before the epoch moved on belongs to the old core: use it once, but do not keep it.
-            factory(endpointOrUnavailable()).also { if (epoch == seen) cached = it }
+            factory(endpointOrUnavailable()).also { made -> synchronized(epochGuard) { if (epoch == seen) cached = made } }
         }
     }
 
@@ -93,10 +96,11 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
      * the token and maybe the socket are different now: the client is dropped and the next call asks the service for the
      * endpoint again, instead of first failing against the old one. The same value again changes nothing.
      */
-    fun onCoreEpoch(value: Int) {
-        if (value == epoch) return
-        epoch = value
-        cached = null
+    fun onCoreEpoch(value: Int) = synchronized(epochGuard) {
+        if (value != epoch) {
+            epoch = value
+            cached = null
+        }
     }
 
     private fun drop(error: Throwable) {

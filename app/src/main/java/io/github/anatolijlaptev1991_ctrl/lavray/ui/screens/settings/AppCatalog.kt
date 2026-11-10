@@ -65,7 +65,7 @@ object AppCatalog {
 
     private fun entry(pm: PackageManager, info: ResolveInfo): AppEntry {
         val app = info.activityInfo.applicationInfo
-        val label = info.loadLabel(pm)?.toString()?.takeIf { it.isNotBlank() } ?: info.activityInfo.packageName
+        val label = info.loadLabel(pm).toString().takeIf { it.isNotBlank() } ?: info.activityInfo.packageName
         return AppEntry(info.activityInfo.packageName, label, app.flags and ApplicationInfo.FLAG_SYSTEM != 0)
     }
 

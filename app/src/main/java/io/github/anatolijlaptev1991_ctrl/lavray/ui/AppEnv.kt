@@ -20,9 +20,9 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.ExitProbe
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.BackupModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ResolverBackupFiles
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.backup.ServiceHold
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelSight
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TunnelMemory
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.buildsIn
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.liveIn
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.PendingReason
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RestartHub
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppSelectionSaver
@@ -35,12 +35,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.scan
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -68,7 +65,7 @@ class AppEnv(
         scope.launch { controller.status.map { it.coreEpoch }.distinctUntilChanged().collect(session::onCoreEpoch) }
     }
 
-    val connection: ConnectionModel by lazy { ConnectionModel(session, scope, vpn.status) }
+    val connection: ConnectionModel by lazy { ConnectionModel(session, scope, vpn.status, memory = TunnelMemory.process) }
     val servers: ServersModel by lazy { ServersModel(session, scope) }
     /** Raised when servers or subscriptions change behind a screen's back (import); screens that list them reload on it. */
     val data = DataChanges()
@@ -80,15 +77,10 @@ class AppEnv(
     }
 
     /** True while a tunnel is up or on its way up; the pending-changes state ends with it. */
-    private val tunnelLive: StateFlow<Boolean> by lazy {
-        vpn.status.map { phaseOf(it.state).let { p -> p == Phase.On || p == Phase.Connecting || p == Phase.WaitingNetwork } }
-            .stateIn(scope, SharingStarted.Eagerly, false)
-    }
-    /** Counts the tunnels that came up: a rebuild or a server switch never leaves "live" but is a new tunnel all the same. */
-    private val tunnelsBuilt: StateFlow<Int> by lazy {
-        vpn.status.map { it.state }.scan(TunnelSight()) { sight, state -> sight.next(state) }.map { it.tunnel }
-            .stateIn(scope, SharingStarted.Eagerly, 0)
-    }
+    private val tunnelLive: StateFlow<Boolean> by lazy { vpn.status.liveIn(scope) }
+
+    /** The builds of the tunnel ([TunnelSight.builds]): a rebuild or a server switch never leaves "live" but is a new build all the same. */
+    private val tunnelsBuilt: StateFlow<Int> by lazy { vpn.status.buildsIn(scope) }
     val restart: RestartHub by lazy { RestartHub(session, scope, tunnelLive, reconnect = { Reconnect.now(this) }, built = tunnelsBuilt) }
     val appSelection: AppSelectionSaver by lazy {
         AppSelectionSaver(

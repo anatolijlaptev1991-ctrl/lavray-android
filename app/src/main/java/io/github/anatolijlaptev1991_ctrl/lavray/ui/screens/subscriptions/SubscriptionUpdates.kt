@@ -47,7 +47,8 @@ internal class UpdateOutcome(private val nowMs: () -> Long = System::currentTime
             alreadyRunning = true
             return
         }
-        if (e.kind == ErrorKind.CoreUnavailable) coreProblem = e.kind
+        // A frame the app cannot hold is the core's answer being too big, not a provider's refusal.
+        if (e.kind == ErrorKind.CoreUnavailable || e.kind == ErrorKind.TooLarge) coreProblem = e.kind
         failure = SubscriptionLogic.failureOf(e.cause?.message.orEmpty(), nowMs())
     }
 

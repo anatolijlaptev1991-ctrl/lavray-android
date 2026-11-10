@@ -108,7 +108,9 @@ internal class SubscriptionRegistry(private val session: CoreSession) {
      */
     private suspend fun dropDuplicate(made: Group): Boolean {
         repeat(DELETE_TRIES) {
-            if (session.call { subscriptionDeleteSubscription(DeleteSubscriptionRequest(made.id)) } is CoreResult.Ok) return true
+            val r = session.call { subscriptionDeleteSubscription(DeleteSubscriptionRequest(made.id)) }
+            // NOT_FOUND on the second try: the first delete got through and only its answer was lost.
+            if (r is CoreResult.Ok || (r is CoreResult.Fail && r.kind == ErrorKind.NotFound)) return true
         }
         session.call { profileUpdateGroup(UpdateGroupRequest(SubscriptionEdit.withAutoUpdate(made, on = false))) }
         return false
@@ -122,10 +124,10 @@ internal class SubscriptionRegistry(private val session: CoreSession) {
         val wanted = SubscriptionLogic.hostOf(made.subscriptionUrl.orEmpty())
         if (typed.isNotEmpty() || wanted.isEmpty() || wanted == made.name) return made
         val renamed = made.copy(name = wanted)
-        return when (val r = session.call { profileUpdateGroup(UpdateGroupRequest(renamed)) }) {
-            is CoreResult.Ok -> renamed
-            is CoreResult.Fail -> made
-        }
+        // A rename that failed leaves the core's name in the core, but it is not carried on into what this app shows (it can
+        // hold a token); lists show the host for such a name too ([SubscriptionLogic.displayName]).
+        session.call { profileUpdateGroup(UpdateGroupRequest(renamed)) }
+        return renamed
     }
 
     private companion object {

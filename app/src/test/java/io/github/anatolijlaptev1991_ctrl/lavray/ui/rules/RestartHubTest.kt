@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.rules
 
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.buildsIn
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.liveIn
 import io.github.anatolijlaptev1991_ctrl.lavray.api.Connection
 import io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint
 import io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient
@@ -266,4 +268,25 @@ class RestartHubTest {
         assertFalse("folded by Later", RestartBannerRules.visible(folded, Phase.On, showWhenSnoozed = false))
         assertTrue("the Connection screen shows it again", RestartBannerRules.visible(folded, Phase.On, showWhenSnoozed = true))
     }
+}
+
+/** A hub driven by a real status flow, derived exactly as the app derives it; [feed] sets a state and lets the hub see it. */
+fun hubOver(): Triple<RestartHub, suspend (io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState) -> Unit, CoroutineScope> {
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val status = MutableStateFlow(io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus.IDLE)
+    val session = io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession(
+        { CoreEndpoint("/x", "t") },
+        { ep -> LavrayClient(ep.token, { throw IOException("down") }, Dispatchers.IO) },
+    )
+    val hub = RestartHub(
+        session, scope,
+        status.liveIn(scope),
+        { true },
+        status.buildsIn(scope),
+    )
+    val feed: suspend (io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState) -> Unit = { state ->
+        status.value = io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus(state)
+        kotlinx.coroutines.delay(80)
+    }
+    return Triple(hub, feed, scope)
 }

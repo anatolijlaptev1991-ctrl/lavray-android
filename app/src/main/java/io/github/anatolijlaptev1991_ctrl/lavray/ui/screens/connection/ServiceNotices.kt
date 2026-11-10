@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import io.github.anatolijlaptev1991_ctrl.lavray.R
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
+import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnState
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.VpnStatus
 
 /** The tunnel ended without the person asking; [reason] is the sentence, [tip] says whether the battery hint fits it. */
@@ -22,11 +23,16 @@ data class WarningNote(@StringRes val text: Int, val code: String? = null)
 /** What the person already closed, so a notice does not come back with the next status. */
 @Immutable
 data class Dismissed(val stop: Boolean = false, val failureKind: String? = null, val warningsOfTunnel: Int = 0) {
-    /** Forgets a dismissal whose cause has ended: the next unexpected stop must be shown again. */
-    fun after(status: VpnStatus): Dismissed = copy(
-        stop = stop && status.unexpectedStop,
-        failureKind = failureKind?.takeIf { it == status.failureKind },
-    )
+    /**
+     * Forgets a dismissal whose cause has ended, so the next unexpected stop is shown again. The proof that it ended is a
+     * connected tunnel (the service clears both on a successful connect) or another failure kind. A default IDLE status,
+     * which is all a freshly bound controller knows for a moment, proves nothing and must not bring a closed notice back.
+     */
+    fun after(status: VpnStatus): Dismissed = when {
+        status.state == VpnState.CONNECTED -> copy(stop = false, failureKind = null)
+        status.failureKind != null && status.failureKind != failureKind -> copy(failureKind = null)
+        else -> this
+    }
 
     fun withStop() = copy(stop = true)
     fun withFailure(kind: String) = copy(failureKind = kind)
@@ -91,7 +97,10 @@ internal fun stopReasonText(reason: String?): Pair<Int, Boolean> = when (reason)
     "crash", "crash_native", "anr", "initialization_failure" -> R.string.nt_stop_crash to false
     "user_stopped", "user_requested" -> R.string.nt_stop_user to false
     "package_updated", "package_state_change" -> R.string.nt_stop_update to false
-    "tunnel_lost" -> R.string.nt_stop_lost to false
+    // stopReason can also carry a failure kind of the service: those are not memory kills, so no battery hint.
+    "tunnel_lost", "connect_failed" -> R.string.nt_stop_lost to false
+    "core_stop_timeout" -> R.string.nt_stop_other to false
+    "repeated_crash" -> R.string.nt_stop_crash to false
     else -> R.string.nt_stop_other to true
 }
 

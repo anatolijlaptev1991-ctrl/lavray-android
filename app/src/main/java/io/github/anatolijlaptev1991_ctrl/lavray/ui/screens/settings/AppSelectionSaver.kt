@@ -5,6 +5,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
@@ -43,6 +44,7 @@ class AppSelectionSaver(
     private val lock = Mutex()
     private var latest: AppSelection? = null
 
+    @OptIn(DelicateCoroutinesApi::class)
     fun submit(selection: AppSelection, scope: CoroutineScope): Deferred<Result> {
         synchronized(this) { latest = selection }
         // ATOMIC: a job cancelled before it started must still take the choice that was recorded for it.

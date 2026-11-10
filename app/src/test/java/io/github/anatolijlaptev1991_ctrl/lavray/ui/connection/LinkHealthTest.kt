@@ -24,7 +24,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -150,7 +149,7 @@ class LinkHealthTest {
         val model = model(status, scope, enabled = { reads.incrementAndGet(); false })
         status.value = up()
         val basis = withTimeout(5_000) { model.healthBasis.first { it != null } }!!
-        assertEquals(HealthBasis(1, checkEnabled = false, readyAtMs = 6_000L, trusted = true), basis)
+        assertEquals(HealthBasis(1, checkEnabled = false, readyAtMs = 6_000L, trusted = true, startedAtMs = 5_000L), basis)
         status.value = up("timeout")
         withTimeout(5_000) { model.health.first { it.healthError == "timeout" } }
         assertEquals("the setting is read once per tunnel, not once per status", 1, reads.get())

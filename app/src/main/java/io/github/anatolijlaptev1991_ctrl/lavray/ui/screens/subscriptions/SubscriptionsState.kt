@@ -31,7 +31,7 @@ data class SubRow(
             val info = g.subscriptionInfo
             return SubRow(
                 id = g.id,
-                name = g.name,
+                name = SubscriptionLogic.displayName(g.name, g.subscriptionUrl),
                 url = g.subscriptionUrl.orEmpty(),
                 count = count,
                 lastUpdateMs = g.lastUpdateMs,

@@ -34,6 +34,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.StreamFailure
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionLogic
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.ServerSort
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -107,7 +108,7 @@ class ServersModel(
                     dispatch(
                         ServersAction.Loaded(
                             rows = profiles.value.profiles.map(::toRow),
-                            groups = groups.value.groups.map { GroupInfo(it.id, it.name, it.kind == Group.Kind.KIND_SUBSCRIPTION) },
+                            groups = groups.value.groups.map { GroupInfo(it.id, SubscriptionLogic.displayName(it.name, it.subscriptionUrl), it.kind == Group.Kind.KIND_SUBSCRIPTION) },
                         ),
                     )
                 }

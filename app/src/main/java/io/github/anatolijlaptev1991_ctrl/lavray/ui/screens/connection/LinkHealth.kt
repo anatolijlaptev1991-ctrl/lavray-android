@@ -32,20 +32,6 @@ data class HealthSignal(val connected: Boolean, val healthError: String?, val tu
     }
 }
 
-/**
- * Counts the tunnels seen coming up: a new number each time the state turns CONNECTED after being anything else. The
- * service shows CONNECTING for a rebuild and for the grace period after the core fell over, so a rebuilt tunnel is a new
- * one here, exactly when the core starts a new health check.
- */
-@Immutable
-data class TunnelSight(val tunnel: Int = 0, val up: Boolean = false) {
-    fun next(state: VpnState): TunnelSight = when {
-        state == VpnState.CONNECTED && !up -> TunnelSight(tunnel + 1, up = true)
-        state != VpnState.CONNECTED && up -> copy(up = false)
-        else -> this
-    }
-}
-
 /** What the Connection screen may say about traffic through the server. */
 @Immutable
 sealed interface LinkHealth {
@@ -72,13 +58,21 @@ sealed interface LinkHealth {
  * nothing can be said about it.
  */
 @Immutable
-data class HealthBasis(val tunnel: Int, val checkEnabled: Boolean, val readyAtMs: Long, val trusted: Boolean) {
+data class HealthBasis(
+    val tunnel: Int,
+    val checkEnabled: Boolean,
+    val readyAtMs: Long,
+    val trusted: Boolean,
+    /** The core's start time of the tunnel this was taken for: what lets a recreated screen recognise the same tunnel. */
+    val startedAtMs: Long? = null,
+) {
     companion object {
         /** [startedAtMs] is the core's start time of the tunnel (null when unreadable); [checkEnabled] the setting read right then (null when unreadable). */
         fun firstSight(tunnel: Int, startedAtMs: Long?, checkEnabled: Boolean?, nowMs: Long) = HealthBasis(
             tunnel = tunnel,
             checkEnabled = checkEnabled ?: false,
             readyAtMs = nowMs,
+            startedAtMs = startedAtMs,
             trusted = checkEnabled != null && startedAtMs != null && startedAtMs > 0 && nowMs - startedAtMs in 0..HealthRules.TRUST_MS,
         )
     }
@@ -122,4 +116,17 @@ object HealthRules {
     /** Milliseconds until a [LinkHealth.Checking] verdict turns into [LinkHealth.Verified]; 0 when nothing is waiting. */
     fun msUntilVerdict(signal: HealthSignal, basis: HealthBasis?, nowMs: Long): Long =
         if (of(signal, basis, nowMs) == LinkHealth.Checking && basis != null) (basis.readyAtMs + CHECK_WINDOW_MS - nowMs).coerceAtLeast(0L) else 0L
+
+    /**
+     * Sleeps until the verdict is due and returns when it is no longer [LinkHealth.Checking]. The sleep runs on the uptime
+     * clock and the verdict reads the wall clock: after the wall clock was stepped back the verdict can still be "checking"
+     * when the sleep ends, so the wait is asked again instead of trusting one sleep.
+     */
+    suspend fun awaitVerdict(signal: HealthSignal, basis: HealthBasis?, now: () -> Long, sleep: suspend (Long) -> Unit) {
+        while (true) {
+            val wait = msUntilVerdict(signal, basis, now())
+            if (wait <= 0L) return
+            sleep(wait)
+        }
+    }
 }

@@ -58,19 +58,20 @@ internal object HttpWire {
     }
 
     fun readAll(input: InputStream, limit: Int): ByteArray {
-        val buf = ByteArrayOutputStream()
+        var buf: ByteArrayOutputStream? = ByteArrayOutputStream()
         val chunk = ByteArray(8192)
         try {
             while (true) {
                 val n = input.read(chunk)
-                if (n < 0) return buf.toByteArray()
-                if (buf.size() + n > limit) throw ResponseTooLargeException(limit)
+                if (n < 0) return buf!!.toByteArray()
+                if (buf!!.size() + n > limit) throw ResponseTooLargeException(limit)
                 buf.write(chunk, 0, n)
             }
         } catch (e: OutOfMemoryError) {
             // The buffer grows to the limit and copies once more: on a small heap that is where it gives out. It is the same
-            // answer as "larger than the limit" (nothing else held on to the buffer), not a crash of the app.
-            buf.reset()
+            // answer as "larger than the limit", not a crash of the app. The buffer is let go BEFORE the exception is made,
+            // so the allocation that follows has the memory it just freed.
+            buf = null
             throw ResponseTooLargeException(limit)
         }
     }

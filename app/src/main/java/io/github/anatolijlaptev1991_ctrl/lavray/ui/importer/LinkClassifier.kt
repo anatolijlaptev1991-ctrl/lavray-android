@@ -89,17 +89,49 @@ object LinkClassifier {
         )
     }
 
-    private val authority = Regex("^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*([^?#]*)(?:\\?([^#]*))?")
+    private val addressParts = Regex("^[A-Za-z][A-Za-z0-9+.-]*://([^/?#]*)([^?#]*)(?:\\?([^#]*))?")
 
     /**
-     * The core calls a single http(s) address a subscription when it has a path (more than slashes) or a query with any key
-     * other than security and sni; what looks like host:port with those two keys is an HTTP proxy link and stays a server.
+     * The core's reading of a single http(s) address (import_kind.go, Go net/url): it is a subscription when it has a host
+     * and a path that is more than slashes once percent-decoded, or a query with any key other than security and sni. Pairs
+     * that Go drops are dropped here too: empty ones, ones with a semicolon, ones with a broken percent escape. An empty key
+     * ("?=x") counts. An address without a host, or with a broken escape in the path, is no address for the core at all.
+     * What looks like host:port with security and sni only is an HTTP proxy link and stays a server.
      */
     internal fun isSubscriptionPage(url: String): Boolean {
-        val m = authority.find(url) ?: return false
-        if (m.groupValues[1].trim('/').isNotEmpty()) return true
-        val keys = m.groupValues[2].split('&').map { it.substringBefore('=') }.filter { it.isNotEmpty() }
-        return keys.any { it != "security" && it != "sni" }
+        val m = addressParts.find(url) ?: return false
+        val hostPort = m.groupValues[1].substringAfterLast('@')
+        val host = if (hostPort.startsWith("[")) hostPort.substringBefore(']').removePrefix("[") else hostPort.substringBefore(':')
+        if (host.isEmpty()) return false
+        val path = percentDecode(m.groupValues[2], plusIsSpace = false) ?: return false
+        if (path.trim('/').isNotEmpty()) return true
+        return m.groupValues[3].split('&')
+            .filter { it.isNotEmpty() && ';' !in it }
+            .mapNotNull { percentDecode(it.substringBefore('='), plusIsSpace = true) }
+            .any { it != "security" && it != "sni" }
+    }
+
+    /** Percent-decoding as Go's url.PathUnescape / QueryUnescape; null on a broken escape. */
+    private fun percentDecode(text: String, plusIsSpace: Boolean): String? {
+        if ('%' !in text && !(plusIsSpace && '+' in text)) return text
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        val out = java.io.ByteArrayOutputStream(bytes.size)
+        var i = 0
+        while (i < bytes.size) {
+            val b = bytes[i].toInt()
+            when {
+                b == '%'.code -> {
+                    val hi = bytes.getOrNull(i + 1)?.toInt()?.let { Character.digit(it, 16) } ?: -1
+                    val lo = bytes.getOrNull(i + 2)?.toInt()?.let { Character.digit(it, 16) } ?: -1
+                    if (hi < 0 || lo < 0) return null
+                    out.write(hi * 16 + lo)
+                    i += 3
+                }
+                plusIsSpace && b == '+'.code -> { out.write(' '.code); i++ }
+                else -> { out.write(b); i++ }
+            }
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     private fun classifyDocument(text: String): ImportInput {

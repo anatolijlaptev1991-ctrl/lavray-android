@@ -47,7 +47,8 @@ fun stateSubRes(phase: Phase, link: LinkHealth, failure: FailureInfo = FailureIn
         // Not asked, or the core has not answered: nothing is claimed about the traffic.
         LinkHealth.NotChecked, LinkHealth.Unknown -> R.string.cx_health_unknown_sub
     }
-    Phase.NeedsPermission -> ErrorDetail.kindText(failure.kind, failure.reason) ?: R.string.fail_permission
+    // Whatever failure the service remembers, the state is "no permission": a stale kind must not contradict the banner.
+    Phase.NeedsPermission -> R.string.fail_permission
     Phase.Error -> ErrorDetail.kindText(failure.kind, failure.reason) ?: R.string.conn_state_err_sub
 }
 
@@ -114,9 +115,8 @@ object ErrorDetail {
 fun rememberLinkHealth(signal: HealthSignal, basis: HealthBasis?): LinkHealth {
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(signal, basis) {
-        val wait = HealthRules.msUntilVerdict(signal, basis, System.currentTimeMillis())
-        if (wait > 0) {
-            delay(wait)
+        if (HealthRules.msUntilVerdict(signal, basis, System.currentTimeMillis()) > 0) {
+            HealthRules.awaitVerdict(signal, basis, System::currentTimeMillis, ::delay)
             tick++
         }
     }

@@ -85,23 +85,59 @@ object SubscriptionLogic {
     fun skippedLinesOf(detail: String?): Int? = detail?.let { skippedLines.find(it)?.groupValues?.get(1)?.toIntOrNull() }?.takeIf { it > 0 }
 
     /**
-     * Two addresses of one subscription: the scheme and the host do not depend on case, a lone trailing slash is no
-     * part of the address. The path and the query do (a token is case sensitive).
+     * Two addresses of one subscription: the scheme and the host do not depend on case, the default port of the scheme is the
+     * same as none, a lone trailing slash is no part of the address. The user info, the path and the query do (a user name
+     * or a token in them is case sensitive: two subscriptions that differ only in the case of a token are two subscriptions).
      */
     fun sameUrl(a: String?, b: String?): Boolean {
         val x = normalizedUrl(a)
         return x.isNotEmpty() && x == normalizedUrl(b)
     }
 
+    /** The parts of an address up to the path: user info (as written), host (brackets kept for IPv6), port ("" when none). */
+    private class Authority(val userInfo: String?, val host: String, val port: String)
+
+    private fun authorityOf(text: String): Authority {
+        val at = text.lastIndexOf('@')
+        val userInfo = if (at >= 0) text.substring(0, at) else null
+        val hostPort = text.substring(at + 1)
+        if (hostPort.startsWith("[")) {
+            val close = hostPort.indexOf(']')
+            if (close > 0) return Authority(userInfo, hostPort.substring(0, close + 1), hostPort.substring(close + 1).removePrefix(":"))
+        }
+        val colon = hostPort.lastIndexOf(':')
+        return if (colon >= 0) Authority(userInfo, hostPort.substring(0, colon), hostPort.substring(colon + 1)) else Authority(userInfo, hostPort, "")
+    }
+
     private fun normalizedUrl(url: String?): String {
         val s = url?.trim().orEmpty()
         val schemeEnd = s.indexOf("://")
         if (schemeEnd < 0) return s
+        val scheme = s.substring(0, schemeEnd).lowercase()
         val rest = s.substring(schemeEnd + 3)
         val hostEnd = rest.indexOfFirst { it == '/' || it == '?' || it == '#' }.let { if (it < 0) rest.length else it }
-        val tail = rest.substring(hostEnd)
-        val cleanTail = if (tail == "/") "" else tail
-        return s.substring(0, schemeEnd).lowercase() + "://" + rest.substring(0, hostEnd).lowercase() + cleanTail
+        val tail = rest.substring(hostEnd).let { if (it == "/") "" else it }
+        val a = authorityOf(rest.substring(0, hostEnd))
+        val defaultPort = when (scheme) {
+            "http" -> "80"
+            "https" -> "443"
+            else -> ""
+        }
+        val port = a.port.takeIf { it.isNotEmpty() && it != defaultPort }
+        return scheme + "://" + (a.userInfo?.let { "$it@" } ?: "") + a.host.lowercase() + (port?.let { ":$it" } ?: "") + tail
+    }
+
+    /**
+     * What a subscription is called on screen. The core names a group after the whole address when it has to (a decrypted
+     * link, for one), and that address can carry a user name or a token; if the group still has such a name, the host
+     * is shown instead.
+     */
+    fun displayName(name: String, url: String?): String {
+        val link = url?.trim().orEmpty()
+        if (!isWebLink(link) || '@' !in name) return name
+        val bare = link.substringAfter("://")
+        val authority = bare.substringBefore('/').substringBefore('?').substringBefore('#')
+        return if (name == authority || name == bare) hostOf(link).ifEmpty { name } else name
     }
 
     fun failureOf(raw: String, atMs: Long = 0L): SubFailure = SubFailure.fromCode(errorCode(raw), atMs)
@@ -165,7 +201,7 @@ object SubscriptionLogic {
     fun hostOf(url: String): String {
         val s = url.trim()
         if (!isWebLink(s)) return ""
-        return s.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@').substringBefore(':')
+        return authorityOf(s.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#')).host
     }
 
     fun tally(t: UpdateTally, phase: SubscriptionProgress.Phase): UpdateTally = when (phase) {
