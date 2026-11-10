@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -25,10 +26,13 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.prefs.UiPrefs
 /**
  * The only activity. onCreate does what the first frame needs and nothing more: read the small UI preferences
  * (theme and language), create the environment (models are lazy) and set the content. The :vpn process is
- * bound in onStart, asynchronously, and unbound in onStop so an idle :vpn can exit.
+ * bound after the first frame has been drawn (starting it earlier made it compete with the first frame for the
+ * CPU: docs/MEASUREMENTS.md) and unbound in onStop so an idle :vpn can exit.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var env: AppEnv
+    private var started = false
+    private val bindVpn = Runnable { if (started) env.controller.bind() }
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase, UiPrefs(newBase).load().language))
@@ -43,12 +47,29 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        env.controller.bind()
+        started = true
+        bindAfterFirstFrame()
     }
 
     override fun onStop() {
+        started = false
+        window.decorView.removeCallbacks(bindVpn)
         env.controller.unbind()
         super.onStop()
+    }
+
+    /** Binds when the window has drawn once; the delayed run is the safety net when no draw follows. */
+    private fun bindAfterFirstFrame() {
+        val decor = window.decorView
+        decor.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
+            override fun onDraw() {
+                decor.post {
+                    if (decor.viewTreeObserver.isAlive) decor.viewTreeObserver.removeOnDrawListener(this)
+                    bindVpn.run()
+                }
+            }
+        })
+        decor.postDelayed(bindVpn, BIND_FALLBACK_MS)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -66,6 +87,10 @@ class MainActivity : ComponentActivity() {
     private fun offerIncoming(intent: Intent?) {
         val text = IncomingIntent.extract(intent?.action, intent?.dataString, intent?.getCharSequenceExtra(Intent.EXTRA_TEXT))
         if (text != null) env.importer.open(text)
+    }
+
+    private companion object {
+        const val BIND_FALLBACK_MS = 1_500L
     }
 
     @androidx.compose.runtime.Composable
