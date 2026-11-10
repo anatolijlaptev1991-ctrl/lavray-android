@@ -132,4 +132,12 @@ class GeneratedStringsTest {
         val named = all.getValue("en").strings.filter { computer.containsMatchIn(it.value) }.keys
         assertTrue("computer wording in: $named", named.all { it == "ra_proc_note" })
     }
+
+    /** Desktop-only features must not be named on the phone (the restore dialog once spoke of AI agents and the web panel). */
+    @Test
+    fun englishPhoneTextNamesNoDesktopOnlyFeature() {
+        val desktop = Regex("AI agents|web panel|system tray|hotkey|administrator|system proxy", RegexOption.IGNORE_CASE)
+        val named = all.getValue("en").strings.filter { desktop.containsMatchIn(it.value) }.keys
+        assertTrue("desktop wording in: $named", named.isEmpty())
+    }
 }

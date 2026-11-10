@@ -35,8 +35,8 @@
     <string name="bk_chooseFile">Datei auswählen …</string>
     <string name="bk_close_app">App schließen</string>
     <string name="bk_confirmOk">Ersetzen</string>
-    <string name="bk_confirmText">Die aktuellen Daten werden gelöscht und durch den Inhalt der Sicherung ersetzt. Dabei werden auch sicherheitsrelevante Einstellungen ersetzt: Zugriff für KI-Agenten, Adresse des Webpanels und Core-Geheimnisse entsprechen danach der Datei. Das lässt sich nicht rückgängig machen. Prüfen Sie, ob es die gewünschte Sicherung ist.</string>
     <string name="bk_confirmTitle">Alle Daten ersetzen?</string>
+    <string name="bk_confirm_phone">Die aktuellen Daten werden gelöscht und durch den Inhalt der Sicherung ersetzt, einschließlich der Kern-Geheimnisse. Das lässt sich nicht rückgängig machen. Prüfen Sie, ob es die richtige Sicherung ist.</string>
     <string name="bk_done">Die Daten wurden aus der Sicherung wiederhergestellt.</string>
     <string name="bk_doneRestart">Einige Einstellungen gelten erst nach einem Neustart der App.</string>
     <string name="bk_err_busy">Es läuft bereits ein anderer Vorgang mit der Sicherung – versuchen Sie es gleich noch einmal</string>

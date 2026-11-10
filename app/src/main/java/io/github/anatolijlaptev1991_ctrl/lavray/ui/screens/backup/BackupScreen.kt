@@ -154,7 +154,7 @@ private fun RestoreCard(model: BackupModel, state: BackupState, tunnelUp: Boolea
     if (confirm) {
         LavConfirmDialog(
             title = stringResource(R.string.bk_confirmTitle),
-            text = stringResource(R.string.bk_confirmText) + "\n\n" + stringResource(R.string.bk_restart_warn_d),
+            text = stringResource(R.string.bk_confirm_phone) + "\n\n" + stringResource(R.string.bk_restart_warn_d),
             confirmLabel = stringResource(R.string.bk_confirmOk), dismissLabel = stringResource(R.string.common_cancel),
             onConfirm = { confirm = false; scope.launch { model.replace(pw); pw = "" } }, onDismiss = { confirm = false }, danger = true,
         )

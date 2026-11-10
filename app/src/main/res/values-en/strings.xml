@@ -35,8 +35,8 @@
     <string name="bk_chooseFile">Choose a file…</string>
     <string name="bk_close_app">Close the app</string>
     <string name="bk_confirmOk">Replace</string>
-    <string name="bk_confirmText">The current data will be deleted and replaced with the contents of the backup. Security-relevant settings are replaced too: the access for AI agents, the web panel address and the core secrets will become those from the file. This cannot be undone. Make sure this is the backup you want.</string>
     <string name="bk_confirmTitle">Replace all data?</string>
+    <string name="bk_confirm_phone">The current data will be deleted and replaced with the contents of the backup, including the core secrets. This cannot be undone. Make sure this is the backup you want.</string>
     <string name="bk_done">Data restored from the backup.</string>
     <string name="bk_doneRestart">Some settings will take effect after the app is restarted.</string>
     <string name="bk_err_busy">Another backup operation is in progress — try again shortly</string>

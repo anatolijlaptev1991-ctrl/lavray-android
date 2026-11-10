@@ -18,6 +18,7 @@
   "apps_system": "Systemapps anzeigen",
   "apps_title": "Apps im Tunnel",
   "bk_close_app": "App schließen",
+  "bk_confirm_phone": "Die aktuellen Daten werden gelöscht und durch den Inhalt der Sicherung ersetzt, einschließlich der Kern-Geheimnisse. Das lässt sich nicht rückgängig machen. Prüfen Sie, ob es die richtige Sicherung ist.",
   "bk_restart_after_d": "Schließen Sie LAVRay und öffnen Sie es neu, damit alle Teile die wiederhergestellten Daten nutzen.",
   "bk_restart_after_t": "App schließen und neu öffnen",
   "bk_restart_warn_d": "Beim Wiederherstellen werden alle Daten ersetzt. Trennen Sie zuerst die Verbindung. Danach LAVRay vollständig schließen und neu öffnen.",

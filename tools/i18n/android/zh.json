@@ -18,6 +18,7 @@
   "apps_system": "显示系统应用",
   "apps_title": "隧道中的应用",
   "bk_close_app": "关闭应用",
+  "bk_confirm_phone": "当前数据将被删除，并替换为备份中的内容，包括内核密钥。此操作无法撤销。请确认这是您要的备份。",
   "bk_restart_after_d": "请关闭 LAVRay 并重新打开，使各部分都使用恢复后的数据。",
   "bk_restart_after_t": "请关闭并重新打开应用",
   "bk_restart_warn_d": "恢复会替换所有数据。请先断开连接。完成后请完全关闭 LAVRay 并重新打开。",

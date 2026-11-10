@@ -35,8 +35,8 @@
     <string name="bk_chooseFile">Elegir archivo…</string>
     <string name="bk_close_app">Cerrar la app</string>
     <string name="bk_confirmOk">Sustituir</string>
-    <string name="bk_confirmText">Los datos actuales se borrarán y se sustituirán por el contenido de la copia. También se sustituyen los ajustes de seguridad: el acceso para agentes de IA, la dirección del panel web y los secretos del núcleo serán los del archivo. No se puede deshacer. Asegúrate de que es la copia que quieres.</string>
     <string name="bk_confirmTitle">¿Sustituir todos los datos?</string>
+    <string name="bk_confirm_phone">Los datos actuales se eliminarán y se sustituirán por el contenido de la copia, incluidos los secretos del núcleo. No se puede deshacer. Compruebe que es la copia que quiere.</string>
     <string name="bk_done">Datos restaurados desde la copia.</string>
     <string name="bk_doneRestart">Algunos ajustes se aplicarán al reiniciar la aplicación.</string>
     <string name="bk_err_busy">Ya hay otra operación con la copia en curso: inténtalo de nuevo en un momento</string>

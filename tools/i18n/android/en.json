@@ -18,6 +18,7 @@
   "apps_system": "Show system apps",
   "apps_title": "Apps in the tunnel",
   "bk_close_app": "Close the app",
+  "bk_confirm_phone": "The current data will be deleted and replaced with the contents of the backup, including the core secrets. This cannot be undone. Make sure this is the backup you want.",
   "bk_restart_after_d": "Close LAVRay and open it again so every part uses the restored data.",
   "bk_restart_after_t": "Close and reopen the app",
   "bk_restart_warn_d": "Restoring replaces all data. Disconnect first. When it finishes, close LAVRay completely and open it again.",

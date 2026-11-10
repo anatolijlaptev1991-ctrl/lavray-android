@@ -35,8 +35,8 @@
     <string name="bk_chooseFile">选择文件…</string>
     <string name="bk_close_app">关闭应用</string>
     <string name="bk_confirmOk">替换</string>
-    <string name="bk_confirmText">当前数据将被删除，并替换为备份的内容。与安全相关的设置也会一并替换：AI 智能体访问、网页面板地址和内核密钥都将变为文件中的值。此操作无法撤销。请确认这是你想要的备份。</string>
     <string name="bk_confirmTitle">替换所有数据？</string>
+    <string name="bk_confirm_phone">当前数据将被删除，并替换为备份中的内容，包括内核密钥。此操作无法撤销。请确认这是您要的备份。</string>
     <string name="bk_done">已从备份恢复数据。</string>
     <string name="bk_doneRestart">部分设置将在重启应用后生效。</string>
     <string name="bk_err_busy">正在进行另一项备份操作，请稍后重试</string>

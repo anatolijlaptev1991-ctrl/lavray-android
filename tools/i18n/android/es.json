@@ -18,6 +18,7 @@
   "apps_system": "Mostrar apps del sistema",
   "apps_title": "Apps en el túnel",
   "bk_close_app": "Cerrar la app",
+  "bk_confirm_phone": "Los datos actuales se eliminarán y se sustituirán por el contenido de la copia, incluidos los secretos del núcleo. No se puede deshacer. Compruebe que es la copia que quiere.",
   "bk_restart_after_d": "Cierra LAVRay y ábrela de nuevo para que todo use los datos restaurados.",
   "bk_restart_after_t": "Cierra y vuelve a abrir la app",
   "bk_restart_warn_d": "Restaurar reemplaza todos los datos. Desconéctate primero. Al terminar, cierra LAVRay por completo y ábrela de nuevo.",
