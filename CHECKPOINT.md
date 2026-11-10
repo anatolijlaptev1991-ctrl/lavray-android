@@ -10,7 +10,8 @@
 - Готово: стек туннеля на Android всегда gVisor, выбор убран из настроек (a7eede1). System/mixed не передают данные, пока приложение исключено из своего VPN. Сделать их рабочими — опция для владельца (MEASUREMENTS, раздел 5).
 - `app/libs/lavray-core.aar` локально собран до a7eede1: для проверки на эмуляторе пересобрать `scripts/build-core.sh`; CI собирает сам.
 - Готово: README на 5 языках, `docs/PHONE-CHECKLIST.md`, `docs/release-notes/v0.9.3.md`, дополнение `docs/NOT-PORTED.md` (5112b8f, ccef9d4).
-- Ждёт владельца: прямое разрешение на создание публичного репозитория и push; ключ подписи релиза (создаёт владелец по `docs/SIGNING.md` или разрешает создать) и секреты `LAVRAY_KEYSTORE_*`.
+- Опубликовано 2026-11-10 с прямого разрешения владельца: https://github.com/anatolijlaptev1991-ctrl/lavray-android (public, `main` = c25acb5, 36 коммитов, авторы на GitHub проверены). Первый прогон CI: run 42767339899.
+- Ждёт владельца: ключ подписи релиза (создаёт владелец по `docs/SIGNING.md`, пароль вводит сам) и четыре секрета `LAVRAY_KEYSTORE_B64`, `LAVRAY_KEYSTORE_PASSWORD`, `LAVRAY_KEY_ALIAS`, `LAVRAY_KEY_PASSWORD`. Потом тег `v0.9.3` → `release.yml` → релиз с SHA256SUMS.
 - Дальше, после разрешения владельца: push, первый прогон CI, секреты подписи, тег `v0.9.3`, релиз с SHA256SUMS.
 - Решение по стеку: `docs/STACK.md`. Контракт: `docs/ARCHITECTURE.md`.
 - SDK: `%LOCALAPPDATA%\Android\Sdk`, NDK 28.2.13676358, образ android-36 google_apis x86_64, AVD `lvtest`.
