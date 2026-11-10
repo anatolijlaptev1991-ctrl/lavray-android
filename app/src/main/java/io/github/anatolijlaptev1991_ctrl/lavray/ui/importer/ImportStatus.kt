@@ -75,7 +75,7 @@ internal fun ProblemBanner(problem: ImportProblem, onOpenSubscriptions: () -> Un
 
 @Composable
 private fun NotFetchedBanner(p: ImportProblem.NotFetched, onOpenSubscriptions: () -> Unit) {
-    val reason = stringResource(p.kind.textRes()) + if (p.code != "error") " (${p.code})" else ""
+    val reason = stringResource(p.kind.textRes()) + if (p.code.all { it.isDigit() }) " (${p.code})" else ""
     val hwid = if (p.hwidHint) stringResource(R.string.imp_p_hwid, stringResource(R.string.sub_set_hwid)) else null
     LavBanner(
         StatusTone.Error,

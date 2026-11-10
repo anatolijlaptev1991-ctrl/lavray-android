@@ -2,6 +2,7 @@
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.importer
 
 import io.github.anatolijlaptev1991_ctrl.lavray.api.ProtoJson
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.coreGetStatus
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.DeleteProfileRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Empty
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.Group
@@ -18,6 +19,10 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersEvent
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersModel
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.EditForm
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.RelUnit
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.RelativeTime
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.RelativeWording
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.wordingOf
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubFailure
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubFailureStorage
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubRow
@@ -187,5 +192,56 @@ class ContractFixesTests {
         assertFalse(form.copy(url = "happ://crypt3/AAAA").valid)
         assertFalse(form.copy(url = "").valid)
         assertFalse(form.copy(url = "ftp://p.example/x").valid)
+    }
+}
+
+/**
+ * Found on the emulator: a subscription updated a few seconds ago made the Subscriptions screen crash, because "now" was
+ * formatted with Direction.THIS and ICU accepts only PLAIN for it. The wording is decided apart from ICU so this is testable.
+ */
+class RelativeWordingTests {
+    private val now = 1_000_000_000L
+
+    private fun wording(deltaMs: Long) = wordingOf(RelativeTime.span(now + deltaMs, now))
+
+    @Test
+    fun aMomentWithinHalfAMinuteIsNowInEitherDirection() {
+        assertEquals(RelativeWording.Now, wording(0))
+        assertEquals(RelativeWording.Now, wording(-12_000))
+        assertEquals(RelativeWording.Now, wording(20_000))
+    }
+
+    @Test
+    fun otherSpansKeepTheirDirectionAndUnit() {
+        assertEquals(RelativeWording.Amount(5, RelUnit.Minute, future = false), wording(-5 * 60_000L))
+        assertEquals(RelativeWording.Amount(2, RelUnit.Hour, future = true), wording(2 * 3_600_000L))
+        assertEquals(RelativeWording.AdjacentDay(future = true), wording(86_400_000L))
+        assertEquals(RelativeWording.AdjacentDay(future = false), wording(-86_400_000L))
+        assertEquals(RelativeWording.Amount(3, RelUnit.Day, future = true), wording(3 * 86_400_000L))
+    }
+}
+
+/** A backup larger than the client will hold is "too large", not "the core is unavailable", and the client is kept. */
+class OversizedAnswerTests {
+    private class Conn(override val input: java.io.InputStream) : io.github.anatolijlaptev1991_ctrl.lavray.api.Connection {
+        override val output: java.io.OutputStream = java.io.ByteArrayOutputStream()
+        override fun abort() = Unit
+        override fun close() = Unit
+    }
+
+    @Test
+    fun anAnswerBeyondTheLimitIsResourceExhaustedAndWordedAsAFailureNotAMissingCore() = runBlocking {
+        val body = ByteArray(2_000) { 'a'.code.toByte() }
+        val http = ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\n\r\n").toByteArray() + body
+        val drops = AtomicInteger()
+        val session = io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession(
+            { io.github.anatolijlaptev1991_ctrl.lavray.api.CoreEndpoint("/x", "t") },
+            { drops.incrementAndGet(); io.github.anatolijlaptev1991_ctrl.lavray.api.LavrayClient("t", { Conn(java.io.ByteArrayInputStream(http)) }, Dispatchers.IO, maxUnaryBytes = 1_000) },
+        )
+        val r = session.call { coreGetStatus() }
+        assertTrue(r is io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail)
+        assertEquals(ErrorKind.Generic, (r as io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreResult.Fail).kind)
+        session.call { coreGetStatus() }
+        assertEquals("the client was not dropped, so it was built once", 1, drops.get())
     }
 }

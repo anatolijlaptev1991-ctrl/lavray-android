@@ -12,6 +12,9 @@ internal class HttpHead(val status: Int, private val headers: Map<String, String
     fun header(name: String): String? = headers[name.lowercase()]
 }
 
+/** A response beyond the size the client is willing to hold; the core answered, so this is not a transport failure. */
+class ResponseTooLargeException(val limit: Int) : IOException("response larger than $limit bytes")
+
 /** Minimal HTTP/1.1 over a byte stream: just what the unix-socket core needs. */
 internal object HttpWire {
     private const val MAX_LINE = 8192
@@ -60,7 +63,7 @@ internal object HttpWire {
         while (true) {
             val n = input.read(chunk)
             if (n < 0) return buf.toByteArray()
-            if (buf.size() + n > limit) throw IOException("response larger than $limit bytes")
+            if (buf.size() + n > limit) throw ResponseTooLargeException(limit)
             buf.write(chunk, 0, n)
         }
     }

@@ -45,16 +45,34 @@ fun rememberRelativeTime(): (Long) -> String {
     }
 }
 
-private fun formatSpan(f: RelativeDateTimeFormatter, s: RelativeSpan): String {
+/**
+ * How a span is worded, decided apart from the ICU calls so it can be tested on the JVM. ICU accepts only
+ * [Direction.PLAIN] for "now": any other direction throws IllegalArgumentException ("NOW can only accept direction PLAIN"),
+ * which crashed the Subscriptions screen for every subscription updated less than half a minute ago.
+ */
+internal sealed interface RelativeWording {
+    data object ThisDay : RelativeWording
+    data object Now : RelativeWording
+    data class AdjacentDay(val future: Boolean) : RelativeWording
+    data class Amount(val quantity: Long, val unit: RelUnit, val future: Boolean) : RelativeWording
+}
+
+internal fun wordingOf(s: RelativeSpan): RelativeWording {
     val future = s.amount > 0
-    val direction = if (future) Direction.NEXT else Direction.LAST
     val quantity = kotlin.math.abs(s.amount)
     return when {
-        s.amount == 0L && s.unit == RelUnit.Day -> f.format(Direction.THIS, AbsoluteUnit.DAY)
-        s.amount == 0L -> f.format(Direction.THIS, AbsoluteUnit.NOW)
-        s.unit == RelUnit.Day && quantity == 1L -> f.format(direction, AbsoluteUnit.DAY)
-        else -> f.format(quantity.toDouble(), direction, relativeUnit(s.unit))
+        s.amount == 0L && s.unit == RelUnit.Day -> RelativeWording.ThisDay
+        s.amount == 0L -> RelativeWording.Now
+        s.unit == RelUnit.Day && quantity == 1L -> RelativeWording.AdjacentDay(future)
+        else -> RelativeWording.Amount(quantity, s.unit, future)
     }
+}
+
+private fun formatSpan(f: RelativeDateTimeFormatter, s: RelativeSpan): String = when (val w = wordingOf(s)) {
+    RelativeWording.ThisDay -> f.format(Direction.THIS, AbsoluteUnit.DAY)
+    RelativeWording.Now -> f.format(Direction.PLAIN, AbsoluteUnit.NOW)
+    is RelativeWording.AdjacentDay -> f.format(if (w.future) Direction.NEXT else Direction.LAST, AbsoluteUnit.DAY)
+    is RelativeWording.Amount -> f.format(w.quantity.toDouble(), if (w.future) Direction.NEXT else Direction.LAST, relativeUnit(w.unit))
 }
 
 private fun relativeUnit(u: RelUnit): RelativeUnit = when (u) {

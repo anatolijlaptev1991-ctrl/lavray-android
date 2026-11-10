@@ -23,6 +23,7 @@ class LavrayClient(
     private val token: String,
     private val transport: Transport,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val maxUnaryBytes: Int = MAX_UNARY_BYTES,
 ) {
     constructor(endpoint: CoreEndpoint) : this(endpoint.token, LocalSocketTransport(endpoint.socketPath))
 
@@ -65,7 +66,7 @@ class LavrayClient(
     private fun exchangeUnary(conn: Connection, path: String, body: ByteArray): ByteArray {
         HttpWire.writeRequest(conn.output, path, headers("application/json"), body)
         val head = HttpWire.readHead(conn.input)
-        val bytes = HttpWire.readAll(HttpWire.bodyStream(head, conn.input), MAX_UNARY_BYTES)
+        val bytes = HttpWire.readAll(HttpWire.bodyStream(head, conn.input), maxUnaryBytes)
         if (head.status != 200) throw errorFromBody(bytes, head.status)
         return bytes
     }
@@ -102,7 +103,7 @@ class LavrayClient(
         HttpWire.writeRequest(conn.output, path, headers("application/connect+json"), body)
         val head = HttpWire.readHead(conn.input)
         val stream = HttpWire.bodyStream(head, conn.input)
-        if (head.status != 200) throw errorFromBody(HttpWire.readAll(stream, MAX_UNARY_BYTES), head.status)
+        if (head.status != 200) throw errorFromBody(HttpWire.readAll(stream, maxUnaryBytes), head.status)
         val reader = FrameReader(stream)
         while (true) {
             val frame = reader.next() ?: throw ApiException(ConnectCode.UNAVAILABLE, "stream closed without an end-of-stream frame")
@@ -138,10 +139,17 @@ class LavrayClient(
         throw wrap(e)
     }
 
-    private fun wrap(e: Throwable): Throwable =
-        if (e is ApiException || e !is IOException) e else ApiException(ConnectCode.UNAVAILABLE, e.message ?: "transport error", cause = e)
+    /**
+     * A transport failure is UNAVAILABLE (the screen then says the core is not there, and the session drops its client). A response that
+     * was merely too large to hold is not that: the core answered, so it is RESOURCE_EXHAUSTED and the client stays.
+     */
+    private fun wrap(e: Throwable): Throwable = when {
+        e is ApiException || e !is IOException -> e
+        e is ResponseTooLargeException -> ApiException(ConnectCode.RESOURCE_EXHAUSTED, e.message ?: "response too large", cause = e)
+        else -> ApiException(ConnectCode.UNAVAILABLE, e.message ?: "transport error", cause = e)
+    }
 
-    private companion object {
+    companion object {
         const val MAX_UNARY_BYTES = 32 * 1024 * 1024
     }
 }
