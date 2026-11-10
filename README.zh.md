@@ -121,7 +121,7 @@ Get-FileHash .\LAVRay-<版本>-arm64-v8a.apk -Algorithm SHA256   # Windows：与
 
 - 打开“手机启动时自动连接”：重启后应用会连接到上次的服务器。Android 只会在手机**首次解锁之后**才发出开机完成信号。
 - 如果手机启动时没有网络（例如处于飞行模式），应用会安静等待，网络出现后再连接。没有定时器，也不轮询。
-- 最可靠的做法是使用系统的 **Always-on VPN（始终开启的 VPN）**：“设置”→“系统”→“始终开启的 VPN”。在系统设置中启用 LAVRay，也可按需启用“阻止没有 VPN 的连接”。LAVRay 看不到也无法修改这些开关。由系统启动应用时，LAVRay 将其视为 Always-on 启动，并连接上次的服务器。
+- 最可靠的做法是使用系统的 **Always-on VPN（始终开启的 VPN）**。在 LAVRay 中依次进入“设置”→“系统”→“打开 VPN 设置”，会打开 Android 的 VPN 列表：点 LAVRay 旁边的齿轮，启用“始终开启的 VPN”，也可按需启用“阻止没有 VPN 的连接”（名称因手机而异）。LAVRay 看不到也无法修改这些开关。由系统启动应用时，LAVRay 将其视为 Always-on 启动，并连接上次的服务器。
 - 被强制停止的应用，在您再次打开之前收不到开机信号。
 - 各厂商的系统（小米/HyperOS、华为/HarmonyOS、三星、Oppo/Realme/OnePlus、Vivo）可能禁止自启动，或在熄屏后结束服务。这时请把 LAVRay 加入自启动和电池管理的白名单。详见 [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)（俄语）。
 - 如果其他 VPN 应用抢走了授权，LAVRay 会弹出“需要 VPN 权限”的通知：请打开应用重新确认。

@@ -121,7 +121,7 @@ The "Updates" page only opens the releases page. The app does not contact the ne
 
 - Turn on "Connect when the phone starts": after a reboot the app connects to the last server. Android sends the boot signal only after the **first unlock** of the phone.
 - If the phone booted with no network (for example, in airplane mode), the app waits quietly and connects when a network appears. There are no timers or polling.
-- The most reliable way is the system **Always-on VPN**: "Settings" → "System" → "Always-on VPN". Turn on LAVRay there and, if you want, "Block connections without VPN". LAVRay cannot see or change those switches. When the system starts the app, it treats it as an Always-on start and connects the last server.
+- The most reliable way is the system **Always-on VPN**. In LAVRay: "Settings" → "System" → "Open VPN settings". This opens Android's VPN list: tap the gear next to LAVRay and turn on "Always-on VPN" and, if you want, "Block connections without VPN" (names vary by phone). LAVRay cannot see or change those switches. When the system starts the app, it treats it as an Always-on start and connects the last server.
 - An app that was force-stopped does not get the boot signal until you open it again.
 - Manufacturer skins (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) may block autostart or kill the service when the screen is off. Then add LAVRay to the autostart and battery manager exceptions. More in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russian).
 - If another VPN app takes over the consent, LAVRay shows a "VPN permission needed" notification: open the app and confirm again.
