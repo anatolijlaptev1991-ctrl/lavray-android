@@ -40,7 +40,7 @@ Protocols are the same as on the desktop: VLESS (including REALITY), VMess, Troj
 
 ## Download
 
-APKs will be on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) page once the first release is published. There is one file per CPU architecture:
+APKs are on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) page; the latest release is [v0.9.3](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.3). There is one file per CPU architecture:
 
 | File | For | File size |
 |---|---|---|
@@ -62,6 +62,8 @@ Get-FileHash .\LAVRay-<version>-arm64-v8a.apk -Algorithm SHA256   # Windows: com
 ```
 
 **Signing.** Release APKs are signed with the owner's key, as described in [docs/SIGNING.md](docs/SIGNING.md) (Russian). An update installs over an existing copy only if it has the same signature.
+
+Certificate `CN=LAVRay, O=LAVRay`, SHA-256 fingerprint: `fe058a98b9abb7ba8c853c0ae39c893aeeffa6892eb5a243e22718c2ac58fbb3`. Check it with `apksigner verify --print-certs <file>.apk`.
 
 **Requirements:** Android 8.0 or newer (minSdk 26), an ARM (64-bit or 32-bit) or x86_64 processor.
 

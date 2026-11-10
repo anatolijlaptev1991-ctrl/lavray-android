@@ -38,7 +38,7 @@
 
 ## Скачать
 
-APK будут на странице [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) после публикации первого выпуска. Для каждой архитектуры свой файл:
+APK лежат на странице [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases), последний выпуск: [v0.9.3](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.3). Для каждой архитектуры свой файл:
 
 | Файл | Для чего | Размер файла |
 |---|---|---|
@@ -60,6 +60,8 @@ Get-FileHash .\LAVRay-<версия>-arm64-v8a.apk -Algorithm SHA256   # Windows
 ```
 
 **Подпись.** Релизные APK подписывает ключ владельца, как описано в [docs/SIGNING.md](docs/SIGNING.md). Обновление ставится поверх только APK с той же подписью.
+
+Сертификат `CN=LAVRay, O=LAVRay`, отпечаток SHA-256: `fe058a98b9abb7ba8c853c0ae39c893aeeffa6892eb5a243e22718c2ac58fbb3`. Сверка: `apksigner verify --print-certs <файл>.apk`.
 
 **Требования:** Android 8.0 или новее (minSdk 26), 64-битный или 32-битный процессор ARM либо x86_64.
 

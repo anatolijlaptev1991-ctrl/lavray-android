@@ -40,7 +40,7 @@
 
 ## 下载
 
-首个版本发布后，APK 会出现在 [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) 页面。每种 CPU 架构对应一个文件：
+APK 位于 [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) 页面，最新版本：[v0.9.3](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.3)。每种 CPU 架构对应一个文件：
 
 | 文件 | 适用设备 | 文件大小 |
 |---|---|---|
@@ -62,6 +62,8 @@ Get-FileHash .\LAVRay-<版本>-arm64-v8a.apk -Algorithm SHA256   # Windows：与
 ```
 
 **签名。** 发布版 APK 使用所有者的密钥签名，详见 [docs/SIGNING.md](docs/SIGNING.md)（俄语）。只有签名相同的 APK 才能覆盖安装已有的版本。
+
+证书 `CN=LAVRay, O=LAVRay`，SHA-256 指纹：`fe058a98b9abb7ba8c853c0ae39c893aeeffa6892eb5a243e22718c2ac58fbb3`。可用 `apksigner verify --print-certs <文件>.apk` 核对。
 
 **系统要求：** Android 8.0 或更高版本（minSdk 26），ARM（64 位或 32 位）或 x86_64 处理器。
 
