@@ -41,6 +41,14 @@ data class ImportUi(
     }
 }
 
+/**
+ * Switching tabs drops what the previous tab held: otherwise a link typed under "Link" would keep its "1 server"
+ * preview and an enabled Import button under "File" or "QR code", where nothing has been chosen.
+ */
+fun ImportUi.switchedTo(next: ImportTab): ImportUi =
+    if (next == tab) copy(note = null, error = null)
+    else copy(tab = next, payload = "", input = ImportInput.Empty, note = null, error = null)
+
 enum class ImportNote { QrNotFound, QrUnreadable, FileUnreadable, FileTooLarge, NothingRecognised }
 
 sealed interface ImportEvent {
@@ -73,7 +81,7 @@ class ImportModel(
         mutable.update { it.copy(open = false, busy = false) }
     }
 
-    fun selectTab(tab: ImportTab) = mutable.update { it.copy(tab = tab, note = null, error = null) }
+    fun selectTab(tab: ImportTab) = mutable.update { it.switchedTo(tab) }
 
     fun setPayload(text: String) {
         mutable.update { it.copy(payload = text, note = null, error = null) }
