@@ -100,12 +100,12 @@ fun LavTabs(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, m
             Column(
                 Modifier
                     .weight(1f)
-                    .heightIn(min = 48.dp)
                     .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) }),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
             ) {
-                Box(Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                // No weight here: inside a Column that gets the screen height as its maximum, a weighted child
+                // would swallow all of it and push the bottom navigation off the screen.
+                Box(Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                     LavText(
                         label, style = if (selected) Lav.type.bodyStrong else Lav.type.body,
                         color = if (selected) c.textPrimary else c.textTertiary,
