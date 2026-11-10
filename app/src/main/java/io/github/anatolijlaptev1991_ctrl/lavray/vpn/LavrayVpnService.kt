@@ -94,6 +94,8 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     private lateinit var engine: SessionEngine
     private lateinit var bootSetting: AutoConnectSetting
     private lateinit var userCommands: UserCommands
+    private val foregroundConfirm = ForegroundConfirm()
+    private val busyLock = Any()
 
     @Volatile private var client: LavrayClient? = null
     @Volatile private var endpoint: CoreEndpoint? = null
@@ -127,7 +129,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         live.incrementAndGet()
         VpnNotifications.ensureChannels(this)
         prefs = VpnPrefs(this)
-        wish = TunnelIntent(prefs, { BootCount.read(this) }, { BootId.current })
+        wish = TunnelIntent(prefs, { BootCount.read(this) }, { BootId.current }, { SystemClock.elapsedRealtime() })
         bootSetting = BootComponents.setting(this, prefs)
         fg = ServiceForeground(this)
         val cm = getSystemService(ConnectivityManager::class.java)
@@ -184,6 +186,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             { userCommands.takeDisconnect() },
             { busyHold.clear() },
         )
+        if (command is StartCommand.KeepAlive) foregroundConfirm.report(route is StartRoute.Deliver)
         return when (route) {
             is StartRoute.Deliver -> {
                 post(Event.Command(route.command, route.seq))
@@ -194,13 +197,15 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             }
             // The foreground promise could not be kept: nothing is started, the failure is recorded and shown, and the
             // started state ends (whether or not the UI is bound).
+            // Sticky all the same: a tunnel may be running in a service that was demoted, and the wish (cleared by the
+            // failure) decides whether a system restart resumes anything.
             is StartRoute.RefusedForeground -> {
                 post(Event.RestrictedStart(null, route.seq))
-                START_NOT_STICKY
+                START_STICKY
             }
             StartRoute.KeepAliveRefused -> {
                 post(Event.KeepAliveRefused)
-                START_NOT_STICKY
+                START_STICKY
             }
         }
     }
@@ -238,11 +243,14 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         scope.cancel()
         live.decrementAndGet()
         val host = core
-        // Stop the core and leave: this process exists only for the tunnel. A new
-        // service instance created meanwhile keeps the process alive and owns its own core.
+        // Stop the core and leave: this process exists only for the tunnel. A new service instance created meanwhile
+        // keeps the process alive and owns its own core, unless the stop hangs: a Go runtime that cannot be stopped
+        // would block that core too, so the process goes after a bounded wait either way.
         Thread({
-            host.stop()
-            if (live.get() == 0) android.os.Process.killProcess(android.os.Process.myPid())
+            val finished = BoundedStop.run({ host.stop() }, STOP_TIMEOUT_MS)
+            if (BoundedStop.shouldKillProcess(finished, otherServicesAlive = live.get() > 0)) {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
         }, "lavray-exit").start()
         super.onDestroy()
     }
@@ -275,7 +283,12 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
 
     // The preference and the boot receiver change together under one lock; a failure to switch the receiver on rolls the
     // preference back, so the caller never sees "on" for something that will not fire.
-    override fun setAutoConnect(enabled: Boolean): Boolean = bootSetting.apply(enabled) == WriteResult.SAVED
+    override fun setAutoConnect(enabled: Boolean): Boolean {
+        val result = bootSetting.apply(enabled)
+        // The stored value says ON while the receiver may be off (the rollback could not be written): keep trying to switch it on.
+        if (result == WriteResult.ROLLBACK_FAILED) scope.launch(Dispatchers.IO) { reconcileBootReceiver() }
+        return result == WriteResult.SAVED
+    }
 
     override var appSelection: AppSelection
         get() = prefs.appSelection
@@ -283,19 +296,25 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
             prefs.appSelection = value
         }
 
-    override fun beginBusy(token: String, timeoutMs: Long): Boolean {
+    override fun beginBusy(token: String, timeoutMs: Long): Boolean = synchronized(busyLock) {
         busyHold.begin(nowMono(), token, timeoutMs)
-        // A process kept alive for a long operation is a started, foreground service: the keep-alive start does that.
+        // A process kept alive for a long operation is a started, foreground service: the keep-alive start does that, and
+        // its answer (did the system let it enter the foreground?) is awaited here, so true means the hold is really in force.
+        foregroundConfirm.arm()
         try {
             startForegroundService(Intent(this, LavrayVpnService::class.java).setAction(StartIntent.ACTION_KEEP_ALIVE))
         } catch (e: RuntimeException) {
             // Nothing keeps the process alive: the hold is not in force, and the caller is told.
             Log.w(TAG, "keep-alive start refused: " + e.javaClass.simpleName)
             busyHold.end(token)
-            return false
+            return@synchronized false
+        }
+        if (!foregroundConfirm.await(FOREGROUND_CONFIRM_MS)) {
+            busyHold.end(token)
+            return@synchronized false
         }
         rearmBusyWake()
-        return true
+        true
     }
 
     override fun endBusy(token: String) {
@@ -305,6 +324,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     }
 
     /** One wake-up job for the earliest deadline of any hold; it re-arms itself for the next until none is left. */
+    @Synchronized
     private fun rearmBusyWake() {
         busyWake.cancel()
         if (busyHold.delayUntilNext(nowMono()) == null) return
@@ -563,5 +583,6 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         const val ATTEMPT_TIMEOUT_MS = 90_000L
         const val DISCONNECT_TIMEOUT_MS = 15_000L
         const val STOP_TIMEOUT_MS = 15_000L
+        const val FOREGROUND_CONFIRM_MS = 3_000L
     }
 }

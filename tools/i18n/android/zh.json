@@ -134,6 +134,8 @@
   "notif_busy": "正在处理…",
   "notif_connected": "已连接",
   "notif_connecting": "正在连接…",
+  "notif_core_stop_title": "VPN 内核已重启",
+  "notif_crash_title": "VPN 反复停止",
   "notif_disconnecting": "正在断开…",
   "notif_error": "连接失败",
   "notif_failure_apps_none": "所选应用均未安装。请在设置中重新选择应用。",

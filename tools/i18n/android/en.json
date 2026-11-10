@@ -134,6 +134,8 @@
   "notif_busy": "Working…",
   "notif_connected": "Connected",
   "notif_connecting": "Connecting…",
+  "notif_core_stop_title": "VPN core restarted",
+  "notif_crash_title": "VPN stopped repeatedly",
   "notif_disconnecting": "Disconnecting…",
   "notif_error": "Connection failed",
   "notif_failure_apps_none": "None of the selected apps is installed. Choose the apps again in Settings.",

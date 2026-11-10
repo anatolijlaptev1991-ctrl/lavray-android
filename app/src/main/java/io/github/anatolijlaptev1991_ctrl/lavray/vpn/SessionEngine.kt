@@ -39,6 +39,8 @@ internal class SessionEngine(
     private var skippedPackages: List<String> = emptyList()
     private var warnings: List<String> = emptyList()
     private var coreEpoch = 0
+    private var tunnelSeq = 0
+    private var killPending = false
     /** The newest command number of the person this engine has looked at; a larger [SessionEnv.latestUserSeq] means one is still queued. */
     private var handledSeq = 0L
     private var lastFailureReasonFromAttempt: String? = null
@@ -188,7 +190,13 @@ internal class SessionEngine(
     }
 
     private fun applyCore(status: CoreStatus, out: Out) {
+        val before = coreStatus?.state
         coreStatus = status
+        // Every transition to CONNECTED is a new tunnel (a rebuild, a core-driven restart, a reconnect after a drop).
+        if (status.state == CoreState.CORE_STATE_CONNECTED && before != CoreState.CORE_STATE_CONNECTED) tunnelSeq++
+        // The warnings belong to the connect that made the tunnel; the core does not report them in its status, so a
+        // restart the core did on its own (RestartProfile from the UI) leaves them unknown, and unknown is shown as none.
+        if (before == CoreState.CORE_STATE_CONNECTED && status.state != CoreState.CORE_STATE_CONNECTED) warnings = emptyList()
         // A core that finished connecting just before it saw our Disconnect delivers CONNECTED, DISCONNECTING, IDLE
         // late: for a session the person ended they are not news (no grace period, no "tunnel lost").
         if (disconnecting || machine.state.phase == AutoPhase.STOPPED) return
@@ -243,10 +251,12 @@ internal class SessionEngine(
             wish.onFailureNoted(FailureKind.CORE_STOP_TIMEOUT, STOP_TIMEOUT_MESSAGE)
             out += SessionEffect.Alert(AlertKind.Failure(FailureKind.CORE_STOP_TIMEOUT, STOP_TIMEOUT_MESSAGE))
         }
-        val effects = finish(out)
         // A Go runtime whose stop never returns holds the core lock for good: no later start in this process can
-        // succeed. The failure is recorded and published; a fresh process is the only way out. The wish is already clear.
-        return if (timedOut) effects + SessionEffect.KillProcess else effects
+        // succeed. The failure is recorded and published; a fresh process is the only way out. The kill waits while a busy
+        // hold is in force (a restore under way is not sacrificed on a guess); a Connect written meanwhile is resumed by
+        // the new process, which is what the person asked for.
+        if (timedOut) killPending = true
+        return finish(out)
     }
 
     /** A command of the person that will never reach the loop (its start was refused): it no longer counts as queued. */
@@ -335,11 +345,16 @@ internal class SessionEngine(
         trackStability(out)
         out += SessionEffect.SetForeground(ShutdownPolicy.shouldBeForeground(active, pending, transition, busy))
         out += SessionEffect.Publish(computeStatus())
-        if (ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)) {
+        val stop = ShutdownPolicy.shouldStop(active, env.uiBound(), pending, transition, busy)
+        if (stop) {
             // Whenever the service stops on its own the wish is cleared, so a fresh process never reads a stale one.
             // Nothing went wrong, so no failure is recorded.
             if (wish.snapshot.wantConnected) wish.onServiceStopped()
             out += SessionEffect.StopSelf
+        }
+        if (killPending && !busy) {
+            killPending = false
+            out += SessionEffect.KillProcess
         }
         return out.toList()
     }
@@ -422,6 +437,7 @@ internal class SessionEngine(
                 failureReason = saved.failureReason,
                 warnings = warnings,
                 coreEpoch = coreEpoch,
+                tunnelSeq = tunnelSeq,
                 inGrace = watch.inGrace,
                 disconnecting = disconnecting,
                 unexpectedStop = saved.unexpectedStop,

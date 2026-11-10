@@ -63,7 +63,7 @@ internal object VpnNotifications {
     /** A start failed. A known [kind] gets a localized sentence; anything else shows the core's message. */
     fun postFailure(context: Context, kind: String?, message: String?) {
         val text = failureText(kind)?.let { context.getString(it) } ?: message?.takeIf { it.isNotBlank() }
-        postAlert(context, R.string.notif_failure_title, text)
+        postAlert(context, failureTitle(kind), text)
     }
 
     /** The tunnel was up and is gone for good. */
@@ -85,6 +85,13 @@ internal object VpnNotifications {
             .setCategory(Notification.CATEGORY_ERROR)
             .build()
         manager(context).notify(ID_ALERT, n)
+    }
+
+    /** The title says what happened; "Could not connect" would be wrong after a Disconnect or a crash loop. */
+    private fun failureTitle(kind: String?): Int = when (kind) {
+        FailureKind.CORE_STOP_TIMEOUT -> R.string.notif_core_stop_title
+        FailureKind.REPEATED_CRASH -> R.string.notif_crash_title
+        else -> R.string.notif_failure_title
     }
 
     private fun failureText(kind: String?): Int? = when (kind) {

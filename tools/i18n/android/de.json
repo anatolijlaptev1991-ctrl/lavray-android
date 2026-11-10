@@ -134,6 +134,8 @@
   "notif_busy": "Wird ausgeführt …",
   "notif_connected": "Verbunden",
   "notif_connecting": "Verbinden …",
+  "notif_core_stop_title": "VPN-Kern neu gestartet",
+  "notif_crash_title": "VPN wird wiederholt beendet",
   "notif_disconnecting": "Trennen …",
   "notif_error": "Verbindung fehlgeschlagen",
   "notif_failure_apps_none": "Keine der ausgewählten Apps ist installiert. Wähle die Apps in den Einstellungen neu aus.",
