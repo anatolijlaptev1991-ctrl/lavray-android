@@ -80,4 +80,10 @@ object LogFilter {
     }
 
     const val EXPORT_MAX_CHARS = 200_000
+
+    /**
+     * Share is smaller: the chooser carries the text twice in one Binder transaction (the intent and the copy inside
+     * the chooser intent), and 200 000 UTF-16 characters, twice, is close to the 1 MB limit.
+     */
+    const val SHARE_MAX_CHARS = 60_000
 }

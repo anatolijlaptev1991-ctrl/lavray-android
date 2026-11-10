@@ -85,6 +85,7 @@ fun LogScreen() {
     }
     val copied = stringResource(R.string.toast_logCopied)
     val failed = stringResource(R.string.conns_copyFailed)
+    val shareFailed = stringResource(R.string.log_shareFailed)
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -105,7 +106,9 @@ fun LogScreen() {
                     val ok = copyToClipboard(context, LogFilter.export(shown))
                     env.toast.show(if (ok) copied else failed)
                 })
-                LavIconButton(LavIcon.Share, stringResource(R.string.log_share), { shareText(context, LogFilter.export(shown)) })
+                LavIconButton(LavIcon.Share, stringResource(R.string.log_share), {
+                    if (!shareText(context, LogFilter.export(shown, LogFilter.SHARE_MAX_CHARS))) env.toast.show(shareFailed)
+                })
                 LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it }, Modifier.weight(1f))
             }
             LavText(stringResource(R.string.log_exportD), style = Lav.type.caption, color = Lav.colors.textTertiary)
@@ -144,11 +147,16 @@ private fun severityColor(s: LogSeverity, c: LavColors): Color = when (s) {
     LogSeverity.Debug, LogSeverity.Trace -> c.textTertiary
 }
 
-private fun shareText(context: android.content.Context, text: String) {
+/** True when the chooser was opened; false when no app takes plain text or the text was too big for the system. */
+private fun shareText(context: android.content.Context, text: String): Boolean {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-    try {
+    return try {
         context.startActivity(Intent.createChooser(send, null))
+        true
     } catch (_: ActivityNotFoundException) {
-        // No app takes plain text: Copy is still there.
+        false
+    } catch (_: RuntimeException) {
+        // TransactionTooLargeException arrives wrapped in a RuntimeException.
+        false
     }
 }

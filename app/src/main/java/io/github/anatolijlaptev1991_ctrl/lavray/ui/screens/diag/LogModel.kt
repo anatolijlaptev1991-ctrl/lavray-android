@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.diag
 
+import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.LogLine
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.SubscribeLogsRequest
 import io.github.anatolijlaptev1991_ctrl.lavray.api.gen.logSubscribe
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.CoreSession
@@ -9,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +22,9 @@ import kotlinx.coroutines.withContext
  * go into a capped ring; the screen gets an immutable snapshot at most every [FLUSH_MS], so a burst of lines is one
  * recomposition. The stream exists only while [stream] runs, which the screen ties to its own visibility.
  */
-class LogModel(private val session: CoreSession) {
+class LogModel(private val open: (tailLines: Int?) -> Flow<LogLine>) {
+    constructor(session: CoreSession) : this({ tail -> session.stream { logSubscribe(SubscribeLogsRequest(tailLines = tail)) } })
+
     private val lock = Any()
     private val buffer = LogBuffer()
     private val mutableLines = MutableStateFlow<List<LogEntry>>(emptyList())
@@ -30,6 +34,9 @@ class LogModel(private val session: CoreSession) {
     val streamError: StateFlow<ErrorKind?> = mutableError.asStateFlow()
 
     suspend fun stream() = withContext(Dispatchers.Default) {
+        // Every new subscription replays the core's tail (a return to the app opens one): start from an empty window,
+        // otherwise the same 200 lines are added again each time.
+        clear()
         coroutineScope {
             var timer: Job? = null
             var lastFlush = 0L
@@ -44,7 +51,7 @@ class LogModel(private val session: CoreSession) {
                 open = {
                     val tail = if (first) TAIL_LINES else null
                     first = false
-                    session.stream { logSubscribe(SubscribeLogsRequest(tailLines = tail)) }
+                    open(tail)
                 },
                 onError = { mutableError.value = it },
                 onFrame = { line ->
