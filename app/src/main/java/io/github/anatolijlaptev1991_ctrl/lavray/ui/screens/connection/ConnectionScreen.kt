@@ -144,7 +144,10 @@ fun ConnectionScreen() {
 private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo, shown: Shown) {
     val env = LocalEnv.current
     val c = Lav.colors
-    val stateText = stateLabel(phase)
+    // Right after the app starts the service state has not arrived: "Disconnected" would be a guess, and Connect pressed on
+    // a tunnel that is already up does nothing visible. Until the core was asked once, the card says it is reading.
+    val reading = !info.loaded && phase == Phase.Off
+    val stateText = if (reading) stringResource(R.string.cx_state_reading) else stateLabel(phase)
     val noServer = info.loaded && info.server == null
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // A saved change the running tunnel does not have yet: here it is shown whether or not "later" was tapped.
@@ -177,7 +180,7 @@ private fun StateCard(phase: Phase, onConnect: () -> Unit, info: ConnectionInfo,
                 if (noServer) {
                     NoServers()
                 } else {
-                    ConnectButton(phase, onConnect)
+                    ConnectButton(phase, onConnect, reading)
                 }
             }
         }
@@ -201,7 +204,7 @@ private fun NoServers() {
 }
 
 @Composable
-private fun ConnectButton(phase: Phase, onConnect: () -> Unit) {
+private fun ConnectButton(phase: Phase, onConnect: () -> Unit, reading: Boolean) {
     val env = LocalEnv.current
     val busy = phase == Phase.Connecting || phase == Phase.Disconnecting || phase == Phase.WaitingNetwork
     val connected = phase == Phase.On
@@ -211,8 +214,8 @@ private fun ConnectButton(phase: Phase, onConnect: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         variant = if (phase.canDisconnect) ButtonVariant.Danger else ButtonVariant.Primary,
         icon = LavIcon.Plug,
-        loading = phase == Phase.Disconnecting,
-        enabled = phase != Phase.Disconnecting || busy,
+        loading = phase == Phase.Disconnecting || reading,
+        enabled = (phase != Phase.Disconnecting || busy) && !reading,
     )
 }
 
