@@ -46,7 +46,15 @@ class ApiException(
     cause: Throwable? = null,
     /** ErrorInfo.reason from the core (for example backup_wrong_password), when it sent one; screens choose their text by it. */
     val reason: String? = null,
-) : IOException(message, cause)
+) : IOException(message, cause) {
+    /** The request never reached the core (the socket could not be opened or the token was refused), so repeating it is safe. */
+    val neverReachedCore: Boolean
+        get() = code == ConnectCode.UNAUTHENTICATED || (code == ConnectCode.UNAVAILABLE && message == NOT_REACHABLE)
+
+    companion object {
+        const val NOT_REACHABLE = "core socket is not reachable"
+    }
+}
 
 @Serializable
 internal data class ConnectErrorBody(val code: String = "", val message: String = "", val details: List<ErrorDetailBody> = emptyList())

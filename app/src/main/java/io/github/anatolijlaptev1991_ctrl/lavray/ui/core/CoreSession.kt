@@ -69,14 +69,27 @@ class CoreSession(private val source: EndpointSource, private val factory: (Core
         if (unreachable) cached = null
     }
 
-    /** One call; failures become a [CoreResult.Fail], cancellation passes through. */
-    suspend fun <T> call(block: suspend LavrayClient.() -> T): CoreResult<T> = try {
-        CoreResult.Ok(client().block())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        drop(e)
-        CoreResult.Fail(e.errorKind(), (e as? ApiException)?.reason)
+    /**
+     * One call; failures become a [CoreResult.Fail], cancellation passes through. The :vpn process ends together with
+     * the tunnel and the core with it, so after a disconnect the cached endpoint is stale: the first call then fails
+     * before it reaches the core. That case is retried once with a fresh endpoint (the service starts the core again).
+     */
+    suspend fun <T> call(block: suspend LavrayClient.() -> T): CoreResult<T> {
+        var retried = false
+        while (true) {
+            try {
+                return CoreResult.Ok(client().block())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                drop(e)
+                if (!retried && (e as? ApiException)?.neverReachedCore == true) {
+                    retried = true
+                    continue
+                }
+                return CoreResult.Fail(e.errorKind(), (e as? ApiException)?.reason)
+            }
+        }
     }
 
     /** A server stream. It lives exactly as long as it is collected: cancelling the collector aborts the socket. */

@@ -120,7 +120,7 @@ class LavrayClient(
     private fun openOrUnavailable(): Connection = try {
         transport.open()
     } catch (e: IOException) {
-        throw ApiException(ConnectCode.UNAVAILABLE, "core socket is not reachable", cause = e)
+        throw ApiException(ConnectCode.UNAVAILABLE, ApiException.NOT_REACHABLE, cause = e)
     }
 
     private fun headers(contentType: String): Map<String, String> = linkedMapOf(
