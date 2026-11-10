@@ -20,6 +20,8 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.ButtonVaria
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.Phase
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.phaseOf
 
 /**
  * "The saved change is not in the running tunnel yet", with the restart and "later" buttons. One for the whole app:
@@ -29,9 +31,14 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.StatusTone
  */
 @Composable
 fun RestartBanner(modifier: Modifier = Modifier, showWhenSnoozed: Boolean = false) {
-    val hub = LocalEnv.current.restart
+    val env = LocalEnv.current
+    val hub = env.restart
     val state by hub.state.collectAsStateWithLifecycle()
-    if (!state.needed || (state.snoozed && !showWhenSnoozed)) return
+    val vpn by env.vpn.status.collectAsStateWithLifecycle()
+    // Without a tunnel there is nothing to restart: the next connect starts with the saved settings.
+    val phase = phaseOf(vpn.state)
+    val tunnel = phase == Phase.On || phase == Phase.Connecting || phase == Phase.WaitingNetwork
+    if (!tunnel || !state.needed || (state.snoozed && !showWhenSnoozed)) return
     val reconnect = state.needsReconnect
     val folded = state.snoozed
     LavBanner(
