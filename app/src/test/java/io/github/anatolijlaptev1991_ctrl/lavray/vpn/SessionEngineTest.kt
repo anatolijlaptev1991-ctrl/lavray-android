@@ -271,6 +271,31 @@ internal class SessionEngineTest {
         assertFalse(effects.status().trafficBlocked)
     }
 
+    // R8 Q1: a reused interface is reported microseconds into the new run, before the old run's IDLE has arrived.
+    @Test
+    fun aHoldThatBeginsAfterTheReusedInterfaceWasReportedEndsWithTheNewRun() {
+        established()
+        engine.onTunEstablished(2, emptyList())
+        var effects = engine.onCore(core(CoreState.CORE_STATE_IDLE))
+        assertTrue("the core is down: apps wait", effects.status().trafficBlocked)
+        effects = engine.onCore(core(CoreState.CORE_STATE_CONNECTING))
+        assertTrue("the new run already reads the interface", effects.contains(SessionEffect.CancelHold))
+        assertFalse(effects.status().trafficBlocked)
+        effects = engine.onCore(core(CoreState.CORE_STATE_CONNECTED, profile = 5))
+        assertFalse(effects.status().trafficBlocked)
+        env.mono += BlackholePolicy.DEFAULT_CAP_MS
+        effects = engine.onPoke()
+        assertTrue("the interface stays held for the next rebuild", effects.none { it is SessionEffect.ReleaseTun })
+        assertTrue(effects.none { it == SessionEffect.Alert(AlertKind.ProtectionOff) })
+        assertNull(store.value.failureKind)
+        // The next rebuild is bridged again, against the interface of the run that connected.
+        engine.onCore(core(CoreState.CORE_STATE_IDLE))
+        effects = engine.onCore(core(CoreState.CORE_STATE_CONNECTING))
+        assertTrue("no interface yet for this run", effects.status().trafficBlocked)
+        effects = engine.onTunEstablished(3, emptyList())
+        assertFalse(effects.status().trafficBlocked)
+    }
+
     @Test
     fun holdIsACapEvenWhileTheCoreSitsInConnecting() {
         established()

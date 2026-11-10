@@ -75,6 +75,47 @@ class AppRuleApplierTest {
         assertEquals(before, before.copy(missing = AppRuleApplier.resolve(rules) { it in installed }.skipped))
     }
 
+    // R8 Q2, Q3: what the spec is made of decides whether the held interface serves the next run.
+    private val options = TunOptions(mtu = 9000, inet4 = listOf("172.19.0.1/30"), dns = listOf("172.19.0.2"))
+    private val uids = mapOf("com.a" to 10_001, "com.b" to 10_002)
+
+    @Test
+    fun aMissingAppDoesNotMakeTheNextSpecDifferent() {
+        val rules = AppRules(listOf("com.a", "com.gone"), emptyList())
+        val first = TunSpec.of(options, rules) { uids[it] }
+        assertEquals(listOf("com.gone"), first.missing)
+        assertEquals(listOf(10_001), first.uids)
+        assertEquals("the same interface serves the next run", first, TunSpec.of(options, rules) { uids[it] })
+        // The missing app is installed: another spec, a new interface with it.
+        assertTrue(first != TunSpec.of(options, rules) { (uids + ("com.gone" to 10_050))[it] })
+    }
+
+    @Test
+    fun aReinstalledAppIsAnotherSpecBecauseItsUidChanged() {
+        for (rules in listOf(AppRules(listOf("com.a", "com.b"), emptyList()), AppRules(emptyList(), listOf("com.a", "com.b")))) {
+            val before = TunSpec.of(options, rules) { uids[it] }
+            val after = TunSpec.of(options, rules) { (uids + ("com.b" to 10_077))[it] }
+            assertEquals("nothing is missing either time", before.missing, after.missing)
+            assertTrue(before != after)
+        }
+    }
+
+    @Test
+    fun theSpecOfAnAllowListWithNothingInstalledIsRefused() {
+        assertThrows(NoAllowedAppsException::class.java) {
+            TunSpec.of(options, AppRules(listOf("com.gone"), emptyList())) { uids[it] }
+        }
+        // "All except" with nothing installed is an ordinary spec.
+        assertEquals(listOf("com.gone"), TunSpec.of(options, AppRules(emptyList(), listOf("com.gone"))) { uids[it] }.missing)
+    }
+
+    @Test
+    fun aPackageManagerThatDoesNotAnswerIsNotAMissingApp() {
+        val spec = TunSpec.of(options, AppRules(listOf("com.a"), emptyList())) { InstalledApps.UNKNOWN_UID }
+        assertTrue(spec.missing.isEmpty())
+        assertEquals(listOf(InstalledApps.UNKNOWN_UID), spec.uids)
+    }
+
     @Test
     fun modeIsPassedToTheBuilder() {
         val seen = ArrayList<Boolean>()

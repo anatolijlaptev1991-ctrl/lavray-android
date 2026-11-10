@@ -8,8 +8,15 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.IOException
 
-/** An established interface and the selected packages the Builder could not find. */
-internal data class TunBuilt(val descriptor: ParcelFileDescriptor, val skippedPackages: List<String>)
+/**
+ * An established interface, the selected packages that are not in it ([skippedPackages]: not installed, or refused), and
+ * the ones the Builder itself would not take ([refused]): with any of those the interface is not what its spec says.
+ */
+internal data class TunBuilt(
+    val descriptor: ParcelFileDescriptor,
+    val skippedPackages: List<String>,
+    val refused: List<String> = emptyList(),
+)
 
 /**
  * Everything [TunEstablisher.establish] builds an interface from. Two equal specs give two interchangeable interfaces, so
@@ -23,23 +30,45 @@ internal data class TunSpec(
     val rules: AppRules,
     /** Selected packages this device does not have at the moment the spec was made. Part of the identity on purpose. */
     val missing: List<String> = emptyList(),
-)
+    /**
+     * The uids of the selected packages that are installed, in the order of the list. The system turns names into uids
+     * once, when the interface is established: an app that was removed and installed again has a new uid, and an
+     * interface kept from before would still carry the old one (the app would go direct in "only the selected", or
+     * through the tunnel in "all except"). A changed uid is a changed spec, so a new interface is built.
+     */
+    val uids: List<Int> = emptyList(),
+) {
+    companion object {
+        /**
+         * The spec for [options] with the per-app [rules]; [uidOf] answers null for a package that is not installed.
+         * Throws [NoAllowedAppsException] when "only the selected apps" has none installed.
+         */
+        fun of(options: TunOptions, rules: AppRules, uidOf: (pkg: String) -> Int?): TunSpec {
+            val names = rules.allowed.ifEmpty { rules.disallowed }
+            val uids = names.associateWith(uidOf)
+            val missing = AppRuleApplier.resolve(rules) { uids[it] != null }.skipped
+            return TunSpec(options.mtu, options.inet4, options.inet6, options.dns, rules, missing, names.mapNotNull { uids[it] })
+        }
+    }
+}
 
-/** Whether a package is installed for this user, as far as this app is allowed to see. */
+/** What this app is allowed to know about an installed package. */
 internal object InstalledApps {
-    fun has(pm: PackageManager, pkg: String): Boolean = try {
+    /** The uid stands for "installed, uid unknown": the package manager did not answer, which is no ground to call the app missing. */
+    const val UNKNOWN_UID = -1
+
+    /** The package's uid for this user, or null when it is not installed (or is hidden from this app). */
+    fun uidOf(pm: PackageManager, pkg: String): Int? = try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0L))
+            pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0L)).uid
         } else {
             @Suppress("DEPRECATION")
-            pm.getApplicationInfo(pkg, 0)
+            pm.getApplicationInfo(pkg, 0).uid
         }
-        true
     } catch (_: PackageManager.NameNotFoundException) {
-        false
+        null
     } catch (_: RuntimeException) {
-        // The package manager did not answer: no ground to call the app missing.
-        true
+        UNKNOWN_UID
     }
 }
 
@@ -48,7 +77,7 @@ internal class TunEstablisher(
     private val service: VpnService,
     private val sessionName: String,
     private val configureIntent: PendingIntent?,
-    private val installed: (pkg: String) -> Boolean = { pkg -> InstalledApps.has(service.packageManager, pkg) },
+    private val uidOf: (pkg: String) -> Int? = { pkg -> InstalledApps.uidOf(service.packageManager, pkg) },
     private val appSelection: () -> AppSelection = { AppSelection() },
 ) {
     /**
@@ -72,18 +101,14 @@ internal class TunEstablisher(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
         configureIntent?.let { builder.setConfigureIntent(it) }
         val pfd = builder.establish() ?: throw IOException("VPN permission is not granted")
-        return TunBuilt(pfd, (spec.missing + refused).distinct())
+        return TunBuilt(pfd, (spec.missing + refused).distinct(), refused)
     }
 
     /**
      * What [establish] would build for [options] right now: the per-app choice and which of the chosen apps are installed
      * are read at this moment. Throws [NoAllowedAppsException] when "only the selected apps" has none installed.
      */
-    fun specOf(options: TunOptions): TunSpec {
-        val rules = rulesFor(options)
-        val missing = AppRuleApplier.resolve(rules, installed).skipped
-        return TunSpec(options.mtu, options.inet4, options.inet6, options.dns, rules, missing)
-    }
+    fun specOf(options: TunOptions): TunSpec = TunSpec.of(options, rulesFor(options), uidOf)
 
     private fun rulesFor(options: TunOptions): AppRules = try {
         AppRules.from(appSelection().applyTo(options), service.packageName)

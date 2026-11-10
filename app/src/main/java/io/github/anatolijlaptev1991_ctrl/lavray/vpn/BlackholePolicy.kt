@@ -23,7 +23,7 @@ data class HoldInput(
     val established: Boolean,
     val inGrace: Boolean,
     val phase: AutoPhase,
-    /** A newer interface than the one held when the hold began has been established: the core reads one again. */
+    /** A newer interface than the one the last CONNECTED run had has been established: the core reads one again. */
     val newInterface: Boolean = false,
 )
 

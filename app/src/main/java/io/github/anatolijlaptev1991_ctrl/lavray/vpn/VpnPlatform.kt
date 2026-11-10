@@ -47,7 +47,7 @@ internal class VpnPlatform(
             // for routing or DNS) keeps it: replacing an interface lets connections out through the physical network
             // for a moment, keeping it does not. Only a change of the interface itself (MTU, addresses, DNS, the app
             // list, or which of the listed apps are installed) builds a new one.
-            handoff.handHeld(spec) { generation -> onTunReady(generation, emptyList()) }?.let { return it }
+            handoff.handHeld(spec) { generation -> onTunReady(generation, spec.missing) }?.let { return it }
             establisher.establish(spec)
         } catch (e: NoAllowedAppsException) {
             events.onTunFailed(TunFailure(FailureKind.APPS_NONE, e.message))
@@ -56,8 +56,10 @@ internal class VpnPlatform(
         // The core gets an independent descriptor (dup + detach) and owns it; this one stays open, and so does
         // the interface, until the tunnel ends. A late release from an older run cannot close a descriptor the
         // core is using, and the core closing its own never ends the interface.
-        // An interface that left selected apps out is never kept for the next run: one of them may be installed by then.
-        return handoff.hand(PfdFd(built.descriptor), spec.takeIf { built.skippedPackages.isEmpty() }) { generation ->
+        // A selected app that is not installed does not stop the interface from serving the next run: what is missing
+        // (and every uid) is part of the spec, so an install, a removal or a reinstall makes another spec. Only an
+        // interface the Builder itself refused a name for is never kept: it is not what its spec says.
+        return handoff.hand(PfdFd(built.descriptor), spec.takeIf { built.refused.isEmpty() }) { generation ->
             onTunReady(generation, built.skippedPackages)
         }
     }

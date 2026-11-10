@@ -33,7 +33,13 @@ internal class SessionEngine(
         private set
     private var connectedSince: Long? = null
     private var knownTunGeneration = 0
-    private var holdTunGeneration: Int? = null
+    /**
+     * The interface generation of the last run that reached CONNECTED. A hold ends when the core is active on a generation
+     * above it. The reference is taken at CONNECTED and not when the hold begins: an interface that is reused is reported
+     * microseconds into the new run, so its TunEstablished can be handled before the old run's IDLE has arrived, and a
+     * hold that began after it would wait for an interface that is already there, to the cap and a false "protection off".
+     */
+    private var settledTunGeneration = 0
     private var holdUntilMono = 0L
     private var blackholeUntilWall = 0L
     private var skippedPackages: List<String> = emptyList()
@@ -215,7 +221,11 @@ internal class SessionEngine(
         val before = coreStatus?.state
         coreStatus = status
         // Every transition to CONNECTED is a new tunnel (a rebuild, a core-driven restart, a reconnect after a drop).
-        if (status.state == CoreState.CORE_STATE_CONNECTED && before != CoreState.CORE_STATE_CONNECTED) tunnelSeq++
+        if (status.state == CoreState.CORE_STATE_CONNECTED && before != CoreState.CORE_STATE_CONNECTED) {
+            tunnelSeq++
+            // A run's TunEstablished is always handled before its CONNECTED (it is posted from OpenTun, on the way there).
+            settledTunGeneration = knownTunGeneration
+        }
         // The warnings belong to the connect that made the tunnel; the core does not report them in its status, so a
         // restart the core did on its own (RestartProfile from the UI) leaves them unknown, and unknown is shown as none.
         if (before == CoreState.CORE_STATE_CONNECTED && status.state != CoreState.CORE_STATE_CONNECTED) warnings = emptyList()
@@ -233,6 +243,8 @@ internal class SessionEngine(
         when (outcome) {
             is AttemptOutcome.Success -> {
                 applyCore(outcome.result.status, out)
+                // Also when the status stream skipped the frames in between and the engine saw no transition.
+                settledTunGeneration = knownTunGeneration
                 warnings = outcome.result.warnings
                 wish.onConnected()
                 apply(machine.handle(AutoEvent.AttemptSucceeded), out)
@@ -411,14 +423,11 @@ internal class SessionEngine(
             established = watch.established,
             inGrace = watch.inGrace,
             phase = machine.state.phase,
-            newInterface = holdTunGeneration?.let { knownTunGeneration > it } ?: false,
+            newInterface = knownTunGeneration > settledTunGeneration,
         )
         when (val decision = blackhole.evaluate(now, input)) {
             HoldDecision.None -> endHold(out)
-            is HoldDecision.Hold -> {
-                if (holdTunGeneration == null) holdTunGeneration = knownTunGeneration
-                beginHold(now, decision.untilMs, out)
-            }
+            is HoldDecision.Hold -> beginHold(now, decision.untilMs, out)
             is HoldDecision.Release -> {
                 endHold(out)
                 // Against the generation this engine knows: a newer interface, built while this input was on its way, stays.
@@ -439,7 +448,6 @@ internal class SessionEngine(
     }
 
     private fun endHold(out: Out) {
-        holdTunGeneration = null
         if (holdUntilMono == 0L) return
         holdUntilMono = 0
         blackholeUntilWall = 0
