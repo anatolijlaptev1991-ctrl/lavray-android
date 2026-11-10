@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -44,7 +46,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavColors
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavIcon
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.LavText
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavBanner
-import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavIconButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavChip
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavEmptyState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
@@ -93,19 +95,19 @@ fun LogScreen() {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LogSeverity.entries.forEach { s -> LavChip(s.label, min == s, { min = s }) }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LavButton(
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LavIconButton(
+                    if (frozen == null) LavIcon.Stop else LavIcon.Refresh,
                     stringResource(if (frozen == null) R.string.log_pause else R.string.log_resume),
                     { frozen = if (frozen == null) lines else null },
-                    icon = if (frozen == null) LavIcon.Stop else LavIcon.Refresh,
                 )
-                LavButton(stringResource(R.string.log_copy), {
+                LavIconButton(LavIcon.Copy, stringResource(R.string.log_copy), {
                     val ok = copyToClipboard(context, LogFilter.export(shown))
                     env.toast.show(if (ok) copied else failed)
-                }, icon = LavIcon.Copy)
-                LavButton(stringResource(R.string.srv_share), { shareText(context, LogFilter.export(shown)) }, icon = LavIcon.Share)
+                })
+                LavIconButton(LavIcon.Share, stringResource(R.string.log_share), { shareText(context, LogFilter.export(shown)) })
+                LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it }, Modifier.weight(1f))
             }
-            LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it })
             LavText(stringResource(R.string.log_exportD), style = Lav.type.caption, color = Lav.colors.textTertiary)
         }
         error?.let { LavBanner(StatusTone.Error, stringResource(it.textRes()), Modifier.padding(horizontal = 16.dp), text = stringResource(R.string.conns_retrying)) }
@@ -123,7 +125,7 @@ private fun LogList(shown: List<LogEntry>, state: androidx.compose.foundation.la
     val colors = Lav.colors
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), state = state) {
         items(shown, key = { it.seq }, contentType = { "line" }) { e ->
-            BasicText(lineText(e, time, colors), Modifier.fillMaxWidth().padding(vertical = 2.dp), style = Lav.type.mono.copy(fontSize = Lav.type.caption.fontSize))
+            BasicText(lineText(e, time, colors), Modifier.fillMaxWidth().padding(vertical = 2.dp), style = Lav.type.mono.copy(fontSize = Lav.type.caption.fontSize, lineHeight = Lav.type.caption.fontSize * 1.35f))
         }
     }
 }
