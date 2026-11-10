@@ -98,6 +98,7 @@
     <string name="chk_fix_sub">Abos öffnen</string>
     <string name="chk_fix_time">Uhr synchronisieren</string>
     <string name="chk_ip_connect">Verbinden Sie sich, um die Adresse über den Tunnel zu sehen.</string>
+    <string name="chk_ip_failed">Die Adresse konnte nicht ermittelt werden: Der Dienst, der sie nennt, hat nicht geantwortet. Der Kern läuft.</string>
     <string name="chk_ip_run">Adressen prüfen</string>
     <string name="chk_ip_title">Öffentliche Adresse</string>
     <string name="chk_ipv6_t">IPv6 läuft nicht am Tunnel vorbei</string>
@@ -212,7 +213,7 @@
     <string name="dns_tunnel">Durch den Tunnel</string>
     <string name="dns_tunnel_d">Verschlüsseltes DNS läuft innerhalb des Proxy-Tunnels — maximale Privatsphäre.</string>
     <string name="dns_validate">Prüfen</string>
-    <string name="dns_warn">Der Moduswechsel verbindet den Kanal kurz neu. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
+    <string name="dns_warn_phone">Ein Moduswechsel wird nach dem Neustart des Kerns wirksam: Der Hinweis erscheint oben auf dem Bildschirm. Manche Firmennetze und Provider sperren fremdes DNS — öffnen sich Seiten nicht mehr, zurück auf „Automatisch“.</string>
     <string name="dns_warn_t">Kompatibilität</string>
     <string name="ed_t_chain">Kette</string>
     <string name="ed_t_json">Eigenes JSON</string>
@@ -303,6 +304,7 @@
     <string name="log_resume">Fortsetzen</string>
     <string name="log_searchPh">Protokoll durchsuchen…</string>
     <string name="log_share">Teilen</string>
+    <string name="log_shareFailed">Das Protokoll konnte nicht geteilt werden. Du kannst es kopieren.</string>
     <string name="main_auto_connect">Beim Start des Telefons verbinden</string>
     <string name="mux_concurrency">Gleichzeitige Streams</string>
     <string name="mux_concurrencyErr">Geben Sie -1 oder eine Zahl von 1 bis 1024 ein</string>

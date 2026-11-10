@@ -77,12 +77,26 @@ sealed interface DnsAction {
 }
 
 object DnsReducer {
-    fun reduce(s: DnsState, a: DnsAction): DnsState = when (a) {
-        is DnsAction.Loaded -> s.copy(
-            dns = a.dns, loading = false, error = null,
-            advanced = a.dns.mode == DnsSettings.Mode.MODE_ADVANCED,
-            json = a.dns.advancedJson.orEmpty(), remote = a.dns.remoteDns.orEmpty(), problems = emptyList(), invalid = false,
+    /**
+     * The screen reloads on every return to the app. A field the person changed and did not save keeps their text
+     * (and the JSON editor stays open); a field they did not touch follows the core.
+     */
+    private fun reload(s: DnsState, dns: DnsSettings): DnsState {
+        val before = s.dns
+        val jsonEdited = before != null && s.json != before.advancedJson.orEmpty()
+        val remoteEdited = before != null && s.remote != before.remoteDns.orEmpty()
+        return s.copy(
+            dns = dns, loading = false, error = null,
+            advanced = if (jsonEdited) s.advanced else dns.mode == DnsSettings.Mode.MODE_ADVANCED,
+            json = if (jsonEdited) s.json else dns.advancedJson.orEmpty(),
+            remote = if (remoteEdited) s.remote else dns.remoteDns.orEmpty(),
+            problems = if (jsonEdited) s.problems else emptyList(),
+            invalid = if (jsonEdited) s.invalid else false,
         )
+    }
+
+    fun reduce(s: DnsState, a: DnsAction): DnsState = when (a) {
+        is DnsAction.Loaded -> reload(s, a.dns)
         is DnsAction.Failed -> s.copy(loading = false, error = a.kind)
         // After a save the core's normalized value replaces ours; the text the person is typing is kept.
         is DnsAction.Applied -> s.copy(dns = a.dns, remote = a.dns.remoteDns ?: s.remote, problems = emptyList(), invalid = false)

@@ -98,6 +98,7 @@
     <string name="chk_fix_sub">Abrir suscripciones</string>
     <string name="chk_fix_time">Sincronizar reloj</string>
     <string name="chk_ip_connect">Conéctate para ver la dirección a través del túnel.</string>
+    <string name="chk_ip_failed">No se pudo determinar la dirección: el servicio que la indica no respondió. El núcleo funciona.</string>
     <string name="chk_ip_run">Comprobar direcciones</string>
     <string name="chk_ip_title">Dirección pública</string>
     <string name="chk_ipv6_t">IPv6 no se salta el túnel</string>
@@ -212,7 +213,7 @@
     <string name="dns_tunnel">Por el túnel</string>
     <string name="dns_tunnel_d">El DNS cifrado viaja dentro del túnel del proxy: privacidad máxima.</string>
     <string name="dns_validate">Comprobar</string>
-    <string name="dns_warn">Cambiar de modo reconecta el canal un instante. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
+    <string name="dns_warn_phone">El cambio de modo se aplica tras reiniciar el núcleo: la propuesta aparece en la parte superior de la pantalla. Algunas redes corporativas y proveedores bloquean el DNS de terceros: si las páginas dejan de abrir, vuelve a «Automático».</string>
     <string name="dns_warn_t">Compatibilidad</string>
     <string name="ed_t_chain">Cadena</string>
     <string name="ed_t_json">JSON propio</string>
@@ -303,6 +304,7 @@
     <string name="log_resume">Reanudar</string>
     <string name="log_searchPh">Buscar en el registro…</string>
     <string name="log_share">Compartir</string>
+    <string name="log_shareFailed">No se pudo compartir el registro. Puedes copiarlo.</string>
     <string name="main_auto_connect">Conectar al iniciar el teléfono</string>
     <string name="mux_concurrency">Flujos simultáneos</string>
     <string name="mux_concurrencyErr">Introduce -1 o un número de 1 a 1024</string>

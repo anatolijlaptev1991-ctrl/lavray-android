@@ -98,6 +98,7 @@
     <string name="chk_fix_sub">Open subscriptions</string>
     <string name="chk_fix_time">Sync the clock</string>
     <string name="chk_ip_connect">Connect to see the address through the tunnel.</string>
+    <string name="chk_ip_failed">Could not determine the address: the service that reports it did not answer. The core is running.</string>
     <string name="chk_ip_run">Check addresses</string>
     <string name="chk_ip_title">Public address</string>
     <string name="chk_ipv6_t">IPv6 doesn’t bypass the tunnel</string>
@@ -212,7 +213,7 @@
     <string name="dns_tunnel">Through the tunnel</string>
     <string name="dns_tunnel_d">Encrypted DNS travels inside the proxy tunnel — maximum privacy.</string>
     <string name="dns_validate">Validate</string>
-    <string name="dns_warn">Switching modes reconnects the channel briefly. Some corporate networks and providers block third-party DNS — if sites stop opening, switch back to “Auto”.</string>
+    <string name="dns_warn_phone">A mode change applies after the core is restarted: the offer appears at the top of the screen. Some corporate networks and providers block third-party DNS — if sites stop opening, switch back to “Auto”.</string>
     <string name="dns_warn_t">Compatibility</string>
     <string name="ed_t_chain">Chain</string>
     <string name="ed_t_json">Custom JSON</string>
@@ -303,6 +304,7 @@
     <string name="log_resume">Resume</string>
     <string name="log_searchPh">Search the log…</string>
     <string name="log_share">Share</string>
+    <string name="log_shareFailed">Could not share the log. You can copy it instead.</string>
     <string name="main_auto_connect">Connect when the phone starts</string>
     <string name="mux_concurrency">Concurrent streams</string>
     <string name="mux_concurrencyErr">Enter -1 or a number from 1 to 1024</string>

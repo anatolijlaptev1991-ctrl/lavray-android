@@ -98,6 +98,7 @@
     <string name="chk_fix_sub">Открыть подписки</string>
     <string name="chk_fix_time">Синхронизировать время</string>
     <string name="chk_ip_connect">Подключитесь, чтобы увидеть адрес через туннель.</string>
+    <string name="chk_ip_failed">Не удалось определить адрес: сервис, который его сообщает, не ответил. Ядро работает.</string>
     <string name="chk_ip_run">Проверить адреса</string>
     <string name="chk_ip_title">Публичный адрес</string>
     <string name="chk_ipv6_t">IPv6 не идёт мимо туннеля</string>
@@ -212,7 +213,7 @@
     <string name="dns_tunnel">Через туннель</string>
     <string name="dns_tunnel_d">Шифрованный DNS идёт внутри прокси-туннеля — максимум приватности.</string>
     <string name="dns_validate">Проверить</string>
-    <string name="dns_warn">Смена режима кратко переподключает канал. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
+    <string name="dns_warn_phone">Смена режима применяется после перезапуска ядра: предложение появится вверху экрана. Некоторые корпоративные сети и провайдеры блокируют сторонний DNS — если сайты перестали открываться, вернитесь на «Авто».</string>
     <string name="dns_warn_t">Совместимость</string>
     <string name="ed_t_chain">Цепочка</string>
     <string name="ed_t_json">Свой JSON</string>
@@ -303,6 +304,7 @@
     <string name="log_resume">Продолжить</string>
     <string name="log_searchPh">Поиск в журнале…</string>
     <string name="log_share">Поделиться</string>
+    <string name="log_shareFailed">Не удалось поделиться журналом. Его можно скопировать.</string>
     <string name="main_auto_connect">Подключаться при запуске телефона</string>
     <string name="mux_concurrency">Параллельных потоков</string>
     <string name="mux_concurrencyErr">Введите -1 или число от 1 до 1024</string>

@@ -98,6 +98,7 @@
     <string name="chk_fix_sub">打开订阅</string>
     <string name="chk_fix_time">校准时钟</string>
     <string name="chk_ip_connect">连接后可查看通过隧道的地址。</string>
+    <string name="chk_ip_failed">无法确定地址：提供该信息的服务没有响应。内核运行正常。</string>
     <string name="chk_ip_run">检查地址</string>
     <string name="chk_ip_title">公网地址</string>
     <string name="chk_ipv6_t">IPv6 未绕过隧道</string>
@@ -212,7 +213,7 @@
     <string name="dns_tunnel">经隧道</string>
     <string name="dns_tunnel_d">加密 DNS 在代理隧道内传输——隐私最佳。</string>
     <string name="dns_validate">检查</string>
-    <string name="dns_warn">切换模式会短暂重连通道。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
+    <string name="dns_warn_phone">切换模式需要重启内核后才会生效：屏幕顶部会出现提示。部分企业网络与运营商屏蔽第三方 DNS——若网页打不开，请回到“自动”。</string>
     <string name="dns_warn_t">兼容性</string>
     <string name="ed_t_chain">链式</string>
     <string name="ed_t_json">自定义 JSON</string>
@@ -303,6 +304,7 @@
     <string name="log_resume">继续</string>
     <string name="log_searchPh">搜索日志…</string>
     <string name="log_share">分享</string>
+    <string name="log_shareFailed">无法分享日志，可以改为复制。</string>
     <string name="main_auto_connect">手机启动时自动连接</string>
     <string name="mux_concurrency">并发流数量</string>
     <string name="mux_concurrencyErr">请输入 -1 或 1 到 1024 之间的数字</string>

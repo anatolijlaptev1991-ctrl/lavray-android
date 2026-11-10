@@ -68,11 +68,8 @@ class DnsModel(
         }
     }
 
-    /** Picks one of the resolution modes; the JSON editor closes, as on the desktop. */
-    fun pick(card: DnsCard) {
-        dispatch(DnsAction.Advanced(false))
-        save(DnsRequests.card(card))
-    }
+    /** Picks one of the resolution modes; the JSON editor closes once the core accepted it, as on the desktop. */
+    fun pick(card: DnsCard) = save(DnsRequests.card(card), closeEditor = true)
 
     fun saveCustom() {
         val s = mutable.value
@@ -123,17 +120,18 @@ class DnsModel(
         return null
     }
 
-    private fun save(dns: DnsSettings) {
-        scope.launch(Dispatchers.IO) { lock.withLock { send(dns) } }
+    private fun save(dns: DnsSettings, closeEditor: Boolean = false) {
+        scope.launch(Dispatchers.IO) { lock.withLock { send(dns, closeEditor) } }
     }
 
-    private suspend fun send(dns: DnsSettings) {
+    private suspend fun send(dns: DnsSettings, closeEditor: Boolean = false) {
         dispatch(DnsAction.Busy(true))
         try {
             when (val r = session.call { dnsSetDns(SetDnsRequest(dns)) }) {
                 is CoreResult.Fail -> mutableEvents.tryEmit(DnsEvent.Failed(r.kind))
                 is CoreResult.Ok -> {
                     r.value.applied?.let { dispatch(DnsAction.Applied(it)) }
+                    if (closeEditor) dispatch(DnsAction.Advanced(false))
                     if (r.value.needsProfileRestart) restart.need()
                     mutableEvents.tryEmit(DnsEvent.Saved)
                 }

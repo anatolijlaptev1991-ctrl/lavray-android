@@ -94,7 +94,7 @@ private fun ModesCard(state: DnsState, model: DnsModel) {
             DnsCard.entries.forEach { card ->
                 ModeOption(card, state.activeCard == card.id, enabled = !state.busy) { model.pick(card) }
             }
-            LavBanner(StatusTone.Neutral, stringResource(R.string.dns_warn_t), Modifier.padding(top = 8.dp), text = stringResource(R.string.dns_warn))
+            LavBanner(StatusTone.Neutral, stringResource(R.string.dns_warn_t), Modifier.padding(top = 8.dp), text = stringResource(R.string.dns_warn_phone))
         }
     }
 }
