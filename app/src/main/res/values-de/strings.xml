@@ -414,7 +414,7 @@
     <string name="nt_stop_t">Der Tunnel wurde unerwartet beendet</string>
     <string name="nt_stop_tip">Wenn das öfter passiert, erlaube LAVRay in den Akkueinstellungen des Telefons, im Hintergrund zu laufen.</string>
     <string name="nt_stop_update">Ein Update hat LAVRay beendet.</string>
-    <string name="nt_stop_user">LAVRay wurde in den App-Einstellungen des Telefons gestoppt.</string>
+    <string name="nt_stop_user">LAVRay wurde von dir oder vom Telefon geschlossen: in den App-Einstellungen, in der Liste der letzten Apps oder bei einer Speicherbereinigung.</string>
     <string name="nt_warn_custom">Dieser Server hat eigene Kern-Einstellungen, die du nicht bestätigt hast. Sie werden nicht angewendet.</string>
     <string name="nt_warn_mixed">Ein lokaler Proxy-Port bleibt offen, solange der Tunnel läuft; Apps auf diesem Telefon können ihn ohne den Tunnel nutzen.</string>
     <string name="nt_warn_other">Der Kern meldet: %1$s</string>

@@ -47,7 +47,14 @@ class ServiceNoticesTest {
         )
         reasons.forEach { r -> assertNotNull(r, notices(stopped.copy(stopReason = r)).stop) }
         assertEquals(R.string.nt_stop_crash, notices(stopped.copy(stopReason = "crash_native")).stop!!.reason)
-        assertEquals(R.string.nt_stop_user, notices(stopped.copy(stopReason = "user_stopped")).stop!!.reason)
+        // One code for a force-stop, a swipe, a cleaner and an old-style update: both authors named, the battery hint offered.
+        notices(stopped.copy(stopReason = "user_requested")).stop!!.let {
+            assertEquals(R.string.nt_stop_user, it.reason)
+            assertTrue(it.tip)
+        }
+        // "The Android user was stopped" is not the person closing the app.
+        assertEquals(R.string.nt_stop_other, notices(stopped.copy(stopReason = "user_stopped")).stop!!.reason)
+        assertEquals(R.string.nt_stop_memory, notices(stopped.copy(stopReason = "memory_limiter")).stop!!.reason)
         assertEquals(R.string.nt_stop_lost, notices(stopped.copy(stopReason = "tunnel_lost")).stop!!.reason)
         assertEquals("an unknown code still says something true", R.string.nt_stop_other, notices(stopped.copy(stopReason = "something_new")).stop!!.reason)
     }

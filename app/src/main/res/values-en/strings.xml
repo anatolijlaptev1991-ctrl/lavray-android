@@ -414,7 +414,7 @@
     <string name="nt_stop_t">The tunnel stopped unexpectedly</string>
     <string name="nt_stop_tip">If this keeps happening, allow LAVRay to run in the background in the phone\'s battery settings.</string>
     <string name="nt_stop_update">An update stopped LAVRay.</string>
-    <string name="nt_stop_user">LAVRay was stopped from the phone\'s app settings.</string>
+    <string name="nt_stop_user">LAVRay was closed by you or by the phone: from the app settings, from the recent apps list, or by a memory cleaner.</string>
     <string name="nt_warn_custom">This server has custom core settings that you have not confirmed. They are not applied.</string>
     <string name="nt_warn_mixed">A local proxy port stays open while the tunnel runs; apps on this phone can use it without the tunnel.</string>
     <string name="nt_warn_other">The core reported: %1$s</string>

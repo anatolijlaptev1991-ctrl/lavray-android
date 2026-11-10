@@ -16,8 +16,10 @@ import kotlinx.coroutines.flow.stateIn
  * verdict and its basis, "the core's notes once per connection", the pending-changes state of the restart hub) takes its
  * identity from here, so the day the service puts a tunnel sequence number into [VpnStatus] only [after] changes.
  *
- * Today it is read from the edges of the status flow, with the limits that has: a flow that conflates states can hide a very
- * short rebuild.
+ * It is read from two things. The edges of the status flow say when a tunnel came up or a build began. The service's own
+ * tunnel number ([VpnStatus.tunnelSeq]) covers what edges cannot: a flow that conflates states can hide a very short
+ * rebuild, and a number that moved while the state never left CONNECTED is exactly that rebuild. The number is only compared
+ * for change: it restarts with a new :vpn process.
  *
  * - [tunnel] counts the tunnels that came up: a new number each time the state turns CONNECTED after being anything else.
  *   The service shows CONNECTING for a rebuild and for the grace period after the core fell over, so a rebuilt tunnel is a
@@ -28,14 +30,32 @@ import kotlinx.coroutines.flow.stateIn
  *   "built from" the saved settings, and the pending change must survive.
  */
 @Immutable
-data class TunnelSight(val tunnel: Int = 0, val up: Boolean = false, val builds: Int = 0, val building: Boolean = false) {
+data class TunnelSight(
+    val tunnel: Int = 0,
+    val up: Boolean = false,
+    val builds: Int = 0,
+    val building: Boolean = false,
+    /** The service's tunnel number seen with the tunnel that is up; meaningless while none is. */
+    val seq: Int = 0,
+) {
     /** The only function that reads a tunnel's identity out of a status. */
-    fun after(status: VpnStatus): TunnelSight = next(status.state)
+    fun after(status: VpnStatus): TunnelSight {
+        val edge = next(status.state)
+        if (status.state != VpnState.CONNECTED) return edge
+        // Up before, up now, and the service counted a new tunnel in between: the rebuild happened behind the flow's back.
+        // It is a new tunnel (the health verdict of the old one does not carry over) and a new build (it read the settings).
+        val hidden = up && status.tunnelSeq != seq
+        return edge.copy(
+            tunnel = if (hidden) edge.tunnel + 1 else edge.tunnel,
+            builds = if (hidden) edge.builds + 1 else edge.builds,
+            seq = status.tunnelSeq,
+        )
+    }
 
     internal fun next(state: VpnState): TunnelSight = when (state) {
         VpnState.CONNECTING, VpnState.WAITING_NETWORK ->
             copy(up = false, building = true, builds = if (building) builds else builds + 1)
-        VpnState.CONNECTED -> TunnelSight(
+        VpnState.CONNECTED -> copy(
             tunnel = if (up) tunnel else tunnel + 1,
             up = true,
             builds = if (building || up) builds else builds + 1,

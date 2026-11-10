@@ -92,10 +92,12 @@ data class ServiceNotices(
 
 /** The sentence for an exit reason of the service (ApplicationExitInfo code, `process_died`, `tunnel_lost`) and whether the battery hint fits. */
 internal fun stopReasonText(reason: String?): Pair<Int, Boolean> = when (reason) {
-    "low_memory" -> R.string.nt_stop_memory to true
+    "low_memory", "memory_limiter" -> R.string.nt_stop_memory to true
     "freezer", "excessive_resource_usage", "signaled", "dependency_died" -> R.string.nt_stop_other to true
     "crash", "crash_native", "anr", "initialization_failure" -> R.string.nt_stop_crash to false
-    "user_stopped", "user_requested" -> R.string.nt_stop_user to false
+    // The system files a force-stop, a swipe out of the recent apps, an OEM cleaner and (before Android 14) an update under
+    // this one code: the sentence names both possible authors, and the battery hint fits the cleaner.
+    "user_requested" -> R.string.nt_stop_user to true
     "package_updated", "package_state_change" -> R.string.nt_stop_update to false
     // stopReason can also carry a failure kind of the service: those are not memory kills, so no battery hint.
     "tunnel_lost", "connect_failed" -> R.string.nt_stop_lost to false

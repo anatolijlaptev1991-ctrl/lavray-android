@@ -68,6 +68,33 @@ class ReviewR6Tests {
         assertEquals(TunnelSight().next(VpnState.CONNECTED), TunnelSight().after(VpnStatus(VpnState.CONNECTED, healthError = "x")))
     }
 
+    private fun statuses(vararg s: Pair<VpnState, Int>): TunnelSight =
+        s.fold(TunnelSight()) { sight, (state, seq) -> sight.after(VpnStatus(state, tunnelSeq = seq)) }
+
+    @Test fun aRebuildTheFlowHidIsANewTunnelByTheServicesNumber() {
+        // CONNECTED, then CONNECTED again with the service's number moved: no edge was seen, the tunnel is new all the same.
+        val hidden = statuses(VpnState.CONNECTING to 0, VpnState.CONNECTED to 1, VpnState.CONNECTED to 2)
+        assertEquals(2, hidden.tunnel)
+        assertEquals(2, hidden.builds)
+        // The same number again (a status re-broadcast, a health change) is the same tunnel.
+        val same = statuses(VpnState.CONNECTING to 0, VpnState.CONNECTED to 1, VpnState.CONNECTED to 1, VpnState.CONNECTED to 1)
+        assertEquals(1, same.tunnel)
+        assertEquals(1, same.builds)
+    }
+
+    @Test fun aRebuildSeenByItsEdgesIsCountedOnceWhateverTheNumberDoes() {
+        val seen = statuses(VpnState.CONNECTING to 0, VpnState.CONNECTED to 1, VpnState.CONNECTING to 1, VpnState.CONNECTED to 2)
+        assertEquals(2, seen.tunnel)
+        assertEquals(2, seen.builds)
+        // A new :vpn process starts its numbers again: the edge alone decides, the smaller number changes nothing more.
+        val newProcess = statuses(VpnState.CONNECTED to 5, VpnState.IDLE to 0, VpnState.CONNECTING to 0, VpnState.CONNECTED to 1)
+        assertEquals(2, newProcess.tunnel)
+        assertEquals(2, newProcess.builds)
+        // A service that sends no number (0 throughout) behaves as before.
+        val unnumbered = statuses(VpnState.CONNECTED to 0, VpnState.CONNECTED to 0, VpnState.CONNECTING to 0, VpnState.CONNECTED to 0)
+        assertEquals(2, unnumbered.tunnel)
+    }
+
     // ---- M3: the restart hub against the real sequence of states
 
     @Test fun aChangeSavedWhileTheTunnelIsConnectingSurvivesItsConnectedEdge() = runBlocking {

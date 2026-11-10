@@ -168,7 +168,7 @@
   "nt_stop_t": "El túnel se detuvo de forma inesperada",
   "nt_stop_tip": "Si ocurre a menudo, permite que LAVRay se ejecute en segundo plano en los ajustes de batería del teléfono.",
   "nt_stop_update": "Una actualización detuvo LAVRay.",
-  "nt_stop_user": "LAVRay se detuvo desde los ajustes de aplicaciones del teléfono.",
+  "nt_stop_user": "LAVRay fue cerrado por ti o por el teléfono: desde los ajustes de aplicaciones, la lista de recientes o una limpieza de memoria.",
   "nt_warn_custom": "Este servidor tiene ajustes propios del núcleo que no has confirmado. No se aplican.",
   "nt_warn_mixed": "Un puerto proxy local sigue abierto mientras funciona el túnel; las aplicaciones del teléfono pueden usarlo sin pasar por el túnel.",
   "nt_warn_other": "El núcleo informó: {code}",

@@ -414,7 +414,7 @@
     <string name="nt_stop_t">隧道意外停止</string>
     <string name="nt_stop_tip">如果反复发生，请在手机的电池设置中允许 LAVRay 在后台运行。</string>
     <string name="nt_stop_update">LAVRay 因更新而停止。</string>
-    <string name="nt_stop_user">LAVRay 在手机的应用设置中被停止。</string>
+    <string name="nt_stop_user">LAVRay 被你或手机关闭：可能是在应用设置中、从最近任务列表中，或在清理内存时。</string>
     <string name="nt_warn_custom">此服务器有你尚未确认的自定义核心设置，它们不会生效。</string>
     <string name="nt_warn_mixed">隧道运行期间本地代理端口保持开放；手机上的应用可以绕过隧道使用它。</string>
     <string name="nt_warn_other">核心报告：%1$s</string>
