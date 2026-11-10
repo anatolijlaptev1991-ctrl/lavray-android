@@ -10,8 +10,13 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,6 +52,46 @@ class LogResumeTest {
         val all = buffer.snapshot()
         assertTrue(LogFilter.export(all, LogFilter.SHARE_MAX_CHARS).length <= LogFilter.SHARE_MAX_CHARS)
         assertTrue(LogFilter.SHARE_MAX_CHARS < LogFilter.EXPORT_MAX_CHARS)
+    }
+
+    @Test fun aCutExportSaysHowManyLinesWereTaken() {
+        val buffer = LogBuffer(5_000)
+        (1..4_000).forEach { buffer.push(LogLine(1_700_000_000_000L + it, LogLevel.LOG_LEVEL_INFO, "core", "x".repeat(100))) }
+        val all = buffer.snapshot()
+        val cut = LogFilter.exportWithInfo(all, LogFilter.SHARE_MAX_CHARS)
+        assertTrue(cut.truncated)
+        assertEquals(4_000, cut.totalLines)
+        assertTrue(cut.lines in 1 until 4_000)
+        assertEquals(cut.lines, cut.text.lines().size)
+        val whole = LogFilter.exportWithInfo(all.take(10), LogFilter.SHARE_MAX_CHARS)
+        assertFalse(whole.truncated)
+    }
+
+    @Test fun theWindowKeepsItsLinesUntilTheTailOfTheNewSubscriptionArrives() = runBlocking {
+        // Not emptied up front: the list must not flash empty on every return to the app.
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val opens = java.util.concurrent.atomic.AtomicInteger()
+        val model = LogModel { _ ->
+            if (opens.incrementAndGet() == 1) {
+                flow { emit(LogLine(1_700_000_000_000L + 1, LogLevel.LOG_LEVEL_INFO, "core", "old")); awaitCancellation() }
+            } else {
+                flow {
+                    release.await()
+                    emit(LogLine(1_700_000_000_000L + 9, LogLevel.LOG_LEVEL_INFO, "core", "tail"))
+                    awaitCancellation()
+                }
+            }
+        }
+        runWindow(model)
+        assertEquals(listOf("old"), model.lines.value.map { it.message })
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val second = scope.launch { model.stream() }
+        kotlinx.coroutines.delay(200)
+        assertEquals("still the old window while the new tail has not arrived", listOf("old"), model.lines.value.map { it.message })
+        release.complete(Unit)
+        withTimeout(5_000) { model.lines.first { l -> l.map { it.message } == listOf("tail") } }
+        second.cancel()
+        scope.cancel()
     }
 
     @Test fun clearingEmptiesTheWindow() {

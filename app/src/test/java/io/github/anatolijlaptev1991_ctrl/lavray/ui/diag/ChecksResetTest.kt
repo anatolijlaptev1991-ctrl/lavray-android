@@ -29,6 +29,11 @@ class ChecksResetTest {
         assertEquals(false, after.leakRunning)
     }
 
+    @Test fun aDirectProbeThatWasRunningIsNotLeftRunningWhenItsJobIsCancelled() {
+        val running = shown.copy(direct = IpReading.Loading)
+        assertEquals(IpReading.Idle, running.withoutTunnelResults().direct)
+    }
+
     @Test fun theDirectAddressStaysBecauseItDoesNotDependOnTheTunnel() {
         assertEquals(IpReading.Value("198.51.100.7", false), shown.withoutTunnelResults().direct)
     }

@@ -21,13 +21,19 @@ class StatsSessionTest {
         assertEquals(1, s.tags.size)
     }
 
-    @Test fun endingTheSessionClearsTheLivePartAndTheMark() {
+    @Test fun theLivePartGoesWhenTheTunnelLeavesConnectedButTheTotalsStayOutOfDateUntilReloaded() {
         val live = StatsMapper.afterFrame(StatsState(loaded = true), frame)
         val ended = StatsMapper.afterEnd(live)
-        assertFalse(ended.sessionSeen)
+        // The core writes the end of the session after the stop completes: the first non-connected frame is too early to reload.
+        assertTrue(ended.sessionSeen)
         assertEquals(TrafficReading.Empty, ended.session)
         assertTrue(ended.tags.isEmpty())
         assertTrue(ended.loaded)
+    }
+
+    @Test fun afterTheReloadNothingIsWaitingAnyMore() {
+        val ended = StatsMapper.afterEnd(StatsMapper.afterFrame(StatsState(loaded = true), frame))
+        assertFalse(StatsMapper.afterReload(ended).sessionSeen)
     }
 
     @Test fun aScreenThatNeverSawASessionHasNothingToReload() {

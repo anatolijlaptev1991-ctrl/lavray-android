@@ -56,6 +56,9 @@ data class ChecksState(
     fun withoutTunnelResults(): ChecksState = copy(
         rows = emptyList(), running = false, summary = null, error = null,
         tunnel = IpReading.Idle, leak = null, leakRunning = false, leakError = null,
+        // The address probes share one job, which is cancelled with the tunnel: a direct probe that was still running
+        // would otherwise stay "running" for ever.
+        direct = if (direct == IpReading.Loading) IpReading.Idle else direct,
     )
 }
 

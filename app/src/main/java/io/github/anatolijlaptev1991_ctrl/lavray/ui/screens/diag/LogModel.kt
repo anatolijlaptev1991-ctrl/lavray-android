@@ -34,13 +34,14 @@ class LogModel(private val open: (tailLines: Int?) -> Flow<LogLine>) {
     val streamError: StateFlow<ErrorKind?> = mutableError.asStateFlow()
 
     suspend fun stream() = withContext(Dispatchers.Default) {
-        // Every new subscription replays the core's tail (a return to the app opens one): start from an empty window,
-        // otherwise the same 200 lines are added again each time.
-        clear()
         coroutineScope {
             var timer: Job? = null
             var lastFlush = 0L
             var first = true
+            // Every new subscription replays the core's tail (a return to the app opens one). The window is replaced by it
+            // when its first line arrives (not emptied up front, so the list does not flash empty on every return), and
+            // the same 200 lines are never added twice.
+            var replaceWindow = true
             fun flush() {
                 lastFlush = System.nanoTime()
                 val snap = synchronized(lock) { buffer.snapshot() }
@@ -56,7 +57,11 @@ class LogModel(private val open: (tailLines: Int?) -> Flow<LogLine>) {
                 onError = { mutableError.value = it },
                 onFrame = { line ->
                     mutableError.value = null
-                    synchronized(lock) { buffer.push(line) }
+                    synchronized(lock) {
+                        if (replaceWindow) buffer.clear()
+                        replaceWindow = false
+                        buffer.push(line)
+                    }
                     val sinceMs = (System.nanoTime() - lastFlush) / NANOS_PER_MS
                     if (sinceMs >= FLUSH_MS) {
                         flush()

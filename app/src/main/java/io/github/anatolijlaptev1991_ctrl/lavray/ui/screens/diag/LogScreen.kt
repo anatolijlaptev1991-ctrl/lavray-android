@@ -103,11 +103,24 @@ fun LogScreen() {
                     { frozen = if (frozen == null) lines else null },
                 )
                 LavIconButton(LavIcon.Copy, stringResource(R.string.log_copy), {
-                    val ok = copyToClipboard(context, LogFilter.export(shown))
-                    env.toast.show(if (ok) copied else failed)
+                    val export = LogFilter.exportWithInfo(shown)
+                    val ok = copyToClipboard(context, export.text)
+                    env.toast.show(
+                        when {
+                            !ok -> failed
+                            export.truncated -> env.appContext.getString(R.string.log_copiedTruncated, export.lines.toString(), export.totalLines.toString())
+                            else -> copied
+                        },
+                    )
                 })
                 LavIconButton(LavIcon.Share, stringResource(R.string.log_share), {
-                    if (!shareText(context, LogFilter.export(shown, LogFilter.SHARE_MAX_CHARS))) env.toast.show(shareFailed)
+                    val export = LogFilter.exportWithInfo(shown, LogFilter.SHARE_MAX_CHARS)
+                    if (!shareText(context, export.text)) {
+                        env.toast.show(shareFailed)
+                    } else if (export.truncated) {
+                        // Said once the chooser is open: only the newest lines were put into the message.
+                        env.toast.show(env.appContext.getString(R.string.log_shareTruncated, export.lines.toString(), export.totalLines.toString()))
+                    }
                 })
                 LavSwitchRow(stringResource(R.string.log_autoscroll), autoscroll, { autoscroll = it }, Modifier.weight(1f))
             }

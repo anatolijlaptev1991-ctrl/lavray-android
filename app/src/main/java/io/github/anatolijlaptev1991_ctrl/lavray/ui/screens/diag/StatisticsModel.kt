@@ -18,6 +18,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.core.ErrorKind
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.TrafficReading
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.connection.apply
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,8 +72,11 @@ object StatsMapper {
     fun afterFrame(s: StatsState, snap: StatsSnapshot): StatsState =
         s.copy(session = s.session.apply(snap), tags = tags(snap), error = null, sessionSeen = true)
 
-    /** The session is over: its speed and tags go; the caller reloads the totals when [StatsState.sessionSeen] was set. */
-    fun afterEnd(s: StatsState): StatsState = s.copy(session = TrafficReading.Empty, tags = emptyList(), sessionSeen = false)
+    /** The live part goes when the tunnel leaves CONNECTED; [StatsState.sessionSeen] stays until the totals were read again. */
+    fun afterEnd(s: StatsState): StatsState = s.copy(session = TrafficReading.Empty, tags = emptyList())
+
+    /** The totals of the ended session were read (or there was no session): nothing is waiting any more. */
+    fun afterReload(s: StatsState): StatsState = s.copy(sessionSeen = false)
 }
 
 /**
@@ -112,14 +116,24 @@ class StatisticsModel(private val session: CoreSession) {
         )
     }
 
-    /** The tunnel went down: the live part is cleared and, if a session was shown, the totals are read again to include it. */
-    suspend fun endSession() {
-        val seen = mutable.value.sessionSeen
-        mutable.update(StatsMapper::afterEnd)
-        if (seen) load()
+    /** The tunnel left CONNECTED: the live part is cleared. */
+    fun endSession() = mutable.update(StatsMapper::afterEnd)
+
+    /**
+     * The tunnel is fully down. The core writes the end of a session after the stop completes, which is later than the
+     * first frame that is not CONNECTED, so the totals are read when the tunnel is down, and once more shortly after, in
+     * case the write was still under way. Only when a session was shown on this screen.
+     */
+    suspend fun reloadAfterSession() {
+        if (!mutable.value.sessionSeen) return
+        mutable.update(StatsMapper::afterReload)
+        load()
+        delay(RELOAD_RETRY_MS)
+        load()
     }
 
     private companion object {
         const val INTERVAL_MS = 1000
+        const val RELOAD_RETRY_MS = 1_500L
     }
 }
