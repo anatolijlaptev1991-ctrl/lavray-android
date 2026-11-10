@@ -20,7 +20,7 @@ internal interface VpnBinderHost {
     /** Writes the setting and aligns the boot receiver; false when it is not in force afterwards. */
     fun setAutoConnect(enabled: Boolean): Boolean
     var appSelection: AppSelection
-    fun beginBusy(token: String, timeoutMs: Long)
+    fun beginBusy(token: String, timeoutMs: Long): Boolean
     fun endBusy(token: String)
 }
 
@@ -68,7 +68,7 @@ internal class VpnBinder(private val host: VpnBinderHost) : IVpnService.Stub() {
         host.appSelection = AppSelection.parse(json)
     }
 
-    override fun beginBusy(token: String, timeoutMs: Long) = host.beginBusy(token, timeoutMs)
+    override fun beginBusy(token: String, timeoutMs: Long): Boolean = host.beginBusy(token, timeoutMs)
 
     override fun endBusy(token: String) = host.endBusy(token)
 

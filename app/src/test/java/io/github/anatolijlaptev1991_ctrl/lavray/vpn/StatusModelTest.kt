@@ -33,6 +33,13 @@ class StatusModelTest {
     }
 
     @Test
+    fun aLateConnectedAfterADeliberateStopIsNotATunnel() {
+        val s = StatusModel.compute(StatusInputs(coreState = CoreState.CORE_STATE_CONNECTED, healthError = "x", phase = AutoPhase.STOPPED))
+        assertEquals(VpnState.IDLE, s.state)
+        assertNull(s.healthError)
+    }
+
+    @Test
     fun errorOutsideDeliberateStopIsShown() {
         val s = StatusModel.compute(StatusInputs(coreState = CoreState.CORE_STATE_ERROR, coreError = "boom", phase = AutoPhase.CONNECTED))
         assertEquals(VpnState.ERROR, s.state)

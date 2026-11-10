@@ -77,6 +77,10 @@ class BusyHold {
         return deadlines.isNotEmpty()
     }
 
+    /** Milliseconds until the earliest deadline still in force has passed, or null when there is none. */
+    @Synchronized
+    fun delayUntilNext(nowMs: Long): Long? = deadlines.values.filter { it > nowMs }.minOrNull()?.let { it - nowMs + 1 }
+
     /** The earliest deadline still in force, or null: the service wakes up then to re-evaluate. */
     @Synchronized
     fun nextDeadline(nowMs: Long): Long? = deadlines.values.filter { it > nowMs }.minOrNull()
