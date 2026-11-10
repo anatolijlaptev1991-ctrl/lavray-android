@@ -119,7 +119,23 @@ class VpnController(context: Context) {
     /** Saves the choice; it applies the next time the tunnel is built. */
     suspend fun setAppSelection(selection: AppSelection) = withContext(Dispatchers.IO) { ready.await().setAppSelection(selection.toJson()) }
 
+    /**
+     * Writes the "connect at phone start" setting and the boot receiver. True only when the value is really in force
+     * afterwards; false (or an exception from the binder) means the stored value is the old one, so the switch must
+     * show the old value.
+     */
+    suspend fun setAutoConnect(enabled: Boolean): Boolean = withContext(Dispatchers.IO) { ready.await().setAutoConnectEnabled(enabled) }
+
+    /** Fire and forget: kept for callers that cannot wait. A failed write is lost here; prefer [setAutoConnect]. */
     fun setAutoConnectEnabled(enabled: Boolean) {
-        scope.launch { runCatching { ready.await().setAutoConnectEnabled(enabled) } }
+        scope.launch { runCatching { setAutoConnect(enabled) } }
     }
+
+    /**
+     * Keeps the :vpn process alive while a long operation that runs in the core (a backup restore) is under way, even if
+     * the UI unbinds. [token] names the hold, [timeoutMs] is a hard cap (the service clamps it to 15 minutes).
+     */
+    suspend fun beginBusy(token: String, timeoutMs: Long) = withContext(Dispatchers.IO) { ready.await().beginBusy(token, timeoutMs) }
+
+    suspend fun endBusy(token: String) = withContext(Dispatchers.IO) { ready.await().endBusy(token) }
 }
