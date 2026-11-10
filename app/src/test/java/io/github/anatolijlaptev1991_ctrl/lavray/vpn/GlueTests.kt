@@ -27,11 +27,12 @@ class BootLogicTest {
     private val store = MemoryTunnelStore()
     private var boot = 1
 
-    private class Actions(var consent: Boolean = true, var startFails: RuntimeException? = null) : BootActions {
+    private class Actions(var consent: Boolean = true, var startFails: RuntimeException? = null, var exit: String? = null) : BootActions {
         var starts = 0
         var permissionNotices = 0
         val failures = ArrayList<Pair<String, String?>>()
         override fun consentGranted() = consent
+        override fun lastExitReason() = exit
         override fun startService() {
             startFails?.let { throw it }
             starts++
@@ -40,7 +41,7 @@ class BootLogicTest {
         override fun notifyFailure(kind: String, message: String?) { failures += kind to message }
     }
 
-    private fun intent() = TunnelIntent(store) { boot }
+    private fun intent() = TunnelIntent(store, { boot })
 
     @Test
     fun bootWithAutoConnectStartsAndWritesTheWish() {
@@ -72,6 +73,24 @@ class BootLogicTest {
     fun updateWithoutARebootRestoresAWantedTunnel() {
         intent().onConnectRequested()
         val a = Actions()
+        BootLogic.run(BootTrigger.UPDATE, autoConnect = false, intent = intent(), actions = a)
+        assertEquals(1, a.starts)
+    }
+
+    // L-10: the person force-stopped the app, then an update arrived.
+    @Test
+    fun updateAfterAForceStopDoesNotRestoreTheTunnel() {
+        intent().onConnectRequested()
+        val a = Actions(exit = "user_stopped")
+        BootLogic.run(BootTrigger.UPDATE, autoConnect = false, intent = intent(), actions = a)
+        assertEquals(0, a.starts)
+        assertFalse(store.value.wantConnected)
+    }
+
+    @Test
+    fun updateThatKilledARunningTunnelStillRestoresIt() {
+        intent().onConnectRequested()
+        val a = Actions(exit = "package_updated")
         BootLogic.run(BootTrigger.UPDATE, autoConnect = false, intent = intent(), actions = a)
         assertEquals(1, a.starts)
     }
@@ -147,6 +166,27 @@ class CoreWatcherTest {
         live.emit(st(CoreState.CORE_STATE_CONNECTED))
         withTimeout(2_000) { while (CoreState.CORE_STATE_CONNECTED !in seen) delay(5) }
         job.cancelAndJoin()
+    }
+
+    // L-9: a stream that ends at once every time must not make the service re-seed and publish every couple of seconds.
+    @Test
+    fun aStreamThatEndsAtOnceIsRetriedWithAGrowingPause() = runBlocking {
+        val pauses = CopyOnWriteArrayList<Long>()
+        var current = true
+        val api = Api(st(CoreState.CORE_STATE_IDLE), listOf(flow { /* ends at once */ }))
+        CoreWatcher.keep(api, { }, { current }, retryMs = 10, maxRetryMs = 50, sleep = { pauses += it; if (pauses.size == 6) current = false })
+        assertEquals(listOf(10L, 20L, 40L, 50L, 50L, 50L), pauses.toList())
+    }
+
+    @Test
+    fun anyEventResetsThePause() = runBlocking {
+        val pauses = CopyOnWriteArrayList<Long>()
+        var current = true
+        val one = flow { emit(st(CoreState.CORE_STATE_CONNECTED)) }
+        val idle = flow<CoreStatus> { }
+        val api = Api(st(CoreState.CORE_STATE_IDLE), listOf(idle, idle, one, idle))
+        CoreWatcher.keep(api, { }, { current }, retryMs = 10, maxRetryMs = 100, sleep = { pauses += it; if (pauses.size == 4) current = false })
+        assertEquals(listOf(10L, 20L, 10L, 10L), pauses.toList())
     }
 
     @Test
@@ -243,6 +283,25 @@ class BusyHoldTest {
         val deadline = hold.begin(0, "x", Long.MAX_VALUE / 2)
         assertEquals(BusyHold.MAX_HOLD_MS, deadline)
         assertEquals(1L, hold.begin(0, "y", -5))
+    }
+
+    // L-5: the wake-up must follow the earliest deadline of ANY hold and re-arm for the next one.
+    @Test
+    fun theWakeUpFollowsTheEarliestHoldAndRearmsForTheNext() {
+        hold.begin(0, "a", 10_000)
+        hold.begin(0, "b", 3_000)
+        assertEquals(3_001L, hold.delayUntilNext(0))
+        assertEquals("b is over, a is next", 5_001L, hold.delayUntilNext(5_000))
+        assertEquals(null, hold.delayUntilNext(10_000))
+    }
+
+    @Test
+    fun clearDropsEveryHold() {
+        hold.begin(0, "a", 10_000)
+        hold.begin(0, "b", 10_000)
+        hold.clear()
+        assertFalse(hold.isBusy(1))
+        assertEquals(null, hold.delayUntilNext(1))
     }
 
     @Test

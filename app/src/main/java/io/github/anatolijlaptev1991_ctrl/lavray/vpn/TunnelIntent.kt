@@ -22,6 +22,11 @@ data class PersistedTunnel(
     val resumeAttempts: Int = 0,
     /** Settings.Global.BOOT_COUNT of the boot the fields above belong to; -1 when unknown. */
     val bootCount: Int = -1,
+    /**
+     * The kernel's boot id of that boot (/proc/sys/kernel/random/boot_id), null when unreadable. A ROM whose BOOT_COUNT is
+     * missing, constant, or not bumped by a fast-boot still tells one boot from the next by it.
+     */
+    val bootId: String? = null,
 )
 
 interface TunnelStore {
@@ -37,13 +42,27 @@ interface TunnelStore {
  * previous run died without anyone deciding it. The receivers and the service each hold their own instance over
  * the same file; one process-wide lock orders their read-modify-write.
  */
-class TunnelIntent(private val store: TunnelStore, private val bootCount: () -> Int = { -1 }) {
+class TunnelIntent(
+    private val store: TunnelStore,
+    private val bootCount: () -> Int = { -1 },
+    private val bootId: () -> String? = { null },
+) {
     /** Read through on every use, and read as cleared when it was written under an earlier boot. */
     val snapshot: PersistedTunnel get() = synchronized(LOCK) { current() }
 
     /** A new service process starts: a stale `true` is a death nobody decided. [exitReason] is read only then. */
     fun onProcessStarted(exitReason: () -> String?) = update {
-        if (it.wantConnected && !it.unexpectedStop) it.copy(unexpectedStop = true, stopReason = exitReason() ?: REASON_PROCESS_DIED) else it
+        if (it.wantConnected && !it.unexpectedStop) {
+            val reason = exitReason()
+            // A force-stop (or the person ending the process) is a deliberate act, like Disconnect: the wish ends with it.
+            if (ExitReasons.isDeliberate(reason)) {
+                it.copy(wantConnected = false, resumeAttempts = 0)
+            } else {
+                it.copy(unexpectedStop = true, stopReason = reason ?: REASON_PROCESS_DIED)
+            }
+        } else {
+            it
+        }
     }
 
     /**
@@ -56,12 +75,15 @@ class TunnelIntent(private val store: TunnelStore, private val bootCount: () -> 
     }
 
     /**
-     * The core reached CONNECTED. Clears the complaints and the crash counter; never writes the wish: a deliberate
+     * The core reached CONNECTED. Clears the complaints (the crash counter waits for [onStable]); never writes the wish: a deliberate
      * disconnect that is already recorded must not be undone by a result that was queued before it.
      */
     fun onConnected() = update {
-        it.copy(unexpectedStop = false, stopReason = null, needsPermission = false, lastFailure = null, failureKind = null, failureReason = null, resumeAttempts = 0)
+        it.copy(unexpectedStop = false, stopReason = null, needsPermission = false, lastFailure = null, failureKind = null, failureReason = null)
     }
+
+    /** The tunnel stayed CONNECTED long enough ([SessionEngine.STABLE_MS]): earlier deaths no longer count toward [ResumePolicy]. */
+    fun onStable() = update { it.copy(resumeAttempts = 0) }
 
     fun onUserDisconnect() = update {
         it.copy(wantConnected = false, unexpectedStop = false, stopReason = null, resumeAttempts = 0)
@@ -101,8 +123,16 @@ class TunnelIntent(private val store: TunnelStore, private val bootCount: () -> 
     private fun current(): PersistedTunnel {
         val saved = store.load()
         val boot = bootCount()
-        if (boot < 0 || saved.bootCount == boot) return saved
-        return saved.copy(wantConnected = false, unexpectedStop = false, stopReason = null, resumeAttempts = 0, bootCount = boot)
+        val id = bootId()
+        val rebooted = (boot >= 0 && saved.bootCount != boot) || (id != null && saved.bootId != null && saved.bootId != id)
+        if (rebooted) {
+            return saved.copy(
+                wantConnected = false, unexpectedStop = false, stopReason = null, resumeAttempts = 0,
+                bootCount = if (boot >= 0) boot else saved.bootCount, bootId = id ?: saved.bootId,
+            )
+        }
+        // First sight of an id: adopt it, nothing is cleared.
+        return if (id != null && saved.bootId == null) saved.copy(bootId = id) else saved
     }
 
     private inline fun update(change: (PersistedTunnel) -> PersistedTunnel) = synchronized(LOCK) {

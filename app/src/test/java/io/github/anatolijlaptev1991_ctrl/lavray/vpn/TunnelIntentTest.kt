@@ -63,6 +63,8 @@ class TunnelIntentTest {
     fun connectedClearsTheStopButNeverWritesTheWish() {
         store.value = PersistedTunnel(wantConnected = false, unexpectedStop = true, stopReason = "low_memory", lastFailure = "m", failureKind = "k", resumeAttempts = 2)
         intent.onConnected()
+        assertEquals("the crash counter waits for onStable", PersistedTunnel(wantConnected = false, resumeAttempts = 2), store.value)
+        intent.onStable()
         assertEquals(PersistedTunnel(wantConnected = false), store.value)
         store.value = PersistedTunnel(wantConnected = true, unexpectedStop = true)
         intent.onConnected()
@@ -146,7 +148,7 @@ class TunnelIntentTest {
     @Test
     fun wishWrittenBeforeARebootReadsAsClearedAfterIt() {
         var boot = 5
-        val i = TunnelIntent(store) { boot }
+        val i = TunnelIntent(store, { boot })
         i.onConnectRequested()
         assertEquals(5, store.value.bootCount)
         assertTrue(i.snapshot.wantConnected)
@@ -161,7 +163,7 @@ class TunnelIntentTest {
     @Test
     fun theRebootClearsTheStopFlagsToo() {
         var boot = 1
-        val i = TunnelIntent(store) { boot }
+        val i = TunnelIntent(store, { boot })
         i.onConnectRequested()
         i.onProcessStarted { "low_memory" }
         assertTrue(i.snapshot.unexpectedStop)
@@ -175,7 +177,7 @@ class TunnelIntentTest {
     @Test
     fun aBootStartWritesTheWishUnderTheNewBoot() {
         var boot = 1
-        val i = TunnelIntent(store) { boot }
+        val i = TunnelIntent(store, { boot })
         i.onConnectRequested()
         boot = 2
         i.onConnectRequested() // auto-connect at boot
@@ -186,7 +188,7 @@ class TunnelIntentTest {
     @Test
     fun informationalFieldsSurviveTheReboot() {
         var boot = 1
-        val i = TunnelIntent(store) { boot }
+        val i = TunnelIntent(store, { boot })
         i.onGaveUp("no_server", "no server selected", wasEstablished = false)
         i.onPermissionMissing()
         boot = 2
@@ -195,9 +197,69 @@ class TunnelIntentTest {
         assertTrue(s.needsPermission)
     }
 
+    // L-1: a ROM whose boot count is missing, constant, or not bumped by a fast-boot is told apart by the kernel's boot id.
+    @Test
+    fun aChangedBootIdIsARebootEvenWhenTheCountDoesNotSayIt() {
+        var id: String? = "boot-a"
+        val i = TunnelIntent(store, { 3 }, { id })
+        i.onConnectRequested()
+        assertTrue(i.snapshot.wantConnected)
+        id = "boot-b"
+        assertFalse(i.snapshot.wantConnected)
+        assertEquals("boot-b", i.snapshot.bootId)
+    }
+
+    @Test
+    fun aMissingCountIsCoveredByTheBootId() {
+        var id: String? = "boot-a"
+        val i = TunnelIntent(store, { -1 }, { id })
+        i.onConnectRequested()
+        id = "boot-b"
+        assertFalse(i.snapshot.wantConnected)
+    }
+
+    @Test
+    fun anIdSeenForTheFirstTimeIsAdoptedWithoutClearingAnything() {
+        val old = TunnelIntent(store, { 3 })
+        old.onConnectRequested() // written before ids were recorded
+        val i = TunnelIntent(store, { 3 }, { "boot-a" })
+        assertTrue(i.snapshot.wantConnected)
+        assertEquals("boot-a", i.snapshot.bootId)
+    }
+
+    @Test
+    fun anUnreadableIdKeepsWhatWasStored() {
+        var id: String? = "boot-a"
+        val i = TunnelIntent(store, { 3 }, { id })
+        i.onConnectRequested()
+        id = null
+        assertTrue(i.snapshot.wantConnected)
+        assertEquals("boot-a", i.snapshot.bootId)
+    }
+
+    // L-10: the person's own force-stop ends the wish like Disconnect; a crash does not.
+    @Test
+    fun aForceStopOrAUserEndedProcessClearsTheWish() {
+        for (reason in listOf("user_stopped", "user_requested")) {
+            store.value = PersistedTunnel(wantConnected = true)
+            intent.onProcessStarted { reason }
+            assertFalse(reason, store.value.wantConnected)
+            assertFalse(reason, store.value.unexpectedStop)
+        }
+    }
+
+    @Test
+    fun otherExitsStillCountAsUnexpected() {
+        for (reason in listOf("low_memory", "crash_native", "signaled", null)) {
+            store.value = PersistedTunnel(wantConnected = true)
+            intent.onProcessStarted { reason }
+            assertTrue(reason.toString(), store.value.unexpectedStop)
+        }
+    }
+
     @Test
     fun unknownBootCountDisablesTheCheck() {
-        val i = TunnelIntent(store) { -1 }
+        val i = TunnelIntent(store, { -1 })
         i.onConnectRequested()
         assertTrue(i.snapshot.wantConnected)
     }
