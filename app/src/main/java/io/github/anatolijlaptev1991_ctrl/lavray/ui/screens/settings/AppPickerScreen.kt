@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings
 
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -36,17 +37,19 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSkeleton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSwitchRow
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavTextField
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppMode
+import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppRoute
 import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppSelection
 import kotlinx.coroutines.launch
 
 /**
- * The app picker of the per-app tunnel. Apps load off the main thread, icons load only for rows that scroll into
- * view, and a tap saves the choice at once (in order, newest wins, on the app's scope). Chosen packages that are not
- * installed are listed too, so they can be removed. The choice applies the next time the tunnel is built; while a
- * tunnel is up the shell offers the reconnect.
+ * The app picker of the per-app tunnel ([route] null) or of one of the lists that come before the routing rules. Apps
+ * load off the main thread, icons load only for rows that scroll into view, and a tap saves the choice at once (in
+ * order, newest wins, on the app's scope). Chosen packages that are not installed are listed too, so they can be
+ * removed. An app in the other list says so and is not taken: it must leave that list first. The choice applies the
+ * next time the tunnel is built; while a tunnel is up the shell offers the reconnect.
  */
 @Composable
-fun AppPickerScreen() {
+fun AppPickerScreen(route: AppRoute? = null) {
     val env = LocalEnv.current
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<AppEntry>?>(null) }
@@ -78,7 +81,18 @@ fun AppPickerScreen() {
         }
         Unit
     }
-    val chosen = selection.packages
+    val chosen = route?.let(selection::listOf) ?: selection.packages
+    val tap = { pkg: String, label: String ->
+        if (ready) {
+            val next = if (route == null) selection.toggled(pkg) else selection.toggledIn(route, pkg)
+            if (next != null) {
+                save(next)
+            } else {
+                val other = selection.routeOf(pkg) ?: route
+                if (other != null) env.toast.show(env.appContext.getString(R.string.apps_conflict, label, env.appContext.getString(AppRouteUi.title(other))))
+            }
+        }
+    }
     val list = remember(apps, query, showSystem, chosen) {
         apps?.let { AppFilter.visible(AppFilter.withMissing(it, chosen), query, showSystem, chosen) }
     }
@@ -86,15 +100,24 @@ fun AppPickerScreen() {
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             LavText(
-                stringResource(if (selection.mode == AppMode.Except) R.string.apps_except_d else R.string.apps_only_d),
+                stringResource(
+                    when {
+                        route != null -> AppRouteUi.description(route)
+                        selection.mode == AppMode.Except -> R.string.apps_except_d
+                        else -> R.string.apps_only_d
+                    },
+                ),
                 style = Lav.type.small, color = Lav.colors.textSecondary,
             )
+            if (route == AppRoute.ViaVpn && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                LavText(stringResource(R.string.apps_vpn_old), Modifier.padding(top = 4.dp), style = Lav.type.caption, color = Lav.colors.connectingText)
+            }
             LavTextField(
                 query, { query = it }, Modifier.padding(top = 8.dp), placeholder = stringResource(R.string.apps_search), leading = LavIcon.Search,
             )
             LavSwitchRow(stringResource(R.string.apps_system), showSystem, { showSystem = it })
             LavText(stringResource(R.string.apps_count, chosen.size.toString()), style = Lav.type.caption, color = Lav.colors.textTertiary)
-            SkippedAppsNote(selection, Modifier)
+            if (route == null) SkippedAppsNote(selection, Modifier)
         }
         val shown = list
         when {
@@ -103,14 +126,21 @@ fun AppPickerScreen() {
             else -> LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
                 items(shown, key = { it.packageName }, contentType = { "app" }) { app ->
                     val on = app.packageName in chosen
+                    // An app in a list that comes before this choice says so: in the other list it cannot be taken here,
+                    // and in the tunnel picker it shows why ticking it changes nothing.
+                    val elsewhere = selection.routeOf(app.packageName)?.takeIf { it != route }
                     LavListRow(
                         title = app.label,
-                        subtitle = if (app.missing) stringResource(R.string.apps_missing) else app.packageName,
+                        subtitle = when {
+                            app.missing -> stringResource(R.string.apps_missing)
+                            elsewhere != null -> stringResource(AppRouteUi.inList(elsewhere))
+                            else -> app.packageName
+                        },
                         selected = on,
                         modifier = Modifier.fillMaxWidth(),
                         leading = { AppIcon(app.packageName) },
                         trailing = { if (on) LavIconView(LavIcon.Check, Lav.colors.accent, size = 22.dp) },
-                        onClick = { if (ready) save(selection.toggled(app.packageName)) },
+                        onClick = { tap(app.packageName, app.label) },
                     )
                 }
             }

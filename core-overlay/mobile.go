@@ -30,6 +30,10 @@ type Platform interface {
 	// FindOwnerUid вызывает ConnectivityManager.getConnectionOwnerUid (API 29+), -1 если нет.
 	FindOwnerUid(proto int32, srcIP string, srcPort int32, dstIP string, dstPort int32) (int32, error)
 	PackagesForUid(uid int32) string // пакеты через запятую
+	// AppRoutes — списки «Всегда через VPN» и «Всегда напрямую» для этого запуска:
+	// JSON {"proxy":[пакеты],"direct":[пакеты]} (patch_apps.go). Вызывается при каждом
+	// запуске sing-box; "" — списков нет.
+	AppRoutes() string
 	// Монитор сети по умолчанию; listener вызывается при каждой смене.
 	StartNetworkMonitor(l NetworkListener) error
 	CloseNetworkMonitor() error

@@ -7,6 +7,7 @@ import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import io.github.anatolijlaptev1991_ctrl.lavray.ipc.FailureKind
 import lavray.core.mobile.NetworkListener
 import lavray.core.mobile.Platform
@@ -81,6 +82,9 @@ internal class VpnPlatform(
 
     fun tunGeneration(): Int = tun.currentGeneration()
 
+    /** See [TunEstablisher.lockdownStale]: one Binder call, only when some app always goes direct. */
+    fun lockdownStale(): Boolean = establisher.lockdownStale()
+
     fun isTunHeld(): Boolean = tun.isHeld()
 
     override fun protect(fd: Int) {
@@ -104,6 +108,15 @@ internal class VpnPlatform(
     override fun packagesForUid(uid: Int): String = runCatching {
         service.packageManager.getPackagesForUid(uid)?.joinToString(",").orEmpty()
     }.getOrDefault("")
+
+    /** The "always through VPN" and "always direct" lists, asked for at every start of the core's run; "" is none. */
+    override fun appRoutes(): String = try {
+        establisher.coreRoutes()
+    } catch (e: RuntimeException) {
+        // Never into native code. The run goes on without the lists; the interface is still built from the stored choice.
+        Log.w(TAG, "app lists for the core could not be made", e)
+        ""
+    }
 
     @Volatile
     private var currentUnderlying: Network? = null
@@ -140,5 +153,9 @@ internal class VpnPlatform(
     fun close() {
         closeNetworkMonitor()
         releaseTun()
+    }
+
+    private companion object {
+        const val TAG = "LavrayPlatform"
     }
 }

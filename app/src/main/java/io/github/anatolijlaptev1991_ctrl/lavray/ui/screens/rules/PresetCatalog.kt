@@ -17,9 +17,12 @@ data class BuiltinText(val brand: String?, @StringRes val nameRes: Int?, @String
  * descriptions. The core sends a dictionary key as the name of a built-in, which is never shown raw.
  */
 object PresetCatalog {
+    /** The phone's default: LAV Preset RU without the rules for Windows programs (core-overlay/presets). */
+    const val LAV_RU_LINUX = "lav-ru-linux"
     const val LAV_RU = "lav-ru"
 
     private val builtin: Map<String, BuiltinText> = mapOf(
+        LAV_RU_LINUX to BuiltinText("LAV Preset RU Linux", null, R.string.preset_lavrulinux_desc),
         LAV_RU to BuiltinText("LAV Preset RU", null, R.string.preset_lavru_desc),
         "lav-cn" to BuiltinText("LAV Preset CN", null, R.string.preset_lavcn_desc),
         "global" to BuiltinText(null, R.string.preset_global_t, R.string.preset_global_d),
@@ -36,7 +39,7 @@ object PresetCatalog {
         if (p.displayName.startsWith("preset.")) p.id else p.displayName
 
     /**
-     * Built-in presets first in the fixed order (LAV Preset RU on top), then the person's own in the order
+     * Built-in presets first in the fixed order (LAV Preset RU Linux on top), then the person's own in the order
      * the core gave. A built-in the app does not know yet goes after the known ones.
      */
     fun sorted(presets: List<RoutingPreset>): List<RoutingPreset> {
@@ -47,11 +50,12 @@ object PresetCatalog {
     }
 
     /**
-     * The preset in force. The core names it; when it names none (a fresh store), LAV Preset RU is the
-     * default, as on the desktop since 0.9.3, and so is the first preset when that one is missing.
+     * The preset in force. The core names it; when it names none, LAV Preset RU Linux is the default on the phone
+     * (core-overlay/defaults.go), then LAV Preset RU (the desktop's default since 0.9.3), then the first preset.
      */
     fun effectiveActiveId(presets: List<RoutingPreset>, activeId: String): String = when {
         presets.any { it.id == activeId } -> activeId
+        presets.any { it.id == LAV_RU_LINUX } -> LAV_RU_LINUX
         presets.any { it.id == LAV_RU } -> LAV_RU
         else -> presets.firstOrNull()?.id.orEmpty()
     }

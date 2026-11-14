@@ -31,10 +31,14 @@ func (r *androidRunner) Start(ctx context.Context, cfg []byte) error {
 	if cur := tunSettings.Load(); cur != nil {
 		p = *cur
 	}
+	p.Apps = parseAppRoutes(r.h.plat.AppRoutes())
 	patched, rep, err := patchConfig(cfg, p)
 	if err != nil {
 		return err
 	}
+	// Пакеты за uid копятся только в пределах запуска: переустановленное приложение получает
+	// новый uid, а освободившийся uid к следующему запуску может достаться другому.
+	r.h.forgetPackages()
 	r.h.ownerLookup.Store(rep.NeedsOwnerLookup)
 	return r.inner.Start(r.h.boxContext(ctx), patched)
 }

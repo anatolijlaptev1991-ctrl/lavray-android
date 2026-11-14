@@ -173,6 +173,9 @@ prepare() {
   mkdir -p "$COPY/mobile"
   cp "$ROOT"/core-overlay/*.go "$COPY/mobile/"
   cp "$ROOT"/core-overlay/inject/api/*.go "$COPY/internal/api/"
+  # Встроенные наборы только для телефона (LAV Preset RU Linux); имя файла вносит в
+  # BuiltinFiles патч 0002, go:embed берёт весь каталог builtin.
+  cp "$ROOT"/core-overlay/presets/*.json "$COPY/internal/presets/builtin/"
   apply_patches
   (
     cd "$COPY"

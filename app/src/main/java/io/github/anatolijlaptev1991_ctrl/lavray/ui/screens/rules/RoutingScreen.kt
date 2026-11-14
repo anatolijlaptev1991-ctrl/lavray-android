@@ -43,6 +43,7 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavButton
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavEmptyState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavErrorState
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.design.components.LavSkeletonRows
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppRoutesCard
 import kotlinx.coroutines.launch
 
 /**
@@ -104,6 +105,8 @@ private fun ListBody(state: PresetsState, actions: PresetCardActions, model: Pre
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // The lists come before every preset, so they come first here too.
+            item(key = "apps", contentType = 3) { AppRoutesCard() }
             items(state.presets, key = { it.id }, contentType = { if (it.builtin) 0 else 1 }) { p ->
                 PresetCard(p, active = p.id == state.activeId, enabled = !state.busy, actions = actions)
             }

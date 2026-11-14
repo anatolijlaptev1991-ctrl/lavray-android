@@ -11,6 +11,7 @@ package mobile
 // приложение исключено из туннеля, поэтому с sub.use_proxy=false запрос идёт напрямую.
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/anatolijlaptev1991-ctrl/lavray/core/internal/store"
@@ -29,8 +30,20 @@ var androidSettingDefaults = map[string]string{
 	"tun.mtu":       "9000",
 }
 
+// Набор маршрутов по умолчанию на телефоне — LAV Preset RU Linux (core-overlay/presets): тот же
+// LAV Preset RU без правил для программ Windows, которые на телефоне ничего не выбирают.
+const (
+	settingActivePreset  = "routing.active_preset"
+	metaDNSOverride      = "routing.dns_override"
+	androidDefaultPreset = "lav-ru-linux"
+	desktopDefaultPreset = "lav-ru"
+)
+
 // applyAndroidDefaults записывает недостающие значения; заданные не трогает.
 func applyAndroidDefaults(st *store.Store) error {
+	if err := applyDefaultPreset(st); err != nil {
+		return err
+	}
 	for key, value := range androidSettingDefaults {
 		_, set, err := st.GetSetting(key)
 		if err != nil {
@@ -44,4 +57,61 @@ func applyAndroidDefaults(st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// applyDefaultPreset ставит LAV Preset RU Linux, пока набор не выбран явно. Без строки
+// настройки ядро берёт LAV Preset RU (значение по умолчанию рабочего стола), поэтому сюда
+// попадают и новые установки, и прежние, где набор не меняли. Маршруты на телефоне от
+// этого не меняются: правила для программ Windows patch.go и так снимал. Выбор DNS,
+// сделанный для LAV Preset RU, переходит к новому набору, чтобы не пропасть молча.
+// Явно выбранный набор, LAV Preset RU тоже, не трогается.
+func applyDefaultPreset(st *store.Store) error {
+	_, set, err := st.GetSetting(settingActivePreset)
+	if err != nil {
+		return fmt.Errorf("настройка %s: %w", settingActivePreset, err)
+	}
+	if set {
+		return nil
+	}
+	if err := carryDNSChoice(st, desktopDefaultPreset, androidDefaultPreset); err != nil {
+		return err
+	}
+	if err := st.SetSetting(settingActivePreset, strconvQuote(androidDefaultPreset)); err != nil {
+		return fmt.Errorf("настройка %s: %w", settingActivePreset, err)
+	}
+	return nil
+}
+
+// carryDNSChoice копирует выбор DNS набора from в набор to, если у to своего ещё нет.
+// Нечитаемая запись не трогается: её разбор — дело ядра.
+func carryDNSChoice(st *store.Store, from, to string) error {
+	raw, ok, err := st.GetMeta(metaDNSOverride)
+	if err != nil {
+		return fmt.Errorf("meta %s: %w", metaDNSOverride, err)
+	}
+	if !ok {
+		return nil
+	}
+	var choices map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &choices) != nil {
+		return nil
+	}
+	choice, has := choices[from]
+	if _, taken := choices[to]; !has || taken {
+		return nil
+	}
+	choices[to] = choice
+	out, err := json.Marshal(choices)
+	if err != nil {
+		return fmt.Errorf("meta %s: %w", metaDNSOverride, err)
+	}
+	if err := st.SetMeta(metaDNSOverride, string(out)); err != nil {
+		return fmt.Errorf("meta %s: %w", metaDNSOverride, err)
+	}
+	return nil
+}
+
+func strconvQuote(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

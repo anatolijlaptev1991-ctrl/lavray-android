@@ -12,9 +12,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** What the VPN service does with a choice: "only the chosen" with nothing chosen is "all apps", and "all" has no list. */
-fun AppSelection.canonical(): Pair<AppMode, Set<String>> =
-    if (effectiveMode == AppMode.All) AppMode.All to emptySet() else effectiveMode to packages
+/** What the VPN service builds from a choice; two choices with the same value build the same tunnel. */
+data class TunnelChoice(val mode: AppMode, val packages: Set<String>, val viaVpn: Set<String>, val direct: Set<String>)
+
+/**
+ * What the VPN service does with a choice: "only the chosen" with nothing chosen is "all apps", and "all" has no list.
+ * The "always through VPN" and "always direct" lists count in every mode.
+ */
+fun AppSelection.canonical(): TunnelChoice =
+    TunnelChoice(effectiveMode, if (effectiveMode == AppMode.All) emptySet() else packages, viaVpn, direct)
 
 /**
  * Reads and saves the per-app choice for the whole app. Everything goes through one lock, so a read never interleaves

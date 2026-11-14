@@ -14,6 +14,8 @@ package mobile
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -29,7 +31,36 @@ type host struct {
 	// ownerLookup — включён ли поиск владельца соединения (Binder-вызов на
 	// каждое соединение): нужен только правилам package_name и user*.
 	ownerLookup atomic.Bool
+	// packages — пакеты за uid (int32 → []string) в пределах запуска sing-box: без него
+	// каждое соединение стоило бы второго Binder-вызова (getPackagesForUid).
+	packages sync.Map
 }
+
+// packagesFor — пакеты uid: из запомненного или от Kotlin (один раз на uid за запуск).
+func (h *host) packagesFor(uid int32) []string {
+	if v, ok := h.packages.Load(uid); ok {
+		return v.([]string)
+	}
+	var out []string
+	for _, pkg := range strings.Split(h.plat.PackagesForUid(uid), ",") {
+		if pkg = strings.TrimSpace(pkg); pkg != "" {
+			out = append(out, pkg)
+		}
+	}
+	// Пустой ответ для приложения не запоминается: getPackagesForUid мог не успеть увидеть новую
+	// установку. У системных uid (root, сетевой стек) пакетов нет вовсе, и без запоминания каждое
+	// их соединение стоило бы лишнего вызова.
+	if len(out) > 0 || uid < firstApplicationUID {
+		h.packages.Store(uid, out)
+	}
+	return out
+}
+
+// firstApplicationUID — android.os.Process.FIRST_APPLICATION_UID: ниже — системные uid.
+const firstApplicationUID = 10000
+
+// forgetPackages очищает packagesFor перед новым запуском.
+func (h *host) forgetPackages() { h.packages.Clear() }
 
 func newHost(p Platform) *host {
 	return &host{plat: p, hub: newNetHub(p), dns: newDNSRegistry()}

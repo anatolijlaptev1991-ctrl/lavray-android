@@ -140,7 +140,7 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
         platform = VpnPlatform(
             this,
             cm,
-            TunEstablisher(this, getString(R.string.app_name), openApp) { prefs.appSelection },
+            TunEstablisher(this, getString(R.string.app_name), openApp, appSelection = { prefs.appSelection }),
             platformEvents,
         )
         core = CoreHost(this, platform)
@@ -482,6 +482,36 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
     private fun publishNow(next: VpnStatus) {
         binder.broadcast(next)
         fg.offer(NotificationModel(next.state, next.error, busy = busy()))
+        checkLockdown(next.state)
+    }
+
+    /** The interface whose app list was checked against the lockdown state, and when a rebuild was last asked for. */
+    private var lockdownCheckedFor = -1
+    private var lockdownRebuildAtMs = Long.MIN_VALUE / 2
+    private var lockdownRebuilds = 0
+
+    /**
+     * When an interface is up: if it was built for another lockdown state than the real one ([VpnPlatform.lockdownStale],
+     * typically the first interface of an Always-on start under "Block connections without VPN"), rebuild it once, as
+     * "Reconnect" does. Under lockdown the rebuild cannot let traffic out past the tunnel. At most one per [LOCKDOWN_REBUILD_GAP_MS] and [LOCKDOWN_REBUILDS_MAX] for the life of the service: a state that keeps
+     * disagreeing is not chased for ever.
+     */
+    @Synchronized
+    private fun checkLockdown(state: VpnState) {
+        if (state != VpnState.CONNECTED) return
+        val generation = platform.tunGeneration()
+        if (generation == lockdownCheckedFor) return
+        if (!platform.lockdownStale()) {
+            lockdownCheckedFor = generation
+            return
+        }
+        // Not marked as checked: a rebuild that another command overtook is asked for again, not before the gap is over.
+        val now = SystemClock.elapsedRealtime()
+        if (now - lockdownRebuildAtMs < LOCKDOWN_REBUILD_GAP_MS || lockdownRebuilds >= LOCKDOWN_REBUILDS_MAX) return
+        lockdownRebuildAtMs = now
+        lockdownRebuilds++
+        Log.i(TAG, "the interface was built for another lockdown state; rebuilding it once")
+        userCommands.reconnect(0)
     }
 
     // ---- attempts and the core
@@ -586,6 +616,10 @@ class LavrayVpnService : VpnService(), VpnBinderHost, SessionEnv {
 
     private companion object {
         const val TAG = "LavrayVpn"
+
+        /** Two automatic rebuilds for the lockdown state never come closer than this. */
+        const val LOCKDOWN_REBUILD_GAP_MS = 30_000L
+        const val LOCKDOWN_REBUILDS_MAX = 3
         val live = AtomicInteger(0)
         const val ATTEMPT_TIMEOUT_MS = 90_000L
         const val DISCONNECT_TIMEOUT_MS = 15_000L

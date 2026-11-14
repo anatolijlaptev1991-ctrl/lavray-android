@@ -23,7 +23,8 @@ package mobile
 //   - убирает route.default_interface и route.default_mark: имя интерфейса
 //     рабочего стола и метка SO_MARK на телефоне недействительны;
 //   - не трогает route.auto_detect_interface (см. platform.go: с платформой он
-//     включает вызов Protect, а не привязку к интерфейсу).
+//     включает вызов Protect, а не привязку к интерфейсу);
+//   - добавляет правила списков «Всегда через VPN» и «Всегда напрямую» (patch_apps.go).
 //
 // Конфиг без tun-inbound после правок означает режим «системный прокси», а
 // на телефоне он невозможен: возвращается errNoTun.
@@ -45,6 +46,7 @@ var errNoTun = errors.New("android: в конфиге нет tun-inbound (под
 type tunParams struct {
 	Stack string
 	MTU   int
+	Apps  appRoutes // списки приложений (Platform.AppRoutes), пустые — правил нет
 }
 
 // patchReport — что именно сделал patchConfig (для журнала и тестов).
@@ -59,6 +61,8 @@ type patchReport struct {
 	IPv4OnlyDNS        bool     // у DNS поставлена стратегия ipv4_only (в туннеле нет IPv6)
 	IPv4OnlyDNSKept    string   // dns.strategy уже была задана и осталась (patch_ipv6.go)
 	IPv4OnlyDNSSkipped bool     // нет route.default_domain_resolver: ipv4_only не ставилась
+	AppProxy           int      // пакетов в правиле «Всегда через VPN» (0 — правила нет)
+	AppDirect          int      // пакетов в правиле «Всегда напрямую» (0 — правила нет)
 }
 
 // processKeys — условия, привязанные к процессу рабочего стола.
@@ -94,6 +98,7 @@ func patchConfig(cfg []byte, p tunParams) ([]byte, patchReport, error) {
 	patchRoute(root, &rep)
 	patchSniff(root) // patch_sniff.go: потолок тайм-аута sniff
 	patchDNS(root, &rep)
+	patchAppRoutes(root, p.Apps, &rep)
 	patchIPv6Off(root, &rep)
 	patchExperimental(root, &rep)
 	out, err := encodeObject(root)

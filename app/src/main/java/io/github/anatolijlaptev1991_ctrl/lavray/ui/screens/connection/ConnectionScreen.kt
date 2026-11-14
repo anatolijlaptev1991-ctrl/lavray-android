@@ -244,6 +244,7 @@ private class Shown(
 /** Route preset name as on the desktop: brand names are not translated, built-in generic ones come from the dictionary. */
 @Composable
 internal fun presetTitle(p: PresetSummary): String = when (p.id) {
+    "lav-ru-linux" -> "LAV Preset RU Linux"
     "lav-ru" -> "LAV Preset RU"
     "lav-cn" -> "LAV Preset CN"
     "global" -> stringResource(R.string.preset_global_t)

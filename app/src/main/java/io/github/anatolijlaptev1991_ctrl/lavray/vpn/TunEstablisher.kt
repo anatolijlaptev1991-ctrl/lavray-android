@@ -88,9 +88,27 @@ internal class TunEstablisher(
     private val configureIntent: PendingIntent?,
     private val uidOf: (pkg: String) -> Int? = { pkg -> InstalledApps.uidOf(service.packageManager, pkg) },
     private val appSelection: () -> AppSelection = { AppSelection() },
+    /** Whether "Block connections without VPN" is on: an app kept out of the tunnel then has no network at all. */
+    private val lockdown: () -> Boolean = { Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && service.isLockdownEnabled },
 ) {
     /** Whether the interface built last got its first app name twice; only [establish] touches it, one call at a time. */
     @Volatile private var namedTwice = false
+
+    /**
+     * The choice and the lockdown state the core's lists of this run were made from ([coreRoutes]); [specOf] builds the
+     * interface from the same one. Read twice, a change in between (lockdown switched on, a list edited) could keep a
+     * direct app in the tunnel with no core rule to send it direct, and the routing preset would send it to the server.
+     */
+    @Volatile private var runChoice: RunChoice? = null
+
+    private data class RunChoice(val selection: AppSelection, val lockdown: Boolean)
+
+    /**
+     * Read once per run. A lockdown state that cannot be read counts as on: direct apps then stay in the tunnel and the
+     * core sends them direct, which works with lockdown and without it; the other guess would cut them off.
+     */
+    private fun readChoice(): RunChoice =
+        RunChoice(appSelection(), runCatching { lockdown() }.getOrDefault(true))
 
     /**
      * Opens the interface [spec] describes. The caller keeps the descriptor open for as long as the tunnel
@@ -126,12 +144,36 @@ internal class TunEstablisher(
      * What [establish] would build for [options] right now: the per-app choice and which of the chosen apps are installed
      * are read at this moment. Throws [NoAllowedAppsException] when "only the selected apps" has none installed.
      */
-    fun specOf(options: TunOptions): TunSpec = TunSpec.of(options, rulesFor(options), uidOf)
+    fun specOf(options: TunOptions): TunSpec = TunSpec.of(options, rulesFor(options, runChoice ?: readChoice()), uidOf)
 
-    private fun rulesFor(options: TunOptions): AppRules = try {
-        AppRules.from(appSelection().applyTo(options), service.packageName)
+    /**
+     * The "always through VPN" and "always direct" lists for this run of the core (Platform.AppRoutes), read at this
+     * moment like the app list of the interface ([specOf]), so both follow the same choice and the same lockdown state.
+     * Owners of connections can be asked for since Android 10 only.
+     */
+    fun coreRoutes(): String {
+        val choice = readChoice()
+        runChoice = choice
+        return choice.selection.coreRoutesJson(choice.lockdown, canFindOwner = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+    }
+
+    /**
+     * Whether the interface of this run was built for a lockdown state that is not the real one, and it matters (some app
+     * always goes direct). Android tells an app about lockdown only while that app's VPN is up: before the first interface
+     * of a run started under lockdown it says "off", so "always direct" apps were kept outside, where lockdown cuts them
+     * off. Asked once the interface is up; true means one rebuild puts them right.
+     */
+    fun lockdownStale(): Boolean {
+        val choice = runChoice ?: return false
+        if (choice.selection.direct.isEmpty()) return false
+        val now = runCatching { lockdown() }.getOrNull() ?: return false
+        return now != choice.lockdown
+    }
+
+    private fun rulesFor(options: TunOptions, choice: RunChoice): AppRules = try {
+        AppRules.from(choice.selection.applyTo(options, choice.lockdown), service.packageName)
     } catch (_: IllegalArgumentException) {
-        // The allow-list holds only this app: nothing else would be tunnelled.
+        // The allow-list holds only this app (or only apps that always go direct): nothing else would be tunnelled.
         throw NoAllowedAppsException()
     }
 

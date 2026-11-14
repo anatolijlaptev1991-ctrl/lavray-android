@@ -18,7 +18,6 @@ import (
 	"context"
 	"net/netip"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/sagernet/sing-box/adapter"
@@ -133,13 +132,7 @@ func (p *boxPlatform) FindConnectionOwner(req *adapter.FindConnectionOwnerReques
 	if uid < 0 {
 		return nil, process.ErrNotFound
 	}
-	owner := &adapter.ConnectionOwner{UserId: uid}
-	for _, pkg := range strings.Split(p.h.plat.PackagesForUid(uid), ",") {
-		if pkg = strings.TrimSpace(pkg); pkg != "" {
-			owner.AndroidPackageNames = append(owner.AndroidPackageNames, pkg)
-		}
-	}
-	return owner, nil
+	return &adapter.ConnectionOwner{UserId: uid, AndroidPackageNames: p.h.packagesFor(uid)}, nil
 }
 
 func (p *boxPlatform) UsePlatformNotification() bool                { return false }

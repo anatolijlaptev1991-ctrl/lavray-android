@@ -71,7 +71,10 @@ private fun ExcludeAddresses(settings: SettingsState, model: SettingsModel) {
     ) { model.setString(SettingKeys.TUN_EXCLUDE_ADDRESSES, it) }
 }
 
-/** All apps / only chosen / all except chosen, with the picker one tap away. The choice lives in the :vpn process. */
+/**
+ * All apps / only chosen / all except chosen, with the picker one tap away, then the "always through VPN" and "always
+ * direct" lists that come before both this choice and the routing rules. The choice lives in the :vpn process.
+ */
 @Composable
 private fun PerAppBlock() {
     val env = LocalEnv.current
@@ -125,4 +128,9 @@ private fun PerAppBlock() {
     if (current.mode == AppMode.Only && current.packages.isEmpty()) {
         LavBanner(StatusTone.Connecting, stringResource(R.string.apps_only_empty), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
+    AppRouteRows(selection)
+    LavText(
+        stringResource(R.string.apps_routes_hint),
+        Modifier.padding(horizontal = 16.dp), style = Lav.type.caption, color = Lav.colors.textTertiary,
+    )
 }

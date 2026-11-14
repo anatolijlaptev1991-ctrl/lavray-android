@@ -149,6 +149,7 @@ func (fakePlatform) FindOwnerUid(int32, string, int32, string, int32) (int32, er
 	return -1, nil
 }
 func (fakePlatform) PackagesForUid(int32) string               { return "" }
+func (fakePlatform) AppRoutes() string                         { return "" }
 func (fakePlatform) StartNetworkMonitor(NetworkListener) error { return nil }
 func (fakePlatform) CloseNetworkMonitor() error                { return nil }
 func (fakePlatform) Interfaces() (string, error)               { return "[]", nil }

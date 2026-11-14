@@ -27,14 +27,15 @@ class PresetLogicTest {
 
     private val all = listOf(
         custom("mine"), builtin("all-direct"), builtin("global"), builtin("lav-cn"), builtin("lav-ru"), builtin("all-proxy"), custom("other"),
+        builtin("lav-ru-linux"),
     )
 
     // ---- catalog
 
     @Test
-    fun builtinPresetsComeFirstInTheFixedOrderWithLavRuOnTop() {
+    fun builtinPresetsComeFirstInTheFixedOrderWithTheLinuxPresetOnTop() {
         val ids = PresetCatalog.sorted(all).map { it.id }
-        assertEquals(listOf("lav-ru", "lav-cn", "global", "all-proxy", "all-direct", "custom:mine", "custom:other"), ids)
+        assertEquals(listOf("lav-ru-linux", "lav-ru", "lav-cn", "global", "all-proxy", "all-direct", "custom:mine", "custom:other"), ids)
     }
 
     @Test
@@ -44,10 +45,13 @@ class PresetLogicTest {
     }
 
     @Test
-    fun lavRuIsActiveWhenTheCoreNamesNoPreset() {
+    fun theLinuxPresetIsActiveWhenTheCoreNamesNoPreset() {
         val sorted = PresetCatalog.sorted(all)
-        assertEquals("lav-ru", PresetCatalog.effectiveActiveId(sorted, ""))
-        assertEquals("lav-ru", PresetCatalog.effectiveActiveId(sorted, "gone"))
+        assertEquals("lav-ru-linux", PresetCatalog.effectiveActiveId(sorted, ""))
+        assertEquals("lav-ru-linux", PresetCatalog.effectiveActiveId(sorted, "gone"))
+        assertEquals("lav-ru", PresetCatalog.effectiveActiveId(sorted, "lav-ru"))
+        // A core without the Linux preset (an older one) falls back to LAV Preset RU.
+        assertEquals("lav-ru", PresetCatalog.effectiveActiveId(sorted.filter { it.id != "lav-ru-linux" }, ""))
         assertEquals("custom:mine", PresetCatalog.effectiveActiveId(sorted, "custom:mine"))
         assertEquals("global", PresetCatalog.effectiveActiveId(listOf(builtin("global")), ""))
         assertEquals("", PresetCatalog.effectiveActiveId(emptyList(), ""))
@@ -69,6 +73,7 @@ class PresetLogicTest {
         assertEquals("future", PresetCatalog.fallbackName(builtin("future")))
         assertEquals("My set", PresetCatalog.fallbackName(custom("m", "My set")))
         assertTrue(PresetCatalog.textOf("lav-ru")?.brand == "LAV Preset RU")
+        assertTrue(PresetCatalog.textOf("lav-ru-linux")?.brand == "LAV Preset RU Linux")
         assertNull(PresetCatalog.textOf("custom:mine"))
     }
 
@@ -150,8 +155,8 @@ class PresetLogicTest {
     fun loadingSortsMarksTheDefaultActiveAndClosesAnEditorOfADeletedPreset() {
         var s = PresetsReducer.reduce(PresetsState(openId = "custom:gone"), PresetsAction.Loaded(all, ""))
         assertFalse(s.loading)
-        assertEquals("lav-ru", s.presets.first().id)
-        assertEquals("lav-ru", s.activeId)
+        assertEquals("lav-ru-linux", s.presets.first().id)
+        assertEquals("lav-ru-linux", s.activeId)
         assertNull(s.openId)
         s = PresetsReducer.reduce(s, PresetsAction.Open("custom:mine"))
         s = PresetsReducer.reduce(s, PresetsAction.Loaded(all, "custom:mine"))

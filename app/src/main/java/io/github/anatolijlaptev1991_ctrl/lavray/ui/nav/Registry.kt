@@ -18,10 +18,12 @@ import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.rules.RoutingScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.servers.ServersScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AboutScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppPickerScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.AppRouteUi
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.LicensesScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.SettingsScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.settings.UpdatesScreen
 import io.github.anatolijlaptev1991_ctrl.lavray.ui.screens.subscriptions.SubscriptionsScreen
+import io.github.anatolijlaptev1991_ctrl.lavray.vpn.AppRoute
 
 /** One destination: a tab of a section or a pushed full-screen page. [content] fills the area under the header. */
 @Immutable
@@ -93,6 +95,8 @@ object AppRegistry {
         ScreenSpec("about", R.string.sec_about, null) { AboutScreen() },
         ScreenSpec("licenses", R.string.lic_title, null) { LicensesScreen() },
         ScreenSpec("apps", R.string.apps_title, null) { AppPickerScreen() },
+        ScreenSpec(AppRouteUi.SCREEN_VPN, R.string.apps_vpn_title, null) { AppPickerScreen(AppRoute.ViaVpn) },
+        ScreenSpec(AppRouteUi.SCREEN_DIRECT, R.string.apps_direct_title, null) { AppPickerScreen(AppRoute.Direct) },
         ScreenSpec("scan", R.string.imp_tab_qr, null) { ScanScreen() },
     )
 
