@@ -2,10 +2,12 @@
 
 Обновлено: 2026-11-14.
 
-## Задача 2026-11-14 (2): ядро в репозитории и выпуск 0.9.5 (в работе)
+## Задача 2026-11-14 (2): ядро в репозитории и выпуск 0.9.5 (сделано: a0f7068, 462af69, тег v0.9.5)
 - Слова владельца: «вынеси всё таки прям в репозиторий с андройд приложением весь код а не только визульщину, идея с единым язром была переусложненной … потом выпускай».
 - Сделано локально: ядро из lavray v0.9.3 (git archive, без cmd/, headless, mcp, conformance, buildtags) в core/, модуль github.com/anatolijlaptev1991-ctrl/lavray-android/core (go_package в lavray.pb.go пересобран с длинами), core-overlay -> core/mobile, inject/api -> core/internal/api, патчи 0001/0002 внесены в код, libc-android -> scripts/libc-android, словари -> tools/i18n/dictionaries, proto -> core/proto, пресеты: builtin единственная копия, исходник lav-ru.source.json в testdata. Подмодуль и .gitmodules удалены, CI без submodules. Версия 0.9.5 (versionName, baseVersionCode 905, core/internal/version с тестом против build.gradle.kts). Заметки docs/release-notes/v0.9.5.md (размеры заполнить после выпуска).
-- Дальше: полный go test, AAR, гейт, эмулятор, коммит, push, CI, тег v0.9.5, проверка файлов выпуска, размеры в заметки.
+- Выпуск: CI на 462af69 зелёный (первый полный go test ядра на Linux), тег `v0.9.5` аннотированный, автор noreply. Файлы: arm64-v8a 16 233 972, armeabi-v7a 16 705 020, x86_64 17 294 824 байт (+24–28 КБ к 0.9.4). Проверено по скачанным файлам: SHA256SUMS, сертификат и отпечаток fe058a98…fbb3, versionCode 9052/9051/9053, zipalign -P 16. Размеры внесены в заметки, README ×5 и MEASUREMENTS §13, тело выпуска обновлено.
+- Удалено: 8 настольных тестов api (путь через локальный mixed-прокси), пакеты cmd/, headless, mcp, conformance, buildtags. TestStartStopLifecycle падает только на Windows (chmod unix-сокета).
+- Дальше: проверка на реальном телефоне (владелец, PHONE-CHECKLIST шаги 29–33).
 
 ## Задача 2026-11-14: пресет Linux и списки приложений (сделано: 620eb97, a0fb152)
 - Просьба владельца: пресет для Linux по умолчанию (LAV Preset RU без приложений Windows); списки «Всегда через VPN» и «Всегда напрямую» с приоритетом над сетевыми настройками, одно приложение только в одном списке; следить за производительностью.

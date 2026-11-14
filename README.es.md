@@ -47,9 +47,9 @@ Los APK están en la página de [Releases](https://github.com/anatolijlaptev1991
 
 | Archivo | Para | Tamaño |
 |---|---|---|
-| `LAVRay-<versión>-arm64-v8a.apk` | casi todos los móviles y tabletas actuales | 16,21 MB |
-| `LAVRay-<versión>-armeabi-v7a.apk` | dispositivos antiguos de 32 bits | 16,68 MB |
-| `LAVRay-<versión>-x86_64.apk` | emuladores y Chromebooks | 17,27 MB |
+| `LAVRay-<versión>-arm64-v8a.apk` | casi todos los móviles y tabletas actuales | 16,23 MB |
+| `LAVRay-<versión>-armeabi-v7a.apk` | dispositivos antiguos de 32 bits | 16,71 MB |
+| `LAVRay-<versión>-x86_64.apk` | emuladores y Chromebooks | 17,29 MB |
 | `SHA256SUMS` | sumas de verificación | — |
 
 Si dudas, elige `arm64-v8a`. Los tamaños proceden de [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (en ruso).
@@ -140,14 +140,14 @@ Todas las cifras proceden de [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (en ru
 
 | Medida | Valor (emulador) |
 |---|---|
-| Tamaño del APK: arm64-v8a / armeabi-v7a / x86_64 | 16,21 / 16,68 / 17,27 MB (de los artefactos de compilación, no del emulador; en 0.9.3 eran 20,65 / 21,24 / 21,97) |
+| Tamaño del APK: arm64-v8a / armeabi-v7a / x86_64 | 16,23 / 16,71 / 17,29 MB (de los artefactos de compilación, no del emulador; en 0.9.4 eran 16,21 / 16,68 / 17,27 y en 0.9.3, 20,65 / 21,24 / 21,97) |
 | Arranque en frío de la interfaz, mediana | unos 1,26 s (1259,5 ms, 16 arranques) |
 | Memoria del proceso `:vpn` en reposo (conectado, pantalla apagada) | unos 63 MB de PSS (en 0.9.3 eran unos 67) |
 | Wakelocks, alarmas y tareas en reposo | ninguno |
 | De pulsar «Conectar» a la primera respuesta por el túnel, mediana | 844 ms (servidor de prueba local) |
 | MTU 9000 frente a 1500, caudal por el túnel | 4,1 veces más rápido de bajada y 2,4 de subida (banco de pruebas dentro del emulador, no una red real) |
 
-El tamaño y la memoria se midieron para 0.9.4; las demás filas se midieron para 0.9.3 y no se repitieron tras los cambios de 0.9.4. No medido: consumo de batería, velocidad en un móvil real, ejecución en arm64 y armeabi-v7a.
+El tamaño del APK se midió para 0.9.5 y la memoria para 0.9.4; las demás filas se midieron para 0.9.3 y no se han repetido desde entonces. No medido: consumo de batería, velocidad en un móvil real, ejecución en arm64 y armeabi-v7a.
 
 ---
 

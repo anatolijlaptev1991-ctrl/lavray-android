@@ -47,9 +47,9 @@ APKs are on the [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-and
 
 | File | For | File size |
 |---|---|---|
-| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 16.21 MB |
-| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 16.68 MB |
-| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 17.27 MB |
+| `LAVRay-<version>-arm64-v8a.apk` | nearly all modern phones and tablets | 16.23 MB |
+| `LAVRay-<version>-armeabi-v7a.apk` | old 32-bit devices | 16.71 MB |
+| `LAVRay-<version>-x86_64.apk` | emulators and Chromebooks | 17.29 MB |
 | `SHA256SUMS` | checksums | — |
 
 If you are not sure, take `arm64-v8a`. Sizes are from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian), section 10; the file size on the release page may differ by a fraction of a megabyte.
@@ -140,14 +140,14 @@ All numbers come from [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russian) Sta
 
 | Metric | Value (emulator) |
 |---|---|
-| APK size: arm64-v8a / armeabi-v7a / x86_64 | 16.21 / 16.68 / 17.27 MB (from build artifacts, not from the emulator; 0.9.3 was 20.65 / 21.24 / 21.97) |
+| APK size: arm64-v8a / armeabi-v7a / x86_64 | 16.23 / 16.71 / 17.29 MB (from build artifacts, not from the emulator; 0.9.4 was 16.21 / 16.68 / 17.27, 0.9.3 was 20.65 / 21.24 / 21.97) |
 | UI cold start, median | about 1.26 s (1259.5 ms, 16 runs) |
 | `:vpn` process memory when idle (connected, screen off) | about 63 MB PSS (0.9.3 was about 67) |
 | Wakelocks, alarms and jobs when idle | none |
 | "Connect" tap to first reply through the tunnel, median | 844 ms (local test server) |
 | MTU 9000 vs 1500, tunnel throughput | 4.1x faster down, 2.4x faster up (test bench inside the emulator, not a real network) |
 
-Size and memory were measured for 0.9.4; the other rows were measured for 0.9.3 and not re-measured after the 0.9.4 changes. Not measured: battery drain, speed on a real phone, running on arm64 and armeabi-v7a.
+APK size was measured for 0.9.5 and memory for 0.9.4; the other rows were measured for 0.9.3 and have not been re-measured since. Not measured: battery drain, speed on a real phone, running on arm64 and armeabi-v7a.
 
 ---
 

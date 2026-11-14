@@ -47,9 +47,9 @@ Die APKs liegen auf der Seite [Releases](https://github.com/anatolijlaptev1991-c
 
 | Datei | Wofür | Dateigröße |
 |---|---|---|
-| `LAVRay-<Version>-arm64-v8a.apk` | fast alle aktuellen Smartphones und Tablets | 16,21 MB |
-| `LAVRay-<Version>-armeabi-v7a.apk` | alte 32-Bit-Geräte | 16,68 MB |
-| `LAVRay-<Version>-x86_64.apk` | Emulatoren und Chromebooks | 17,27 MB |
+| `LAVRay-<Version>-arm64-v8a.apk` | fast alle aktuellen Smartphones und Tablets | 16,23 MB |
+| `LAVRay-<Version>-armeabi-v7a.apk` | alte 32-Bit-Geräte | 16,71 MB |
+| `LAVRay-<Version>-x86_64.apk` | Emulatoren und Chromebooks | 17,29 MB |
 | `SHA256SUMS` | Prüfsummen | — |
 
 Wenn du unsicher bist, nimm `arm64-v8a`. Die Größen stammen aus [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russisch).
@@ -140,14 +140,14 @@ Alle Zahlen stammen aus [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) (Russisch) 
 
 | Messgröße | Wert (Emulator) |
 |---|---|
-| APK-Größe: arm64-v8a / armeabi-v7a / x86_64 | 16,21 / 16,68 / 17,27 MB (aus den Build-Artefakten, nicht vom Emulator; bei 0.9.3 waren es 20,65 / 21,24 / 21,97) |
+| APK-Größe: arm64-v8a / armeabi-v7a / x86_64 | 16,23 / 16,71 / 17,29 MB (aus den Build-Artefakten, nicht vom Emulator; bei 0.9.4 waren es 16,21 / 16,68 / 17,27, bei 0.9.3 20,65 / 21,24 / 21,97) |
 | Kaltstart der Oberfläche, Median | etwa 1,26 s (1259,5 ms, 16 Starts) |
 | Speicher des Prozesses `:vpn` im Leerlauf (verbunden, Bildschirm aus) | etwa 63 MB PSS (bei 0.9.3 etwa 67) |
 | Wakelocks, Alarme und Jobs im Leerlauf | keine |
 | „Verbinden“-Tipp bis zur ersten Antwort durch den Tunnel, Median | 844 ms (lokaler Testserver) |
 | MTU 9000 gegenüber 1500, Durchsatz durch den Tunnel | 4,1-mal schneller im Download, 2,4-mal im Upload (Teststand im Emulator, kein echtes Netz) |
 
-Größe und Speicher wurden für 0.9.4 gemessen; die übrigen Zeilen wurden für 0.9.3 gemessen und nach den Änderungen von 0.9.4 nicht neu gemessen. Nicht gemessen: Akkuverbrauch, Geschwindigkeit auf einem echten Smartphone, Betrieb auf arm64 und armeabi-v7a.
+Die APK-Größe wurde für 0.9.5 gemessen, der Speicher für 0.9.4; die übrigen Zeilen wurden für 0.9.3 gemessen und seitdem nicht neu gemessen. Nicht gemessen: Akkuverbrauch, Geschwindigkeit auf einem echten Smartphone, Betrieb auf arm64 und armeabi-v7a.
 
 ---
 
