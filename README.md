@@ -17,7 +17,7 @@
 
 *Снимки сделаны на эмуляторе, интерфейс на английском.*
 
-> **Статус: версия 0.9.4. Проверена на эмуляторе Android 16 (x86_64), на реальном телефоне её проверяет владелец.** Версия 0.9.4 вышла после полного аудита: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md). Чек-лист для проверки на телефоне — [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md).
+> **Статус: версия 0.9.5. Проверена на эмуляторе Android 16 (x86_64), на реальном телефоне её проверяет владелец.** В ней набор LAV Preset RU Linux по умолчанию, списки «Всегда через VPN» и «Всегда напрямую», а ядро теперь в этом репозитории ([заметки к выпуску](docs/release-notes/v0.9.5.md)). Версия 0.9.4 вышла после полного аудита: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md). Чек-лист для проверки на телефоне — [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md).
 
 ## Возможности
 
@@ -41,7 +41,7 @@
 
 ## Скачать
 
-APK лежат на странице [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases), последний выпуск: [v0.9.4](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.4). Для каждой архитектуры свой файл:
+APK лежат на странице [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases), последний выпуск: [v0.9.5](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.5). Для каждой архитектуры свой файл:
 
 | Файл | Для чего | Размер файла |
 |---|---|---|
@@ -171,10 +171,10 @@ Get-FileHash .\LAVRay-<версия>-arm64-v8a.apk -Algorithm SHA256   # Windows
 
 ## Сборка из исходников
 
-Нужны JDK 21, Android SDK (платформа 36) с NDK 28.2.13676358, Go (версия из `third_party/lavray/core/go.mod`) и Bash.
+Нужны JDK 21, Android SDK (платформа 36) с NDK 28.2.13676358, Go (версия из `core/go.mod`) и Bash.
 
 ```bash
-git clone --recurse-submodules https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
+git clone https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
 cd lavray-android
 bash scripts/build-core.sh        # ядро Go -> app/libs/lavray-core.aar (gomobile bind)
 ./gradlew assembleRelease         # APK в app/build/outputs/apk/release/
@@ -188,6 +188,6 @@ bash scripts/build-core.sh        # ядро Go -> app/libs/lavray-core.aar (gom
 
 ## Исходный код и лицензия
 
-Код приложения (Kotlin, Compose) и сборка ядра — в этом репозитории. Ядро Go и интерфейс настольной версии — в [lavray](https://github.com/anatolijlaptev1991-ctrl/lavray), подключены субмодулем `third_party/lavray` (тег v0.9.3).
+Весь код — в этом репозитории: приложение (Kotlin, Compose) в `app/`, ядро на Go в `core/`, его сборка в `scripts/build-core.sh`. Ядро ответвлено от ядра настольной [LAVRay](https://github.com/anatolijlaptev1991-ctrl/lavray) 0.9.3 и с версии 0.9.5 развивается здесь отдельно, только для Android.
 
 Лицензия [GPL-3.0-only](LICENSE). LAVRay основан на nekoray/NekoBox (GPL-3.0) и sing-box (GPL-3.0 или новее).

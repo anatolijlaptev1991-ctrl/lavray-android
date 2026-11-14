@@ -2,7 +2,12 @@
 
 Обновлено: 2026-11-14.
 
-## Задача 2026-11-14: пресет Linux и списки приложений (в работе)
+## Задача 2026-11-14 (2): ядро в репозитории и выпуск 0.9.5 (в работе)
+- Слова владельца: «вынеси всё таки прям в репозиторий с андройд приложением весь код а не только визульщину, идея с единым язром была переусложненной … потом выпускай».
+- Сделано локально: ядро из lavray v0.9.3 (git archive, без cmd/, headless, mcp, conformance, buildtags) в core/, модуль github.com/anatolijlaptev1991-ctrl/lavray-android/core (go_package в lavray.pb.go пересобран с длинами), core-overlay -> core/mobile, inject/api -> core/internal/api, патчи 0001/0002 внесены в код, libc-android -> scripts/libc-android, словари -> tools/i18n/dictionaries, proto -> core/proto, пресеты: builtin единственная копия, исходник lav-ru.source.json в testdata. Подмодуль и .gitmodules удалены, CI без submodules. Версия 0.9.5 (versionName, baseVersionCode 905, core/internal/version с тестом против build.gradle.kts). Заметки docs/release-notes/v0.9.5.md (размеры заполнить после выпуска).
+- Дальше: полный go test, AAR, гейт, эмулятор, коммит, push, CI, тег v0.9.5, проверка файлов выпуска, размеры в заметки.
+
+## Задача 2026-11-14: пресет Linux и списки приложений (сделано: 620eb97, a0fb152)
 - Просьба владельца: пресет для Linux по умолчанию (LAV Preset RU без приложений Windows); списки «Всегда через VPN» и «Всегда напрямую» с приоритетом над сетевыми настройками, одно приложение только в одном списке; следить за производительностью.
 - Пресет: `core-overlay/presets/lav-ru-linux.json` (генератор `tools/presets/lav-ru-linux.mjs`), копия в builtin в build-core.sh, патч `0002-builtin-lav-ru-linux.patch` (BuiltinFiles), по умолчанию через `core-overlay/defaults.go` (applyDefaultPreset: только без явного выбора, выбор DNS lav-ru переносится). Общий код lavray не тронут.
 - Списки: `AppSelection.viaVpn/direct` (тот же AIDL и prefs), `applyTo(options, lockdown)`: «напрямую» исключается из туннеля (дёшево), при «Блокировать без VPN» остаётся в туннеле и идёт direct правилом ядра. «Через VPN» — правило ядра `package_name` (logical and, кроме ip_is_private) + DNS dns-remote, сразу за sniff/hijack-dns (`core-overlay/patch_apps.go`). Platform.AppRoutes() — новый метод моста. Кэш пакетов за uid на запуск (host.packagesFor).

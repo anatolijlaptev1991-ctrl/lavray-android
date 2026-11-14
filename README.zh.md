@@ -19,7 +19,7 @@
 
 *截图来自模拟器，界面语言为英文。*
 
-> **状态：0.9.4 版。已在 Android 16 模拟器（x86_64）上检查，真机由所有者测试。** 本版本发布于一次全面审计之后：[docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md)（俄语）。真机测试清单见 [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)（俄语）。
+> **状态：0.9.5 版。已在 Android 16 模拟器（x86_64）上检查，真机由所有者测试。** 新内容：默认使用 LAV Preset RU Linux，新增“始终走 VPN”和“始终直连”列表，内核现在位于本仓库中（[发布说明](docs/release-notes/v0.9.5.md)，俄语）。0.9.4 版发布于一次全面审计之后：[docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md)（俄语）。真机测试清单见 [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md)（俄语）。
 
 ## 功能
 
@@ -43,7 +43,7 @@
 
 ## 下载
 
-APK 位于 [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) 页面，最新版本：[v0.9.4](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.4)。每种 CPU 架构对应一个文件：
+APK 位于 [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases) 页面，最新版本：[v0.9.5](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.5)。每种 CPU 架构对应一个文件：
 
 | 文件 | 适用设备 | 文件大小 |
 |---|---|---|
@@ -173,10 +173,10 @@ Get-FileHash .\LAVRay-<版本>-arm64-v8a.apk -Algorithm SHA256   # Windows：与
 
 ## 从源码构建
 
-需要 JDK 21、带 NDK 28.2.13676358 的 Android SDK（平台 36）、Go（版本见 `third_party/lavray/core/go.mod`）和 Bash。
+需要 JDK 21、带 NDK 28.2.13676358 的 Android SDK（平台 36）、Go（版本见 `core/go.mod`）和 Bash。
 
 ```bash
-git clone --recurse-submodules https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
+git clone https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
 cd lavray-android
 bash scripts/build-core.sh        # Go 内核 -> app/libs/lavray-core.aar（gomobile bind）
 ./gradlew assembleRelease         # APK 位于 app/build/outputs/apk/release/
@@ -190,6 +190,6 @@ bash scripts/build-core.sh        # Go 内核 -> app/libs/lavray-core.aar（gomo
 
 ## 源代码与许可证
 
-应用代码（Kotlin、Compose）和内核构建脚本在本仓库中。Go 内核和桌面版界面位于 [lavray](https://github.com/anatolijlaptev1991-ctrl/lavray)，以子模块 `third_party/lavray` 引入（标签 v0.9.3）。
+全部代码都在本仓库中：应用（Kotlin、Compose）在 `app/`，Go 内核在 `core/`，其构建脚本是 `scripts/build-core.sh`。内核从桌面版 [LAVRay](https://github.com/anatolijlaptev1991-ctrl/lavray) 0.9.3 的内核分出，自 0.9.5 起在这里独立开发，只面向 Android。
 
 许可证：[GPL-3.0-only](LICENSE)。LAVRay 基于 nekoray/NekoBox（GPL-3.0）和 sing-box（GPL-3.0 或更新版本）开发。

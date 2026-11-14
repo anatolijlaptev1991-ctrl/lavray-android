@@ -19,7 +19,7 @@
 
 *Las capturas son de un emulador, con la interfaz en inglés.*
 
-> **Estado: versión 0.9.4. Comprobada en un emulador de Android 16 (x86_64); el propietario la está probando en un móvil real.** Esta versión llega tras una auditoría completa: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md) (en ruso). La lista de comprobación para probarla en un móvil está en [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (en ruso).
+> **Estado: versión 0.9.5. Comprobada en un emulador de Android 16 (x86_64); el propietario la está probando en un móvil real.** Trae LAV Preset RU Linux por defecto, las listas «Siempre por la VPN» y «Siempre directo», y el núcleo ahora está en este repositorio ([notas de la versión](docs/release-notes/v0.9.5.md), en ruso). La versión 0.9.4 llegó tras una auditoría completa: [docs/AUDIT-2026-11.md](docs/AUDIT-2026-11.md) (en ruso). La lista de comprobación para probarla en un móvil está en [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (en ruso).
 
 ## Qué ofrece
 
@@ -43,7 +43,7 @@ Los protocolos son los mismos que en la versión de escritorio: VLESS (incluido 
 
 ## Descargar
 
-Los APK están en la página de [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases); la última versión es [v0.9.4](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.4). Hay un archivo por arquitectura de CPU:
+Los APK están en la página de [Releases](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases); la última versión es [v0.9.5](https://github.com/anatolijlaptev1991-ctrl/lavray-android/releases/tag/v0.9.5). Hay un archivo por arquitectura de CPU:
 
 | Archivo | Para | Tamaño |
 |---|---|---|
@@ -173,10 +173,10 @@ La cámara solo sirve para leer códigos QR. La app lee el portapapeles únicame
 
 ## Compilar desde el código fuente
 
-Necesitas JDK 21, el SDK de Android (plataforma 36) con NDK 28.2.13676358, Go (la versión de `third_party/lavray/core/go.mod`) y Bash.
+Necesitas JDK 21, el SDK de Android (plataforma 36) con NDK 28.2.13676358, Go (la versión de `core/go.mod`) y Bash.
 
 ```bash
-git clone --recurse-submodules https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
+git clone https://github.com/anatolijlaptev1991-ctrl/lavray-android.git
 cd lavray-android
 bash scripts/build-core.sh        # núcleo Go -> app/libs/lavray-core.aar (gomobile bind)
 ./gradlew assembleRelease         # APK en app/build/outputs/apk/release/
@@ -190,6 +190,6 @@ Una compilación local se firma con la clave de depuración y no debe distribuir
 
 ## Código fuente y licencia
 
-El código de la app (Kotlin, Compose) y la compilación del núcleo están en este repositorio. El núcleo en Go y la interfaz de escritorio están en [lavray](https://github.com/anatolijlaptev1991-ctrl/lavray), incluidos como submódulo `third_party/lavray` (etiqueta v0.9.3).
+Todo el código está en este repositorio: la app (Kotlin, Compose) en `app/`, el núcleo en Go en `core/` y su compilación en `scripts/build-core.sh`. El núcleo se separó del núcleo de [LAVRay](https://github.com/anatolijlaptev1991-ctrl/lavray) de escritorio 0.9.3 y desde la versión 0.9.5 se desarrolla aquí por su cuenta, solo para Android.
 
 Licencia [GPL-3.0-only](LICENSE). LAVRay se basa en nekoray/NekoBox (GPL-3.0) y sing-box (GPL-3.0 o posterior).
