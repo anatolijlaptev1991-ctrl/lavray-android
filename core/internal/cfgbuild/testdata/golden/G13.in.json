@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "id": 1301,
+    "type": "trojan",
+    "name": "G13 trojan ws host (без tls)",
+    "address": "tj2.example.org",
+    "port": 80,
+    "detail": {
+      "password": "trojan-pass-2"
+    },
+    "stream": {
+      "network": "ws",
+      "path": "/tj",
+      "host": "tj2.example.org"
+    }
+  }
+}

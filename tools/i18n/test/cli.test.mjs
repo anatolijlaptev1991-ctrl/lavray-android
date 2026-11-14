@@ -73,7 +73,7 @@ describe('--check', () => {
   it('detects a changed dictionary as stale output', () => {
     const root = tree();
     quiet(['--root', root]);
-    const ruDict = path.join(root, 'third_party/lavray/ui/src/lib/dictionaries/ru.ts');
+    const ruDict = path.join(root, 'tools/i18n/dictionaries/ru.ts');
     fs.writeFileSync(ruDict, fs.readFileSync(ruDict, 'utf8').replace('Главная', 'Домой'));
     assert.equal(quiet(['--check', '--root', root]).code, 1);
   });

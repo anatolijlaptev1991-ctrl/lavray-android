@@ -1,0 +1,14 @@
+{
+    "type": "chain",
+    "id": 6,
+    "gid": 0,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "chain 3 then 2",
+        "list": [
+            3,
+            2
+        ]
+    }
+}

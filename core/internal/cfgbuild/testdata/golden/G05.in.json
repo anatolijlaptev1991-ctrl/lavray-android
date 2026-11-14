@@ -1,0 +1,14 @@
+{
+  "profile": {
+    "id": 501,
+    "type": "shadowsocks",
+    "name": "G05 ss plugin obfs-local",
+    "address": "ss3.example.org",
+    "port": 8388,
+    "detail": {
+      "method": "aes-128-gcm",
+      "password": "secret",
+      "plugin": "obfs-local;obfs=http;obfs-host=example.org"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "profile": {
+    "id": 1701,
+    "type": "custom_outbound",
+    "name": "G17 custom internal + custom_outbound",
+    "address": "n/a",
+    "port": 0,
+    "detail": {
+      "core": "internal",
+      "outbound_json": "{\"type\":\"socks\",\"server\":\"198.51.100.17\",\"server_port\":1080}"
+    },
+    "custom_outbound_json": "{\"domain_resolver\": \"dns-local\"}",
+    "custom_fields_confirmed": true
+  }
+}

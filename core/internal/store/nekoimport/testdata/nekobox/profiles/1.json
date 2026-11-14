@@ -1,0 +1,19 @@
+{
+    "type": "http",
+    "id": 1,
+    "gid": 0,
+    "yc": -1,
+    "bean": {
+        "_v": 0,
+        "name": "http proxy",
+        "addr": "6.6.6.6",
+        "port": 8080,
+        "v": -80,
+        "stream": {
+            "net": "tcp",
+            "insecure": false,
+            "ed_len": 0,
+            "mux_s": 0
+        }
+    }
+}

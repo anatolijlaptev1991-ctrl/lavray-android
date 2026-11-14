@@ -1,0 +1,5 @@
+vmess://eyJwcyI6Ik5NVDEiLCJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOjQ0MywiaWQiOiI4MzQwY2ZjNy0zNDU2LTQ3ODktYTg5Yi0wMTIzNDU2Nzg5YWJjIiwibmV0Ijoid3MiLCJwYXRoIjoiL3BhdGgiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJ0bHMiOiJ0bHMifQ==
+trojan://pass@example.org:443?sni=cdn.example.org#TR1
+# comment line
+ss://YWVzLTI1Ni1nY206c2VjcmV0QDEuMi4zLjQ6ODM4OA==
+this line is garbage ://

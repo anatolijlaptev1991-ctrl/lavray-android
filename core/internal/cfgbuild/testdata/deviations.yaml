@@ -1,0 +1,80 @@
+# deviations.yaml — задокументированные отклонения конфигбилдера от
+# C++-оракула NekoBox (db/ConfigBuilder.cpp + fmt/Bean2CoreObj_box.cpp).
+# Обязательное приложение к golden-тестам (core-port-plan §3.3).
+# Каждая запись: причина (баг-фикс / DROP / расширение) и ссылки.
+
+- id: hy2-hop-ports
+  where: outbounds.go / buildHysteria2
+  what: server_ports + hop_interval (Duration-строка) вместо hop_ports + int
+  why: "баг LNB-35 оракула; sing-box 1.14 ожидает server_ports/hop_interval"
+  refs: [FR-UI-268, BUGS.md LNB-35]
+
+- id: omitempty-policy
+  where: все билдеры outbounds
+  what: опциональные поля (security, alpn, plugin_opts, up/down mbps, tuic-опции) — omitempty; оракул эмитит всегда
+  why: канонические golden без шумовых нулей; семантика идентична
+  refs: [§3.3]
+
+- id: socks-ss-stream-drop
+  where: outbounds.go
+  what: stream-настройки на socks/shadowsocks отбрасываются (http — tls-only); оракул применял (мёртвый код для sing-box)
+  why: sing-box не поддерживает transport на этих outbound
+  refs: []
+
+- id: mux-concurrency-gate
+  where: builder.go / needMuxFor
+  what: per-profile multiplex=1 при глобальном Concurrency<=0 — НЕ применяется (оракул эмитил бы max_streams<=0)
+  why: нет валидной concurrency; отрицательный max_streams — невалидный конфиг
+  refs: [TestMuxRules concurrency=-1]
+
+- id: mux-no-shadowsocks
+  where: builder.go / needMuxFor
+  what: mux не применяется к shadowsocks, хотя спек §3.1.10 упоминает ss
+  why: "оракул (ConfigBuilder.cpp:328) тоже не применяет; расширение — после появления реальной потребности (sing-box ss multiplex поддерживает)"
+  refs: [§3.1.10]
+
+- id: group-optional
+  where: builder.go
+  what: Group==nil — сборка без front_proxy (оракул ошибается, cpp:96-99)
+  why: Group опционален в API (профиль вне групп); W6 всегда передаёт группу при наличии
+  refs: []
+
+- id: server-domains-dedup
+  where: builder.go
+  what: ServerDomains дедуплицируются (оракул аппендит дубликаты)
+  why: безвредное улучшение; detour-серверы уникальны по смыслу
+  refs: []
+
+- id: trojan-password-required
+  where: outbounds.go / buildTrojanVless
+  what: пустой password — INVALID_ARGUMENT (оракул эмитил пустой)
+  why: ужесточённая валидация на границе данных
+  refs: []
+
+- id: http-proto-source
+  where: outbounds.go / buildSocksHTTP
+  what: "type: socks|http выбирается по Detail.Proto; Type=http с Proto='' эмитил бы socks — W6 обязан заполнять Proto при создании"
+  why: контракт с W6/W3-парсером (синхронизировать)
+  refs: [ревью N4]
+
+- id: custom-rules-first
+  where: route.go
+  what: custom-правила пресета применяются ПЕРЕД сгенерированными списками (как в C++-оракуле); отклонение «в конце» отменено обновлением пресета bd56088 (2026-10-26): пин Riot→proxy обязан иметь приоритет над geosite:riot в direct-списке
+  refs: [nekobox-ru-bypass-games bd56088]
+
+- id: custom-outbound-tag-guard
+  where: builder.go
+  what: custom_outbound может переопределить tag/detour цепочечного outbound (как в оракуле); broken-link возможность задокументирована, запрет — кандидат W5
+  refs: [ревью N6]
+
+- id: alpn-by-transport
+  where: outbounds.go / alpnForTransport
+  what: "ALPN из ссылки приводится к транспорту: ws и httpupgrade — без h2/h3 (пусто → ALPN не задан, sing-box ставит http/1.1); grpc и http — ALPN без h2 заменяется на [h2]; quic, tcp и REALITY — как в ссылке (вектор G06)"
+  why: "оракул передавал alpn как есть; клиент WebSocket в sing-box поднимает апгрейд только как HTTP/1.1, а ссылка с alpn=h2 договаривала h2 — сервер рвал соединение при «Подключено» (живой отказ 0.2.0). Xray для WebSocket всегда шлёт http/1.1"
+  refs: [0.2.1, сквозной тест TestE2EVMessWebSocketTLSALPNh2]
+
+- id: tun-address-no-neko-overlap
+  where: inbounds.go / tunIPv4Address, tunIPv6Address
+  what: "адрес TUN по умолчанию 172.18.0.1/30 (+ fd4c:4156:5259::1/126) вместо 172.19.0.1/28 (+ fdfe:dcba:9876::1/126) оракула (векторы G20, G21, G22, G26)"
+  why: "NekoBox и LAVRay работают на одном ПК; одинаковая подсеть у двух TUN-интерфейсов ломала маршрутизацию обоих"
+  refs: [0.2.1, FR-UI-184]

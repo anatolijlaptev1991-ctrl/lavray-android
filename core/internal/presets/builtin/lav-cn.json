@@ -1,0 +1,78 @@
+{
+  "$schema": "preset.schema.v1.json",
+  "version": 1,
+  "revision": 2,
+  "id": "lav-cn",
+  "builtin": true,
+  "name": {
+    "ru": "LAV Preset CN",
+    "zh": "LAV Preset CN",
+    "en": "LAV Preset CN",
+    "es": "LAV Preset CN",
+    "de": "LAV Preset CN"
+  },
+  "description": {
+    "ru": "Китайские сайты и сервисы — напрямую через геобазу (geosite/geoip CN), не-китайские — через прокси, зарубежные домены категории geolocation-!cn — явно через прокси, реклама и трекеры блокируются. Инструменты ИИ и разработки — через прокси по имени процесса, игры — напрямую. Раздельный DNS: CN-домены через локальный DNS провайдера, остальное через DoH через туннель.",
+    "zh": "中国网站与服务通过地理库（geosite/geoip CN）直连，非中国流量走代理（geolocation-!cn 显式代理），广告与追踪器拦截。AI 与开发工具按进程名走代理，游戏直连。DNS 分流：中国域名走运营商本地 DNS，其余经隧道 DoH 解析。",
+    "en": "Chinese sites and services go direct via the geo database (geosite/geoip CN); non-Chinese traffic goes through the proxy (geolocation-!cn explicitly proxied); ads and trackers are blocked. AI and development tools are proxied by process name; games go direct. Split DNS: CN domains via the local ISP DNS, the rest via DoH through the tunnel.",
+    "es": "Los sitios y servicios chinos van directos mediante la base geográfica (geosite/geoip CN); el tráfico no chino pasa por el proxy (geolocation-!cn explícitamente proxificado); la publicidad y rastreadores se bloquean. Las herramientas de IA y desarrollo se proxifican por nombre de proceso; los juegos van directos. DNS dividido: dominios CN vía DNS local del proveedor, el resto vía DoH por el túnel.",
+    "de": "Chinesische Webseiten und Dienste laufen direkt über die Geo-Datenbank (geosite/geoip CN); nicht-chinesischer Datenverkehr geht durch den Proxy (geolocation-!cn explizit proxifiziert); Werbung und Tracker werden blockiert. KI- und Entwicklungswerkzeuge werden nach Prozessname proxifiziert; Spiele laufen direkt. Getrenntes DNS: CN-Domains über den lokalen Provider-DNS, der Rest über DoH durch den Tunnel."
+  },
+  "maintainer_notes": "Ревизия 2 (L2-ревью №13): + geosite:category-ads-all в block (PRESET-LAV-RU §3b — правило рекламы во всех встроенных пресетах); + geosite:geolocation-!cn в proxy_domain (PRESET-LAV-RU §3a — явный не-CN список). Формат аналогичен RU-bypass + Games (nekobox-ru-bypass-games). Процессные правила Windows-only (*.exe); POSIX-имена добавлять записями с platforms=[linux]/[macos] (PRESET-LAV-RU §4/§3c). На OpenWrt процессные правила опускаются с предупреждением.",
+  "routing": {
+    "def_outbound": "proxy",
+    "outbound_domain_strategy": "",
+    "sniffing_mode": 1,
+    "proxy_domain": [
+      "geosite:geolocation-!cn"
+    ],
+    "direct_domain": [
+      "geosite:cn",
+      "geosite:tld-cn"
+    ],
+    "block_domain": [
+      "geosite:category-ads-all"
+    ],
+    "proxy_ip": [],
+    "direct_ip": [
+      "geoip:cn",
+      "geoip:private"
+    ],
+    "block_ip": [],
+    "process_rules": [
+      {
+        "platforms": ["windows"],
+        "outbound": "proxy",
+        "process_names": [
+          "Antigravity.exe", "Antigravity IDE.exe", "Cursor.exe", "Windsurf.exe",
+          "Kimi.exe", "Code.exe", "code.exe", "Jan.exe", "Nyx.exe",
+          "LM Studio.exe", "ollama.exe", "ollama app.exe", "claude.exe",
+          "codex.exe", "qwen.exe", "gemini.exe", "node.exe", "bun.exe",
+          "python.exe", "pythonw.exe", "language_server_windows_x64.exe",
+          "devin.exe"
+        ]
+      },
+      {
+        "platforms": ["windows"],
+        "outbound": "direct",
+        "process_names": [
+          "LeagueClient.exe", "LeagueClientUx.exe", "LeagueClientUxRender.exe",
+          "League of Legends.exe", "LeagueCrashHandler64.exe",
+          "RiotClientServices.exe", "Riot Client.exe", "RiotClientCrashHandler.exe",
+          "RiotClientUx.exe", "RiotClientUxRender.exe",
+          "vgc.exe", "vgm.exe", "vgtray.exe",
+          "Icarus.exe", "Icarus-Win64-Shipping.exe",
+          "PEAK.exe", "Phasmophobia.exe", "UnityCrashHandler64.exe"
+        ]
+      }
+    ]
+  },
+  "dns": {
+    "mode": "simple",
+    "remote_dns": "https://dns.google/dns-query",
+    "remote_query_strategy": "",
+    "direct_dns": "local",
+    "routing_enabled": true,
+    "underlying_dns": "local"
+  }
+}

@@ -1,0 +1,19 @@
+{
+    "id": 0,
+    "front_proxy_id": -1,
+    "archive": false,
+    "skip_auto_update": false,
+    "name": "Основная",
+    "order": [
+        1,
+        2,
+        3,
+        6
+    ],
+    "manually_column_width": false,
+    "column_width": [
+        220,
+        120,
+        90
+    ]
+}

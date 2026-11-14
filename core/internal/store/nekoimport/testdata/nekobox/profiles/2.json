@@ -1,0 +1,25 @@
+{
+    "type": "shadowsocks",
+    "id": 2,
+    "gid": 0,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "ss",
+        "addr": "7.7.7.7",
+        "port": 8388,
+        "method": "aes-256-gcm",
+        "pass": "sspass",
+        "uot": 1,
+        "stream": {
+            "net": "tcp",
+            "insecure": false,
+            "ed_len": 0,
+            "mux_s": 0
+        }
+    },
+    "traffic": {
+        "dl": 10,
+        "ul": 20
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "id": 2801,
+    "type": "socks",
+    "name": "G28 LAV Preset RU",
+    "address": "203.0.113.28",
+    "port": 1080,
+    "detail": {
+      "proto": "socks5"
+    }
+  },
+  "preset": "lav-ru",
+  "settings": {
+    "goos": "windows",
+    "inbound": {
+      "address": "127.0.0.1",
+      "port": 2080
+    }
+  }
+}

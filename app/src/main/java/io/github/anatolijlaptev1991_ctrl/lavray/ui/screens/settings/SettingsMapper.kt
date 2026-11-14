@@ -10,7 +10,7 @@ object SettingKeys {
     const val HEALTH_CHECK = "connect.health_check"
 
     /**
-     * Not shown: on a phone the core always uses gVisor (core-overlay/patch.go, androidStack).
+     * Not shown: on a phone the core always uses gVisor (core/mobile/patch.go, androidStack).
      * The system and mixed stacks pass no data while the app is excluded from its own VPN.
      */
     const val TUN_STACK = "tun.impl"

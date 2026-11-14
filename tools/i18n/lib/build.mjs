@@ -16,7 +16,7 @@ export function readDictionaries(root) {
     const rel = dictPath(lang);
     const file = path.join(root, rel);
     if (!fs.existsSync(file)) {
-      throw new I18nError(`Desktop dictionary ${rel} not found. Initialise the submodule: git submodule update --init third_party/lavray.`);
+      throw new I18nError(`Dictionary ${rel} not found (the five interface dictionaries live in tools/i18n/dictionaries).`);
     }
     result[lang] = parseDictionary(fs.readFileSync(file, 'utf8'), rel);
   }

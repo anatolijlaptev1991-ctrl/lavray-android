@@ -1,0 +1,27 @@
+{
+  "profile": {
+    "id": 701,
+    "type": "vmess",
+    "name": "G07 vmess grpc mux on",
+    "address": "vm2.example.org",
+    "port": 443,
+    "detail": {
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30812",
+      "security": "chacha20-poly1305"
+    },
+    "stream": {
+      "network": "grpc",
+      "path": "grpcSvc",
+      "security": "tls",
+      "multiplex": 1
+    }
+  },
+  "settings": {
+    "log_level": "info",
+    "mux": {
+      "protocol": "h2mux",
+      "concurrency": 8,
+      "padding": false
+    }
+  }
+}

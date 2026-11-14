@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "id": 3502,
+    "type": "hysteria2",
+    "name": "G35b hy2 server_ports range + hop",
+    "address": "hy2b.example.org",
+    "port": 8443,
+    "detail": {"password": "hy2-pass", "server_ports": "1000:2000", "hop_interval": "30s"}
+  }
+}

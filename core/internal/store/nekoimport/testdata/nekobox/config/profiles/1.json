@@ -1,0 +1,29 @@
+{
+    "type": "vless",
+    "id": 1,
+    "gid": 0,
+    "yc": 85,
+    "bean": {
+        "_v": 0,
+        "name": "vless reality",
+        "addr": "203.0.113.10",
+        "port": 443,
+        "pass": "00000000-0000-4000-8000-000000000001",
+        "flow": "xtls-rprx-vision",
+        "stream": {
+            "net": "tcp",
+            "sec": "reality",
+            "sni": "www.example.com",
+            "utls": "chrome",
+            "pbk": "PUBKEYEXAMPLE",
+            "sid": "abcd1234",
+            "insecure": false,
+            "ed_len": 0,
+            "mux_s": 0
+        }
+    },
+    "traffic": {
+        "dl": 5000,
+        "ul": 1000
+    }
+}

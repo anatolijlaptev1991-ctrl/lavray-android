@@ -17,7 +17,7 @@ data class BuiltinText(val brand: String?, @StringRes val nameRes: Int?, @String
  * descriptions. The core sends a dictionary key as the name of a built-in, which is never shown raw.
  */
 object PresetCatalog {
-    /** The phone's default: LAV Preset RU without the rules for Windows programs (core-overlay/presets). */
+    /** The phone's default: LAV Preset RU without the rules for Windows programs (core/internal/presets/builtin/lav-ru-linux.json). */
     const val LAV_RU_LINUX = "lav-ru-linux"
     const val LAV_RU = "lav-ru"
 
@@ -51,7 +51,7 @@ object PresetCatalog {
 
     /**
      * The preset in force. The core names it; when it names none, LAV Preset RU Linux is the default on the phone
-     * (core-overlay/defaults.go), then LAV Preset RU (the desktop's default since 0.9.3), then the first preset.
+     * (core/mobile/defaults.go), then LAV Preset RU (the desktop's default since 0.9.3), then the first preset.
      */
     fun effectiveActiveId(presets: List<RoutingPreset>, activeId: String): String = when {
         presets.any { it.id == activeId } -> activeId

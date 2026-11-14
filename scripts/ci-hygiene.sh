@@ -51,7 +51,7 @@ gate_secrets() {
   fi
 
   # Simple, deliberately conservative patterns. The tracked tree of this repository only
-  # (git grep does not enter the submodule). This script is excluded from its own scan.
+  # (the whole tracked tree, the Go core in core/ included). This script is excluded from its own scan.
   local pattern
   pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----'
   pattern+='|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|ghs_[A-Za-z0-9]{36}|ghu_[A-Za-z0-9]{36}|ghr_[A-Za-z0-9]{36}'

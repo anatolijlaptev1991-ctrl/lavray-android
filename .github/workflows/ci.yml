@@ -36,7 +36,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
           fetch-depth: 0 # проверка почты авторов читает историю
           persist-credentials: false
 
@@ -74,7 +73,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
           persist-credentials: false
 
       - uses: ./.github/actions/setup-build

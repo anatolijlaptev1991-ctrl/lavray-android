@@ -1,0 +1,16 @@
+{
+    "def_outbound": "proxy",
+    "direct_dns": "local",
+    "remote_dns": "https://1.1.1.1/dns-query",
+    "dns_routing": true,
+    "direct_domain": "geosite:category-ru\ndomain:exitgames.com\ndomain:photonengine.io",
+    "direct_ip": "geoip:ru\ngeoip:private",
+    "proxy_domain": "geosite:google\ngeosite:youtube",
+    "proxy_ip": "",
+    "block_domain": "geosite:category-ads-all",
+    "block_ip": "",
+    "domain_strategy": "AsIs",
+    "outbound_domain_strategy": "",
+    "sniffing_mode": 1,
+    "custom": "{\"rules\": [{\"process_name\": [\"game.exe\", \"launcher.exe\"], \"outbound\": \"bypass\"}]}"
+}

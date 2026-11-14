@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "id": 2101,
+    "type": "socks",
+    "name": "G21 TUN whitelist (popravka 28)",
+    "address": "203.0.113.21",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "settings": {
+    "tun": {
+      "enabled": true,
+      "whitelist": true,
+      "bypass_process": "telegram.exe\ntor.exe",
+      "bypass_cidr": "192.168.0.0/16\n# office\n10.0.0.0/8"
+    }
+  }
+}

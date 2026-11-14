@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "id": 1501,
+    "type": "tuic",
+    "name": "G15 tuic v5 bbr native",
+    "address": "tuic.example.org",
+    "port": 443,
+    "detail": {
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30818",
+      "password": "tuic-pass",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "heartbeat": "10s",
+      "sni": "tuic.example.org",
+      "alpn": "h3",
+      "ca": "-----BEGIN CERTIFICATE-----\nMIIBjTCCATOgAwIBAgIUftv+IUVbPpb7XW5pzdhBmUFzeg4wCgYIKoZIzj0EAwIw\nGzEZMBcGA1UEAwwQdHVpYy5leGFtcGxlLm9yZzAgFw0yNjEwMjkwMDM5MTlaGA8y\nMTI2MTAwNTAwMzkxOVowGzEZMBcGA1UEAwwQdHVpYy5leGFtcGxlLm9yZzBZMBMG\nByqGSM49AgEGCCqGSM49AwEHA0IABBaxFyBnvUiTLrpyyLqnL7M2tqZYWs0vPl2B\nv7og7GKM7G9AOyCU03PK+x7WEECBWk7OxPOp/khash8Kg8w7kZKjUzBRMB0GA1Ud\nDgQWBBSrs16XkZB7gWD9V5dTxwVIxwePjTAfBgNVHSMEGDAWgBSrs16XkZB7gWD9\nV5dTxwVIxwePjTAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0gAMEUCIBeE\ntaRh6Fg95sjkssYdoDNE22/bMkVh52nL2D6vWBS0AiEA3c/E8gp/Crolcw+qIJhV\nwMYOah4KhPK4bZHQ/SNNgLg=\n-----END CERTIFICATE-----"
+    }
+  }
+}

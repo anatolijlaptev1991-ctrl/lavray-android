@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Toolchain for the Go core (gomobile) and the Gradle app build on ubuntu runners:
 # JDK 21, Go from the core's go.mod, Android SDK platform and build-tools, NDK, Gradle cache.
-# The repository (with submodules) must already be checked out.
+# The repository must already be checked out.
 name: setup-build
 description: JDK 21, Go, Android SDK and NDK, Gradle cache for LAVRay Android
 inputs:
@@ -24,8 +24,8 @@ runs:
 
     - uses: actions/setup-go@v5
       with:
-        go-version-file: third_party/lavray/core/go.mod
-        cache-dependency-path: third_party/lavray/core/go.sum
+        go-version-file: core/go.mod
+        cache-dependency-path: core/go.sum
 
     - name: Android SDK and NDK
       shell: bash
@@ -52,10 +52,6 @@ runs:
           echo "ANDROID_NDK_HOME=$sdk/ndk/$NDK_VERSION"
           echo "BUILD_TOOLS_VERSION=$BUILD_TOOLS_VERSION"
         } >> "$GITHUB_ENV"
-
-    - name: patch (build-core.sh applies core-overlay/patches)
-      shell: bash
-      run: command -v patch > /dev/null || sudo apt-get install -y --no-install-recommends patch
 
     - uses: gradle/actions/setup-gradle@v4
       with:

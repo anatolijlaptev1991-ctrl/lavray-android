@@ -44,7 +44,7 @@ class InterfaceInfoTest {
         assertEquals(0x1041, InterfaceFlags.forType("other", linux))
     }
 
-    /** The exact text Go's TestParseInterfacesFromKotlin (core-overlay/ifaces_kotlin_test.go) is fed. */
+    /** The exact text Go's TestParseInterfacesFromKotlin (core/mobile/ifaces_kotlin_test.go) is fed. */
     @Test
     fun goldenJsonForTheGoSide() {
         val list = listOf(

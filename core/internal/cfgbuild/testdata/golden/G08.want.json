@@ -1,0 +1,152 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "route",
+        "domain": [
+          "vm4.example.org",
+          "vm3.example.org"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "predefined",
+        "query_type": [
+          32,
+          33
+        ],
+        "rcode": 0
+      },
+      {
+        "action": "predefined",
+        "domain_suffix": [
+          ".lan"
+        ],
+        "rcode": 0
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "domain_resolver": "dns-local",
+        "path": "/dns-query",
+        "server": "dns.google",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "alter_id": 0,
+      "detour": "g-802",
+      "server": "vm4.example.org",
+      "server_port": 443,
+      "tag": "proxy",
+      "transport": {
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "max_early_data": 4096,
+        "path": "/ed",
+        "type": "ws"
+      },
+      "type": "vmess",
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30814"
+    },
+    {
+      "alter_id": 0,
+      "server": "vm3.example.org",
+      "server_port": 443,
+      "tag": "g-802",
+      "transport": {
+        "host": "hu.example.org",
+        "path": "/up",
+        "type": "httpupgrade"
+      },
+      "type": "vmess",
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30813"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "final": "proxy",
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "mixed-in",
+          "tun-in"
+        ],
+        "timeout": "3s"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

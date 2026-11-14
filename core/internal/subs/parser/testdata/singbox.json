@@ -1,0 +1,118 @@
+{
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "select",
+      "outbounds": ["auto", "vm1", "tr1"]
+    },
+    {
+      "type": "vmess",
+      "tag": "vm1",
+      "server": "vm.example.com",
+      "server_port": 443,
+      "uuid": "8340cfc7-3456-4789-a89b-0123456789ab",
+      "security": "auto",
+      "alter_id": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "cdn.example.com",
+        "utls": {"enabled": true, "fingerprint": "chrome"}
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/path",
+        "headers": {"Host": ["ws.example.com"]},
+        "early_data_header_name": "Sec-WebSocket-Protocol",
+        "max_early_data": 2048
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "tr1",
+      "server": "tr.example.org",
+      "server_port": 443,
+      "password": "trojanpass",
+      "tls": {"enabled": true, "server_name": "tr-sni.example.org", "insecure": true, "alpn": ["h2", "http/1.1"]}
+    },
+    {
+      "type": "vless",
+      "tag": "vl1-reality",
+      "server": "vl.example.net",
+      "server_port": 8443,
+      "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "vl-sni.example.net",
+        "reality": {"enabled": true, "public_key": "PUBKEY123", "short_id": "0123abcd"}
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "ss1",
+      "server": "ss.example.io",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "sspass",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs=http;obfs-host=ss.example.io"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-hop",
+      "server": "hy2.example.dev",
+      "server_port": 30000,
+      "password": "hy2pass",
+      "obfs": {"type": "salamander", "password": "obfspass"},
+      "up_mbps": 100,
+      "down_mbps": 500,
+      "server_ports": "30000:30100",
+      "hop_interval": "30s"
+    },
+    {
+      "type": "tuic",
+      "tag": "tuic1",
+      "server": "tuic.example.app",
+      "server_port": 443,
+      "uuid": "tuic-uuid-x",
+      "password": "tuicpass",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "zero_rtt_handshake": true,
+      "heartbeat": "10s",
+      "tls": {"enabled": true, "server_name": "tuic-sni.example.app"}
+    },
+    {
+      "type": "socks",
+      "tag": "socks4-node",
+      "server": "10.0.0.9",
+      "server_port": 1080,
+      "version": "4"
+    },
+    {
+      "type": "http",
+      "tag": "http-auth",
+      "server": "http.example.net",
+      "server_port": 8080,
+      "username": "user",
+      "password": "pass"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "unknown-future-type",
+      "tag": "skipme",
+      "server": "x",
+      "server_port": 1
+    },
+    {
+      "type": "vmess",
+      "tag": "vm-broken-port",
+      "server": "broken.example.com",
+      "server_port": 0,
+      "uuid": "8340cfc7-3456-4789-a89b-0123456789ab"
+    }
+  ]
+}

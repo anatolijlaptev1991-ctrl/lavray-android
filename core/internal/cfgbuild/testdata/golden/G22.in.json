@@ -1,0 +1,13 @@
+{
+  "profile": {
+    "id": 2201,
+    "type": "socks",
+    "name": "G22 TUN kill switch on (FR-UI-275)",
+    "address": "203.0.113.22",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "settings": {
+    "tun": {"enabled": true, "kill_switch": true}
+  }
+}

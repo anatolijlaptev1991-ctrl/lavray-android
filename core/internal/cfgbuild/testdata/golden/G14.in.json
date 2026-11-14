@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "id": 1401,
+    "type": "hysteria2",
+    "name": "G14 hy2 obfs ports hop (FR-UI-268)",
+    "address": "hy2.example.org",
+    "port": 8443,
+    "detail": {
+      "password": "hy2-pass",
+      "obfs_password": "obfs-pass",
+      "upload_mbps": 100,
+      "download_mbps": 500,
+      "server_ports": "1000:2000",
+      "hop_interval": "30s",
+      "sni": "hy2.example.org"
+    }
+  }
+}

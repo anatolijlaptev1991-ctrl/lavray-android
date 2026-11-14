@@ -1,0 +1,19 @@
+{
+  "profile": {
+    "id": 1101,
+    "type": "vless",
+    "name": "G11 vless ws xudp",
+    "address": "vl2.example.org",
+    "port": 443,
+    "detail": {
+      "password": "b831381d-6324-4d53-ad4f-8cda48b30817"
+    },
+    "stream": {
+      "network": "ws",
+      "path": "/vl",
+      "host": "vl2.example.org",
+      "security": "tls",
+      "packet_encoding": "xudp"
+    }
+  }
+}

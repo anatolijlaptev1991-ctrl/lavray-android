@@ -1,0 +1,2 @@
+<!DOCTYPE html>
+<html><head><title>Captive Portal</title></head><body>Please log in</body></html>

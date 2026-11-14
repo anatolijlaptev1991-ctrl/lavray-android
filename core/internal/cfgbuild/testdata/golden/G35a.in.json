@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "id": 3501,
+    "type": "hysteria2",
+    "name": "G35a hy2 server_ports single port",
+    "address": "hy2a.example.org",
+    "port": 8443,
+    "detail": {"password": "hy2-pass", "server_ports": "8443"}
+  }
+}

@@ -1,0 +1,16 @@
+{
+    "type": "custom",
+    "id": 11,
+    "gid": 1,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "external brook",
+        "core": "brook",
+        "cmd": ["brook", "client"],
+        "cs": "-l %mapping_port%",
+        "cs_suffix": ".json",
+        "mapping_port": 0,
+        "socks_port": 10808
+    }
+}

@@ -7,7 +7,7 @@ export const DEFAULT_LANG = 'ru';
 /** CLDR plural categories in the order they are written to <plurals>. */
 export const PLURAL_CATEGORIES = Object.freeze(['zero', 'one', 'two', 'few', 'many', 'other']);
 
-export const DICT_DIR = 'third_party/lavray/ui/src/lib/dictionaries';
+export const DICT_DIR = 'tools/i18n/dictionaries';
 export const ANDROID_ONLY_DIR = 'tools/i18n/android';
 export const GENERATOR_PATH = 'tools/i18n/generate.mjs';
 

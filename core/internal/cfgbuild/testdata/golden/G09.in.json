@@ -1,0 +1,19 @@
+{
+  "profile": {
+    "id": 901,
+    "type": "vmess",
+    "name": "G09 vmess tcp header http",
+    "address": "vm5.example.org",
+    "port": 80,
+    "detail": {
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30815",
+      "alter_id": 0
+    },
+    "stream": {
+      "network": "tcp",
+      "header_type": "http",
+      "path": "/",
+      "host": "a.example.org,b.example.org"
+    }
+  }
+}

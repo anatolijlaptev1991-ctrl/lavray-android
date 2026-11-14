@@ -1,0 +1,245 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite-geolocation-!cn"
+        ],
+        "server": "dns-remote"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite-cn",
+          "geosite-tld-cn"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "predefined",
+        "query_type": [
+          32,
+          33
+        ],
+        "rcode": 0
+      },
+      {
+        "action": "predefined",
+        "domain_suffix": [
+          ".lan"
+        ],
+        "rcode": 0
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "domain_resolver": "dns-local",
+        "path": "/dns-query",
+        "server": "dns.google",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "server": "203.0.113.29",
+      "server_port": 1080,
+      "tag": "proxy",
+      "type": "socks"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "final": "proxy",
+    "rule_set": [
+      {
+        "format": "binary",
+        "path": "geo/geosite/geolocation-!cn.srs",
+        "tag": "geosite-geolocation-!cn",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/cn.srs",
+        "tag": "geosite-cn",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/tld-cn.srs",
+        "tag": "geosite-tld-cn",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ads-all.srs",
+        "tag": "geosite-category-ads-all",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geoip/cn.srs",
+        "tag": "geoip-cn",
+        "type": "local"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "mixed-in",
+          "tun-in"
+        ],
+        "timeout": "3s"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "outbound": "block",
+        "rule_set": [
+          "geosite-category-ads-all"
+        ]
+      },
+      {
+        "outbound": "proxy",
+        "rule_set": [
+          "geosite-geolocation-!cn"
+        ]
+      },
+      {
+        "outbound": "bypass",
+        "rule_set": [
+          "geosite-cn",
+          "geosite-tld-cn"
+        ]
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "bypass",
+        "rule_set": [
+          "geoip-cn"
+        ]
+      },
+      {
+        "outbound": "proxy",
+        "process_name": [
+          "Antigravity.exe",
+          "Antigravity IDE.exe",
+          "Cursor.exe",
+          "Windsurf.exe",
+          "Kimi.exe",
+          "Code.exe",
+          "code.exe",
+          "Jan.exe",
+          "Nyx.exe",
+          "LM Studio.exe",
+          "ollama.exe",
+          "ollama app.exe",
+          "claude.exe",
+          "codex.exe",
+          "qwen.exe",
+          "gemini.exe",
+          "node.exe",
+          "bun.exe",
+          "python.exe",
+          "pythonw.exe",
+          "language_server_windows_x64.exe",
+          "devin.exe"
+        ]
+      },
+      {
+        "outbound": "direct",
+        "process_name": [
+          "LeagueClient.exe",
+          "LeagueClientUx.exe",
+          "LeagueClientUxRender.exe",
+          "League of Legends.exe",
+          "LeagueCrashHandler64.exe",
+          "RiotClientServices.exe",
+          "Riot Client.exe",
+          "RiotClientCrashHandler.exe",
+          "RiotClientUx.exe",
+          "RiotClientUxRender.exe",
+          "vgc.exe",
+          "vgm.exe",
+          "vgtray.exe",
+          "Icarus.exe",
+          "Icarus-Win64-Shipping.exe",
+          "PEAK.exe",
+          "Phasmophobia.exe",
+          "UnityCrashHandler64.exe"
+        ]
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

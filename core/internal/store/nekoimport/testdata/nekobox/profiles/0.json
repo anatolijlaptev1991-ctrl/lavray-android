@@ -1,0 +1,32 @@
+{
+    "type": "socks",
+    "id": 0,
+    "gid": 0,
+    "yc": 120,
+    "bean": {
+        "_v": 0,
+        "name": "socks five",
+        "addr": "5.5.5.5",
+        "port": 1080,
+        "v": 5,
+        "username": "u1",
+        "password": "p1",
+        "c_cfg": "{\"outbounds\":[{\"type\":\"direct\"}]}",
+        "c_out": "{\"type\":\"socks\"}",
+        "stream": {
+            "net": "ws",
+            "sec": "tls",
+            "path": "/ws",
+            "host": "cdn.example.com",
+            "sni": "cdn.example.com",
+            "insecure": false,
+            "ed_len": 0,
+            "utls": "chrome",
+            "mux_s": 1
+        }
+    },
+    "traffic": {
+        "dl": 111,
+        "ul": 222
+    }
+}

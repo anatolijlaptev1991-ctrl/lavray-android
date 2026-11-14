@@ -1,0 +1,524 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "route",
+        "domain_suffix": [
+          "google.com",
+          "google.ru",
+          "google.dev",
+          "googleapis.com",
+          "gstatic.com",
+          "googleusercontent.com",
+          "withgoogle.com",
+          "goo.gle",
+          "google",
+          "android.com",
+          "googlesource.com",
+          "openai.com",
+          "chatgpt.com",
+          "oaistatic.com",
+          "oaiusercontent.com",
+          "sora.com",
+          "anthropic.com",
+          "claude.ai",
+          "claudeusercontent.com",
+          "x.ai",
+          "grok.com",
+          "perplexity.ai",
+          "cursor.com",
+          "cursor.sh",
+          "cursorapi.com",
+          "cursor-cdn.com",
+          "windsurf.com",
+          "codeium.com",
+          "codeiumdata.com",
+          "mistral.ai",
+          "groq.com",
+          "together.ai",
+          "openrouter.ai",
+          "huggingface.co",
+          "hf.co",
+          "z.ai",
+          "qwen.ai",
+          "dashscope.aliyuncs.com",
+          "githubcopilot.com",
+          "jan.ai",
+          "ollama.com",
+          "lmstudio.ai",
+          "github.com",
+          "githubusercontent.com",
+          "githubassets.com",
+          "npmjs.org",
+          "npmjs.com",
+          "pypi.org",
+          "pythonhosted.org",
+          "vscode-cdn.net",
+          "visualstudio.com",
+          "sentry.io",
+          "x.com",
+          "twitter.com",
+          "twimg.com",
+          "t.co",
+          "grok.x.com",
+          "claude.site",
+          "claudeai.com",
+          "featuregates.org",
+          "statsigapi.net",
+          "statsig.com",
+          "cloudflareinsights.com",
+          "challenges.cloudflare.com",
+          "segment.io",
+          "segment.com",
+          "datadoghq.com",
+          "ingest.sentry.io",
+          "openaiapi-site.azureedge.net",
+          "openaicom.imgix.net",
+          "auth0.com",
+          "openai.fm",
+          "firebaseio.com",
+          "firebaseapp.com",
+          "firebase.com",
+          "googlesyndication.com",
+          "recaptcha.net",
+          "gvt1.com",
+          "gvt2.com",
+          "ytimg.com",
+          "ggpht.com"
+        ],
+        "rule_set": [
+          "geosite-google",
+          "geosite-google-deepmind",
+          "geosite-google-gemini",
+          "geosite-youtube",
+          "geosite-openai",
+          "geosite-anthropic",
+          "geosite-xai",
+          "geosite-perplexity",
+          "geosite-twitter"
+        ],
+        "server": "dns-remote"
+      },
+      {
+        "action": "route",
+        "domain_suffix": [
+          "exitgames.com",
+          "photonengine.io",
+          "photonengine.com",
+          "platipomiru.com",
+          "bigmodel.cn",
+          "deepseek.com",
+          "kimi.com",
+          "kimi.ai",
+          "moonshot.cn",
+          "moonshot.ai"
+        ],
+        "rule_set": [
+          "geosite-category-ru",
+          "geosite-category-gov-ru",
+          "geosite-riot",
+          "geosite-steam"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "predefined",
+        "query_type": [
+          32,
+          33
+        ],
+        "rcode": 0
+      },
+      {
+        "action": "predefined",
+        "domain_suffix": [
+          ".lan"
+        ],
+        "rcode": 0
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "domain_resolver": "dns-local",
+        "path": "/dns-query",
+        "server": "dns.google",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "server": "203.0.113.28",
+      "server_port": 1080,
+      "tag": "proxy",
+      "type": "socks"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "final": "proxy",
+    "rule_set": [
+      {
+        "format": "binary",
+        "path": "geo/geosite/google.srs",
+        "tag": "geosite-google",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/google-deepmind.srs",
+        "tag": "geosite-google-deepmind",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/google-gemini.srs",
+        "tag": "geosite-google-gemini",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/youtube.srs",
+        "tag": "geosite-youtube",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/openai.srs",
+        "tag": "geosite-openai",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/anthropic.srs",
+        "tag": "geosite-anthropic",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/xai.srs",
+        "tag": "geosite-xai",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/perplexity.srs",
+        "tag": "geosite-perplexity",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/twitter.srs",
+        "tag": "geosite-twitter",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ru.srs",
+        "tag": "geosite-category-ru",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-gov-ru.srs",
+        "tag": "geosite-category-gov-ru",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/riot.srs",
+        "tag": "geosite-riot",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/steam.srs",
+        "tag": "geosite-steam",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ads-all.srs",
+        "tag": "geosite-category-ads-all",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geoip/ru.srs",
+        "tag": "geoip-ru",
+        "type": "local"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "mixed-in",
+          "tun-in"
+        ],
+        "timeout": "3s"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "domain_suffix": [
+          "riotgames.com",
+          "riotcdn.net",
+          "rgpub.io",
+          "leagueoflegends.com"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "outbound": "block",
+        "rule_set": [
+          "geosite-category-ads-all"
+        ]
+      },
+      {
+        "domain_suffix": [
+          "google.com",
+          "google.ru",
+          "google.dev",
+          "googleapis.com",
+          "gstatic.com",
+          "googleusercontent.com",
+          "withgoogle.com",
+          "goo.gle",
+          "google",
+          "android.com",
+          "googlesource.com",
+          "openai.com",
+          "chatgpt.com",
+          "oaistatic.com",
+          "oaiusercontent.com",
+          "sora.com",
+          "anthropic.com",
+          "claude.ai",
+          "claudeusercontent.com",
+          "x.ai",
+          "grok.com",
+          "perplexity.ai",
+          "cursor.com",
+          "cursor.sh",
+          "cursorapi.com",
+          "cursor-cdn.com",
+          "windsurf.com",
+          "codeium.com",
+          "codeiumdata.com",
+          "mistral.ai",
+          "groq.com",
+          "together.ai",
+          "openrouter.ai",
+          "huggingface.co",
+          "hf.co",
+          "z.ai",
+          "qwen.ai",
+          "dashscope.aliyuncs.com",
+          "githubcopilot.com",
+          "jan.ai",
+          "ollama.com",
+          "lmstudio.ai",
+          "github.com",
+          "githubusercontent.com",
+          "githubassets.com",
+          "npmjs.org",
+          "npmjs.com",
+          "pypi.org",
+          "pythonhosted.org",
+          "vscode-cdn.net",
+          "visualstudio.com",
+          "sentry.io",
+          "x.com",
+          "twitter.com",
+          "twimg.com",
+          "t.co",
+          "grok.x.com",
+          "claude.site",
+          "claudeai.com",
+          "featuregates.org",
+          "statsigapi.net",
+          "statsig.com",
+          "cloudflareinsights.com",
+          "challenges.cloudflare.com",
+          "segment.io",
+          "segment.com",
+          "datadoghq.com",
+          "ingest.sentry.io",
+          "openaiapi-site.azureedge.net",
+          "openaicom.imgix.net",
+          "auth0.com",
+          "openai.fm",
+          "firebaseio.com",
+          "firebaseapp.com",
+          "firebase.com",
+          "googlesyndication.com",
+          "recaptcha.net",
+          "gvt1.com",
+          "gvt2.com",
+          "ytimg.com",
+          "ggpht.com"
+        ],
+        "outbound": "proxy",
+        "rule_set": [
+          "geosite-google",
+          "geosite-google-deepmind",
+          "geosite-google-gemini",
+          "geosite-youtube",
+          "geosite-openai",
+          "geosite-anthropic",
+          "geosite-xai",
+          "geosite-perplexity",
+          "geosite-twitter"
+        ]
+      },
+      {
+        "domain_suffix": [
+          "exitgames.com",
+          "photonengine.io",
+          "photonengine.com",
+          "platipomiru.com",
+          "bigmodel.cn",
+          "deepseek.com",
+          "kimi.com",
+          "kimi.ai",
+          "moonshot.cn",
+          "moonshot.ai"
+        ],
+        "outbound": "bypass",
+        "rule_set": [
+          "geosite-category-ru",
+          "geosite-category-gov-ru",
+          "geosite-riot",
+          "geosite-steam"
+        ]
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "bypass",
+        "rule_set": [
+          "geoip-ru"
+        ]
+      },
+      {
+        "outbound": "proxy",
+        "process_name": [
+          "Antigravity.exe",
+          "Antigravity IDE.exe",
+          "Cursor.exe",
+          "Windsurf.exe",
+          "Kimi.exe",
+          "Code.exe",
+          "code.exe",
+          "Jan.exe",
+          "Nyx.exe",
+          "LM Studio.exe",
+          "ollama.exe",
+          "ollama app.exe",
+          "claude.exe",
+          "codex.exe",
+          "qwen.exe",
+          "gemini.exe",
+          "node.exe",
+          "bun.exe",
+          "python.exe",
+          "pythonw.exe",
+          "language_server_windows_x64.exe",
+          "devin.exe"
+        ]
+      },
+      {
+        "outbound": "direct",
+        "process_name": [
+          "LeagueClient.exe",
+          "LeagueClientUx.exe",
+          "LeagueClientUxRender.exe",
+          "League of Legends.exe",
+          "LeagueCrashHandler64.exe",
+          "RiotClientServices.exe",
+          "Riot Client.exe",
+          "RiotClientCrashHandler.exe",
+          "RiotClientUx.exe",
+          "RiotClientUxRender.exe",
+          "vgc.exe",
+          "vgm.exe",
+          "vgtray.exe",
+          "Icarus.exe",
+          "Icarus-Win64-Shipping.exe",
+          "PEAK.exe",
+          "Phasmophobia.exe",
+          "UnityCrashHandler64.exe"
+        ]
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-/** The Linux IFF_* bit values the Go side decodes (core-overlay/ifaces.go). */
+/** The Linux IFF_* bit values the Go side decodes (core/mobile/ifaces.go). */
 data class IffMasks(val up: Int, val running: Int, val broadcast: Int, val multicast: Int, val pointToPoint: Int) {
     companion object {
         /** The Linux ABI values, the same on every architecture. Used by tests as the reference. */

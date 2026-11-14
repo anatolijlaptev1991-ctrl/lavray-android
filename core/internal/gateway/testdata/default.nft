@@ -1,0 +1,29 @@
+#!/usr/sbin/nft -f
+# LAVRay gateway include (fw4): /usr/share/nftables.d/ruleset-post/lavray.nft
+# Сгенерировано lavrayd; правь политики в UCI, не здесь.
+table inet lavray
+delete table inet lavray
+
+table inet lavray {
+	set exclude_addr {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4 }
+	}
+	chain proxy_v4 {
+		meta l4proto tcp tproxy ip to :7893 meta mark set 1 accept
+		meta l4proto udp tproxy ip to :7893 meta mark set 1 accept
+	}
+	chain prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+		iifname != { "br-lan" } return
+		fib daddr type local return
+		ip daddr @exclude_addr return
+		udp dport { 67, 68 } return
+		meta nfproto ipv4 jump proxy_v4
+	}
+	chain output {
+		type route hook output priority mangle; policy accept;
+		meta skuid "lavray" return
+	}
+}

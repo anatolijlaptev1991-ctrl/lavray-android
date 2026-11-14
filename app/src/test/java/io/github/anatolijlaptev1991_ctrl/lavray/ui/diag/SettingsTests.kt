@@ -29,7 +29,7 @@ import java.util.Base64
 
 class SettingsTests {
     @Test fun stackIsNotOffered() {
-        // System and mixed pass no data on a phone; the core forces gVisor (core-overlay/patch.go).
+        // System and mixed pass no data on a phone; the core forces gVisor (core/mobile/patch.go).
         assertFalse(SettingKeys.TUN_STACK in SettingKeys.SHOWN)
         val listed = listOf(SettingDescriptor(key = SettingKeys.TUN_STACK), SettingDescriptor(key = SettingKeys.TUN_MTU))
         assertFalse(SettingKeys.TUN_STACK in SettingKeys.available(listed))

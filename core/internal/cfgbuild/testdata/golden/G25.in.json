@@ -1,0 +1,28 @@
+{
+  "profile": {
+    "id": 2501,
+    "type": "vmess",
+    "name": "G25 DNS simple split + dns_routing (FR-UI-148/150/155)",
+    "address": "vm25.example.org",
+    "port": 443,
+    "detail": {"uuid": "b831381d-6324-4d53-ad4f-8cda48b30812", "security": "auto"}
+  },
+  "preset_obj": {
+    "version": 1,
+    "id": "g25-dns",
+    "name": {"en": "G25 dns routing"},
+    "routing": {
+      "def_outbound": "proxy",
+      "sniffing_mode": 1,
+      "proxy_domain": ["geosite:openai"],
+      "direct_domain": ["domain:example.com"]
+    },
+    "dns": {
+      "mode": "simple",
+      "remote_dns": "https://dns.google/dns-query",
+      "direct_dns": "local",
+      "routing_enabled": true,
+      "underlying_dns": "local"
+    }
+  }
+}

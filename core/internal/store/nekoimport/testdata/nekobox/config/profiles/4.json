@@ -1,0 +1,15 @@
+{
+    "type": "shadowsocks",
+    "id": 4,
+    "gid": 1,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "ss aes",
+        "addr": "203.0.113.13",
+        "port": 8388,
+        "method": "aes-256-gcm",
+        "pass": "ss-demo-pass",
+        "uot": 0
+    }
+}

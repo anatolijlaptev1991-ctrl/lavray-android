@@ -1,0 +1,46 @@
+{
+  "$schema": "preset.schema.v1.json",
+  "version": 1,
+  "revision": 1,
+  "id": "all-proxy",
+  "builtin": true,
+  "name": {
+    "ru": "Всё через прокси",
+    "zh": "全部代理",
+    "en": "All through proxy",
+    "es": "Todo por el proxy",
+    "de": "Alles durch den Proxy"
+  },
+  "description": {
+    "ru": "Весь трафик — через прокси. Напрямую — только локальная сеть; реклама и трекеры блокируются.",
+    "zh": "全部流量走代理。仅局域网直连；拦截广告与追踪器。",
+    "en": "All traffic goes through the proxy. Only the local network goes direct; ads and trackers are blocked.",
+    "es": "Todo el tráfico pasa por el proxy. Solo la red local va directa; publicidad y rastreadores bloqueados.",
+    "de": "Der gesamte Datenverkehr läuft durch den Proxy. Nur das lokale Netz läuft direkt; Werbung und Tracker werden blockiert."
+  },
+  "maintainer_notes": "Пятый встроенный пресет набора (PRESET-LAV-RU §3a: RU, CN, Глобальный, Всё через прокси, Всё напрямую; «Выборочный» — пустой пользовательский набор, не файл). Отличие от «Глобального»: нет даже DNS-разделения — весь резолв через DoH-туннель.",
+  "routing": {
+    "def_outbound": "proxy",
+    "outbound_domain_strategy": "",
+    "sniffing_mode": 1,
+    "proxy_domain": [],
+    "direct_domain": [],
+    "block_domain": [
+      "geosite:category-ads-all"
+    ],
+    "proxy_ip": [],
+    "direct_ip": [
+      "geoip:private"
+    ],
+    "block_ip": [],
+    "process_rules": []
+  },
+  "dns": {
+    "mode": "simple",
+    "remote_dns": "https://dns.google/dns-query",
+    "remote_query_strategy": "",
+    "direct_dns": "local",
+    "routing_enabled": false,
+    "underlying_dns": "local"
+  }
+}

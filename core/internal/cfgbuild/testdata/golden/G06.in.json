@@ -1,0 +1,22 @@
+{
+  "profile": {
+    "id": 601,
+    "type": "vmess",
+    "name": "G06 vmess ws tls",
+    "address": "vm1.example.org",
+    "port": 443,
+    "detail": {
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30811",
+      "security": "auto"
+    },
+    "stream": {
+      "network": "ws",
+      "path": "/ws",
+      "host": "cdn.example.org",
+      "security": "tls",
+      "sni": "vm1.example.org",
+      "alpn": "h2,http/1.1",
+      "utls_fingerprint": "chrome"
+    }
+  }
+}

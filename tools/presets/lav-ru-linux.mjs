@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // LAV Preset RU Linux = LAV Preset RU без process_rules (правил для программ Windows).
 // Запуск из корня репозитория: node tools/presets/lav-ru-linux.mjs. Пишет
-// core-overlay/presets/lav-ru-linux.json; сверку с lav-ru держит core-overlay/default_preset_test.go.
+// core/internal/presets/builtin/lav-ru-linux.json; сверку с lav-ru держит core/mobile/default_preset_test.go.
 import fs from 'fs';
-const src = JSON.parse(fs.readFileSync('third_party/lavray/core/internal/presets/builtin/lav-ru.json', 'utf8'));
+const src = JSON.parse(fs.readFileSync('core/internal/presets/builtin/lav-ru.json', 'utf8'));
 const p = structuredClone(src);
 p.revision = 1;
 p.id = 'lav-ru-linux';
@@ -15,6 +15,6 @@ p.description = {
   es: 'LAV Preset RU sin las reglas de programas de Windows. Los sitios rusos (geosite category-ru/gov-ru), los dominios de juegos, BigModel, DeepSeek y Kimi/Moonshot van directos; los demás servicios de IA/desarrollo y el resto del tráfico van por proxy; los anuncios se bloquean. DNS dividido: RU, juegos, BigModel, DeepSeek y Kimi/Moonshot usan el DNS del proveedor; el resto usa DoH a través del túnel.',
   de: 'LAV Preset RU ohne die Regeln für Windows-Programme. Russische Webseiten (geosite category-ru/gov-ru), Spiele-Domains, BigModel, DeepSeek und Kimi/Moonshot laufen direkt; andere KI-/Dev-Dienste und der übrige Datenverkehr laufen über den Proxy; Werbung wird blockiert. Getrenntes DNS: RU, Spiele, BigModel, DeepSeek und Kimi/Moonshot über den Provider-DNS, der Rest über DoH durch den Tunnel.',
 };
-p.maintainer_notes = 'LAVRay Android: копия lav-ru rev ' + src.revision + ' без process_rules (правил для программ Windows, *.exe). Все списки доменов и IP, custom_rules и DNS совпадают с lav-ru; сверку держит тест TestLinuxPresetIsLavRuWithoutWindowsApps (core-overlay/default_preset_test.go). При смене lav-ru пересоздать: node tools/presets/lav-ru-linux.mjs.';
+p.maintainer_notes = 'LAVRay Android: копия lav-ru rev ' + src.revision + ' без process_rules (правил для программ Windows, *.exe). Все списки доменов и IP, custom_rules и DNS совпадают с lav-ru; сверку держит тест TestLinuxPresetIsLavRuWithoutWindowsApps (core/mobile/default_preset_test.go). При смене lav-ru пересоздать: node tools/presets/lav-ru-linux.mjs.';
 p.routing.process_rules = [];
-fs.writeFileSync('core-overlay/presets/lav-ru-linux.json', JSON.stringify(p, null, 2) + '\n');
+fs.writeFileSync('core/internal/presets/builtin/lav-ru-linux.json', JSON.stringify(p, null, 2) + '\n');

@@ -1,0 +1,14 @@
+{
+  "profile": {
+    "id": 2001,
+    "type": "socks",
+    "name": "G20 TUN config (FR-UI-184/279)",
+    "address": "203.0.113.20",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "settings": {
+    "inbound": {"address": "127.0.0.1", "port": 2080},
+    "tun": {"enabled": true, "mtu": 9000, "stack": "gvisor", "strict_route": false}
+  }
+}

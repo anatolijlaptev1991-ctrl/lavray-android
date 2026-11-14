@@ -1,0 +1,25 @@
+{
+    "type": "hysteria2",
+    "id": 6,
+    "gid": 1,
+    "yc": 80,
+    "bean": {
+        "_v": 0,
+        "name": "hy2 hop",
+        "addr": "11.0.0.1",
+        "port": 8443,
+        "obfsPassword": "obfs123",
+        "uploadMbps": 100,
+        "downloadMbps": 500,
+        "streamReceiveWindow": 0,
+        "connectionReceiveWindow": 0,
+        "disableMtuDiscovery": false,
+        "hopInterval": 30,
+        "hopPort": "20000-30000",
+        "password": "hy2pass",
+        "forceExternal": false,
+        "allowInsecure": false,
+        "sni": "hy.example.com",
+        "disableSni": false
+    }
+}

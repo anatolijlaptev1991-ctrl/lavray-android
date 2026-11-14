@@ -1,0 +1,20 @@
+{
+    "id": 1,
+    "front_proxy_id": 1,
+    "archive": false,
+    "skip_auto_update": false,
+    "name": "Подписка",
+    "order": [
+        4,
+        5,
+        7
+    ],
+    "url": "https://sub.example.com/list",
+    "info": "upload=1048576; download=2097152; total=1073741824; expire=1735689600",
+    "lastup": 1730000000,
+    "manually_column_width": true,
+    "column_width": [
+        200,
+        100
+    ]
+}

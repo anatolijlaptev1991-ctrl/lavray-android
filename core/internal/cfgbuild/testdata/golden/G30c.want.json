@@ -1,0 +1,125 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "predefined",
+        "query_type": [
+          32,
+          33
+        ],
+        "rcode": 0
+      },
+      {
+        "action": "predefined",
+        "domain_suffix": [
+          ".lan"
+        ],
+        "rcode": 0
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "tag": "dns-remote",
+        "type": "local"
+      },
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "server": "203.0.113.32",
+      "server_port": 1080,
+      "tag": "proxy",
+      "type": "socks"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "final": "direct",
+    "rule_set": [
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ads-all.srs",
+        "tag": "geosite-category-ads-all",
+        "type": "local"
+      }
+    ],
+    "rules": [
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "outbound": "block",
+        "rule_set": [
+          "geosite-category-ads-all"
+        ]
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

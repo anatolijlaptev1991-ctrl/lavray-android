@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # protogen
 
-Generates the Kotlin API types from `third_party/lavray/proto/lavray.proto` (read-only submodule).
+Generates the Kotlin API types from `core/proto/lavray.proto` (the API of the core in `core/`).
 Plain Node, no dependencies, no Python.
 
 ```
@@ -9,7 +9,7 @@ node tools/protogen/protogen.mjs          # rewrites app/src/main/java/.../api/g
 node --test tools/protogen/protogen.test.mjs              # generator tests
 ```
 
-Output is committed. Regenerate after bumping the submodule, then run `gradlew testDebugUnitTest`.
+Output is committed. Regenerate after changing the proto, then run `gradlew testDebugUnitTest`.
 
 | File | Content |
 |---|---|

@@ -1,0 +1,44 @@
+{
+  "$schema": "preset.schema.v1.json",
+  "version": 1,
+  "revision": 1,
+  "id": "all-direct",
+  "builtin": true,
+  "name": {
+    "ru": "Всё напрямую",
+    "zh": "全部直连",
+    "en": "All direct",
+    "es": "Todo directo",
+    "de": "Alles direkt"
+  },
+  "description": {
+    "ru": "Прокси не используется: весь трафик — напрямую. Реклама и трекеры блокируются. Полезно как «безопасный офлайн-режим правил» и база для ручного «Выборочного» набора.",
+    "zh": "不使用代理：全部流量直连。拦截广告与追踪器。适合作为手动「选择性」规则集的基础。",
+    "en": "No proxy: all traffic goes direct. Ads and trackers are blocked. Useful as a safe rules-off baseline and a base for a manual selective set.",
+    "es": "Sin proxy: todo el tráfico va directo. Publicidad y rastreadores bloqueados. Útil como base segura y punto de partida de un conjunto selectivo manual.",
+    "de": "Kein Proxy: Der gesamte Datenverkehr läuft direkt. Werbung und Tracker werden blockiert. Nützlich als sichere Basis und Ausgangspunkt für ein manuelles selektives Set."
+  },
+  "maintainer_notes": "Пятая карточка набора builtin (PRESET-LAV-RU §3a). Правило рекламы сохранено и здесь (§3b: во всех встроенных пресетах; в пользовательской копии можно удалить явно).",
+  "routing": {
+    "def_outbound": "direct",
+    "outbound_domain_strategy": "",
+    "sniffing_mode": 0,
+    "proxy_domain": [],
+    "direct_domain": [],
+    "block_domain": [
+      "geosite:category-ads-all"
+    ],
+    "proxy_ip": [],
+    "direct_ip": [],
+    "block_ip": [],
+    "process_rules": []
+  },
+  "dns": {
+    "mode": "simple",
+    "remote_dns": "local",
+    "remote_query_strategy": "",
+    "direct_dns": "local",
+    "routing_enabled": false,
+    "underlying_dns": "local"
+  }
+}

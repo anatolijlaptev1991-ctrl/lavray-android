@@ -1,0 +1,11 @@
+{
+  "profile": {
+    "id": 3001,
+    "type": "socks",
+    "name": "G30 Global preset",
+    "address": "203.0.113.30",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "preset": "global"
+}

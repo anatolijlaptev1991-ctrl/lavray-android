@@ -1,0 +1,12 @@
+{
+  "profile": {
+    "id": 2401,
+    "type": "socks",
+    "name": "G24 custom_config +rules concat (allowlist)",
+    "address": "203.0.113.24",
+    "port": 1080,
+    "detail": {"proto": "socks5"},
+    "custom_config_json": "{\"route\":{\"+rules\":[{\"domain_suffix\":[\"custom.example\"],\"outbound\":\"direct\"}]}}",
+    "custom_fields_confirmed": true
+  }
+}

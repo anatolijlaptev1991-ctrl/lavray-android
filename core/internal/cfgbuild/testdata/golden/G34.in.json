@@ -1,0 +1,46 @@
+{
+  "profile": {
+    "id": 3401,
+    "type": "socks",
+    "name": "G34 start without network: local .srs supply + cache_file (FR-UI-266/LNB-36)",
+    "address": "203.0.113.34",
+    "port": 1080,
+    "detail": {
+      "proto": "socks5"
+    }
+  },
+  "settings": {
+    "cache_file_path": "data/cache.db",
+    "inbound": {
+      "address": "127.0.0.1",
+      "port": 2080
+    }
+  },
+  "preset_obj": {
+    "version": 1,
+    "id": "g34-offline",
+    "name": {
+      "en": "G34 offline start"
+    },
+    "routing": {
+      "def_outbound": "proxy",
+      "sniffing_mode": 1,
+      "block_domain": [
+        "geosite:category-ads-all"
+      ],
+      "direct_domain": [
+        "geosite:category-ru"
+      ],
+      "direct_ip": [
+        "geoip:private",
+        "geoip:ru"
+      ]
+    },
+    "dns": {
+      "mode": "simple",
+      "remote_dns": "https://dns.google/dns-query",
+      "direct_dns": "local",
+      "routing_enabled": true
+    }
+  }
+}

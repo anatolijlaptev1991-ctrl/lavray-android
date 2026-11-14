@@ -1,0 +1,22 @@
+{
+  "profile": {
+    "id": 3201,
+    "type": "socks",
+    "name": "G32 sniffing DISABLED (FR-UI-132)",
+    "address": "203.0.113.33",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "preset_obj": {
+    "version": 1,
+    "id": "g32-nosniff",
+    "name": {"en": "G32 no sniffing"},
+    "routing": {"def_outbound": "proxy", "sniffing_mode": 0},
+    "dns": {
+      "mode": "simple",
+      "remote_dns": "https://dns.google/dns-query",
+      "direct_dns": "local",
+      "routing_enabled": false
+    }
+  }
+}

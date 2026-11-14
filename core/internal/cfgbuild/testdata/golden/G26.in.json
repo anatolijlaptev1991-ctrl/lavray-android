@@ -1,0 +1,13 @@
+{
+  "profile": {
+    "id": 2601,
+    "type": "socks",
+    "name": "G26 fakeip + tun (FR-UI-151)",
+    "address": "203.0.113.26",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "settings": {
+    "tun": {"enabled": true, "fake_dns": true}
+  }
+}

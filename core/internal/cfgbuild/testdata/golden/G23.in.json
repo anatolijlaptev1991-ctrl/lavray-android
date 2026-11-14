@@ -1,0 +1,29 @@
+{
+  "profile": {
+    "id": 2301,
+    "type": "socks",
+    "name": "G23 geosite/geoip -> local .srs + cache_file (FR-UI-143/266)",
+    "address": "203.0.113.23",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "preset_obj": {
+    "version": 1,
+    "id": "g23-geo",
+    "name": {"en": "G23 geo"},
+    "routing": {
+      "def_outbound": "proxy",
+      "sniffing_mode": 1,
+      "proxy_domain": ["geosite:google", "domain:google.ru"],
+      "direct_domain": ["geosite:category-ru"],
+      "block_domain": ["geosite:category-ads-all"],
+      "direct_ip": ["geoip:private", "geoip:ru", "10.0.0.0/8"]
+    },
+    "dns": {
+      "mode": "simple",
+      "remote_dns": "https://dns.google/dns-query",
+      "direct_dns": "local",
+      "routing_enabled": true
+    }
+  }
+}

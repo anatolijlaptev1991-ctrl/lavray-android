@@ -1,0 +1,32 @@
+{
+  "profile": {
+    "id": 201,
+    "type": "chain",
+    "name": "G02 socks4 + http auth",
+    "detail": {
+      "profile_ids": [202, 203]
+    }
+  },
+  "extra_profiles": [
+    {
+      "id": 202,
+      "type": "http",
+      "address": "203.0.113.20",
+      "port": 8080,
+      "detail": {
+        "proto": "http",
+        "username": "user",
+        "password": "pass"
+      }
+    },
+    {
+      "id": 203,
+      "type": "socks",
+      "address": "203.0.113.21",
+      "port": 1080,
+      "detail": {
+        "proto": "socks4"
+      }
+    }
+  ]
+}

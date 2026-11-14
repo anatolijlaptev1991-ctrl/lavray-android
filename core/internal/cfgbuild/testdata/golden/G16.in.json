@@ -1,0 +1,47 @@
+{
+  "profile": {
+    "id": 1601,
+    "type": "chain",
+    "name": "G16 chain 3 + front proxy",
+    "group_id": 7,
+    "detail": {
+      "profile_ids": [1604, 1603, 1602]
+    }
+  },
+  "group": {
+    "id": 7,
+    "name": "G16 group",
+    "front_proxy_id": 1605
+  },
+  "extra_profiles": [
+    {
+      "id": 1602,
+      "type": "socks",
+      "address": "198.51.100.2",
+      "port": 1080,
+      "detail": {"proto": "socks5"}
+    },
+    {
+      "id": 1603,
+      "type": "trojan",
+      "address": "chain-mid.example.org",
+      "port": 443,
+      "detail": {"password": "mid-pass"},
+      "stream": {"network": "tcp", "security": "tls", "sni": "mid.example.org"}
+    },
+    {
+      "id": 1604,
+      "type": "vmess",
+      "address": "chain-exit.example.org",
+      "port": 443,
+      "detail": {"uuid": "b831381d-6324-4d53-ad4f-8cda48b30819", "security": "auto"}
+    },
+    {
+      "id": 1605,
+      "type": "socks",
+      "address": "198.51.100.5",
+      "port": 1080,
+      "detail": {"proto": "socks5"}
+    }
+  ]
+}

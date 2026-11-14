@@ -1,0 +1,37 @@
+{
+    "inbound_address": "127.0.0.1",
+    "inbound_socks_port": 2080,
+    "inbound_auth": {
+        "user": "demo",
+        "pass": "demo-pass"
+    },
+    "test_url": "https://www.gstatic.com/generate_204",
+    "test_concurrent": 5,
+    "sub_use_proxy": true,
+    "sub_auto_update": 1440,
+    "user_agent2": "demo-agent/1.0",
+    "mux_protocol": "h2mux",
+    "mux_concurrency": -1,
+    "vpn_impl": 2,
+    "vpn_mtu": 9000,
+    "vpn_strict_route": true,
+    "vpn_ipv6": false,
+    "hk_mw": "Ctrl+Alt+M",
+    "remember_id": 3,
+    "remember_enable": true,
+    "spmode2": [
+        "system_proxy"
+    ],
+    "current_group": 1,
+    "core_box_clash_api": -9090,
+    "check_include_pre": false,
+    "active_routing": "RU-bypass + Games",
+    "log_level": "info",
+    "theme": "Fusion",
+    "conn_stat": true,
+    "extraCore": {
+        "core_map": "{}"
+    },
+    "future_option_x": 1,
+    "another_unknown": "y"
+}

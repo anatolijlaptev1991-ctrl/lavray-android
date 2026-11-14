@@ -1,0 +1,12 @@
+{
+  "profile": {
+    "id": 101,
+    "type": "socks",
+    "name": "G01 socks5 no auth",
+    "address": "203.0.113.10",
+    "port": 1080,
+    "detail": {
+      "proto": "socks5"
+    }
+  }
+}

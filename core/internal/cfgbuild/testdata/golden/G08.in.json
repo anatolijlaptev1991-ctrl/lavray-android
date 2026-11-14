@@ -1,0 +1,41 @@
+{
+  "profile": {
+    "id": 801,
+    "type": "chain",
+    "name": "G08 httpupgrade + ws early data",
+    "detail": {
+      "profile_ids": [802, 803]
+    }
+  },
+  "extra_profiles": [
+    {
+      "id": 802,
+      "type": "vmess",
+      "address": "vm3.example.org",
+      "port": 443,
+      "detail": {
+        "uuid": "b831381d-6324-4d53-ad4f-8cda48b30813"
+      },
+      "stream": {
+        "network": "httpupgrade",
+        "path": "/up",
+        "host": "hu.example.org"
+      }
+    },
+    {
+      "id": 803,
+      "type": "vmess",
+      "address": "vm4.example.org",
+      "port": 443,
+      "detail": {
+        "uuid": "b831381d-6324-4d53-ad4f-8cda48b30814"
+      },
+      "stream": {
+        "network": "ws",
+        "path": "/ed?ed=2048",
+        "ws_early_data_max": 4096,
+        "ws_early_data_header": "Sec-WebSocket-Protocol"
+      }
+    }
+  ]
+}

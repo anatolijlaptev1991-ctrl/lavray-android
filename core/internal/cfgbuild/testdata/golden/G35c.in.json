@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "id": 3503,
+    "type": "hysteria2",
+    "name": "G35c hy2 server_ports multi-interval + hop",
+    "address": "hy2c.example.org",
+    "port": 8443,
+    "detail": {"password": "hy2-pass", "server_ports": "1000:2000,3000:4000", "hop_interval": "45s"}
+  }
+}

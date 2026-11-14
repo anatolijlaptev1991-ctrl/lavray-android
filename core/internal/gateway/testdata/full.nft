@@ -1,0 +1,51 @@
+#!/usr/sbin/nft -f
+# LAVRay gateway include (fw4): /usr/share/nftables.d/ruleset-post/lavray.nft
+# Сгенерировано lavrayd; правь политики в UCI, не здесь.
+table inet lavray
+delete table inet lavray
+
+table inet lavray {
+	set exclude_addr {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4 }
+	}
+	set exclude_addr6 {
+		type ipv6_addr
+		flags interval
+		elements = { fc00::/7, fe80::/10, ::1, ff00::/8 }
+	}
+	chain proxy_v4 {
+		meta l4proto tcp tproxy ip to :7893 meta mark set 5 accept
+		meta l4proto udp tproxy ip to :7893 meta mark set 5 accept
+	}
+	chain proxy_v6 {
+		meta l4proto tcp tproxy ip6 to :7893 meta mark set 5 accept
+		meta l4proto udp tproxy ip6 to :7893 meta mark set 5 accept
+	}
+	chain prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+		iifname != { "br-lan", "br-iot" } return
+		udp dport 53 meta nfproto ipv4 jump proxy_v4
+		tcp dport 53 meta nfproto ipv4 jump proxy_v4
+		udp dport 53 meta nfproto ipv6 jump proxy_v6
+		tcp dport 53 meta nfproto ipv6 jump proxy_v6
+		fib daddr type local return
+		ip daddr @exclude_addr return
+		udp dport { 67, 68 } return
+		ip6 daddr @exclude_addr6 return
+		udp dport { 546, 547 } return
+		ether saddr aa:bb:cc:11:22:34 return
+		ether saddr aa:bb:cc:44:55:66 meta nfproto ipv4 jump proxy_v4
+		ether saddr aa:bb:cc:44:55:66 meta nfproto ipv6 jump proxy_v6
+		# aa:bb:cc:77:88:9a: пресет "ru-direct", трафик идёт через прокси по активным правилам ядра
+		ether saddr aa:bb:cc:77:88:9a meta nfproto ipv4 jump proxy_v4
+		ether saddr aa:bb:cc:77:88:9a meta nfproto ipv6 jump proxy_v6
+		meta nfproto ipv4 jump proxy_v4
+		meta nfproto ipv6 jump proxy_v6
+	}
+	chain output {
+		type route hook output priority mangle; policy accept;
+		meta skuid "lavray" return
+	}
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "preset.schema.v1.json",
+  "version": 1,
+  "revision": 1,
+  "id": "global",
+  "builtin": true,
+  "name": {
+    "ru": "Глобальный",
+    "zh": "全局",
+    "en": "Global",
+    "es": "Global",
+    "de": "Global"
+  },
+  "description": {
+    "ru": "Весь трафик — через прокси, кроме локальной сети (напрямую) и рекламы/трекеров (блок geosite:category-ads-all). Простой пресет без региональных списков.",
+    "zh": "除局域网直连和广告/追踪器拦截（geosite:category-ads-all）外，全部流量走代理。无地区列表的简单预设。",
+    "en": "All traffic goes through the proxy, except the local network (direct) and ads/trackers (blocked via geosite:category-ads-all). A simple preset with no regional lists.",
+    "es": "Todo el tráfico pasa por el proxy, salvo la red local (directa) y la publicidad/rastreadores (bloqueados con geosite:category-ads-all). Preset simple sin listas regionales.",
+    "de": "Der gesamte Datenverkehr läuft durch den Proxy, außer im lokalen Netz (direkt) und bei Werbung/Trackern (blockiert über geosite:category-ads-all). Einfaches Preset ohne regionale Listen."
+  },
+  "maintainer_notes": "Блок-лист — geosite:category-ads-all (актуальное имя категории v2fly-геобазы; в задании фигурировало geosite:category-ads — синоним устарел). LAN-direct обязателен на всех платформах, на OpenWrt geoip:private критичен (PRESET-LAV-RU §3c). DROP-поля некора (domain_strategy, direct_dns_strategy, dns_final_out) не переносятся — SCHEMA.md §3.",
+  "routing": {
+    "def_outbound": "proxy",
+    "outbound_domain_strategy": "",
+    "sniffing_mode": 1,
+    "proxy_domain": [],
+    "direct_domain": [],
+    "block_domain": [
+      "geosite:category-ads-all"
+    ],
+    "proxy_ip": [],
+    "direct_ip": [
+      "geoip:private"
+    ],
+    "block_ip": [],
+    "process_rules": []
+  },
+  "dns": {
+    "mode": "simple",
+    "remote_dns": "https://dns.google/dns-query",
+    "remote_query_strategy": "",
+    "direct_dns": "local",
+    "routing_enabled": false,
+    "underlying_dns": "local"
+  }
+}

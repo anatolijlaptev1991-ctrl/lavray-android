@@ -1,0 +1,15 @@
+{
+  "profile": {
+    "id": 1801,
+    "type": "custom_config",
+    "name": "G18 custom internal-full",
+    "address": "n/a",
+    "port": 0,
+    "detail": {
+      "core": "internal-full",
+      "full_config_json": "{\n  \"log\": {\"level\": \"warn\"},\n  \"dns\": {\"servers\": [{\"tag\": \"dns-x\", \"type\": \"local\"}]},\n  \"route\": {\"rules\": [{\"outbound\": \"direct\", \"domain\": [\"a.example\"]}]},\n  \"outbounds\": [\n    {\"type\": \"socks\", \"tag\": \"proxy\", \"server\": \"198.51.100.18\", \"server_port\": 1080},\n    {\"type\": \"direct\", \"tag\": \"direct\"},\n    {\"type\": \"block\", \"tag\": \"block\"}\n  ]\n}"
+    },
+    "custom_config_json": "{\"log\": {\"level\": \"trace\"}, \"route\": {\"+rules\": [{\"outbound\": \"block\", \"domain\": [\"ads.example\"]}]}}",
+    "custom_fields_confirmed": true
+  }
+}

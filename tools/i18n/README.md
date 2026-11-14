@@ -11,7 +11,7 @@ node tools/i18n/generate.mjs --root <dir>   # run against another tree (tests); 
 node --test "tools/i18n/**/*.test.mjs"  # tests (quote the glob; `node --test tools/i18n/` does not work on Node 24)
 ```
 
-Input: `third_party/lavray/ui/src/lib/dictionaries/{ru,en,zh,es,de}.ts` (read-only submodule) and
+Input: `tools/i18n/dictionaries/{ru,en,zh,es,de}.ts` (the interface dictionaries, taken over from the desktop LAVRay 0.9.3 and kept here since) and
 `tools/i18n/android/{ru,en,zh,es,de}.json` (Android-only strings, see below).
 Output (committed, deterministic, do not edit): `app/src/main/res/values/strings.xml` (ru, the default as on desktop) and
 `values-en`, `values-zh`, `values-es`, `values-de`. LF, UTF-8 without BOM, 4-space indent, entries sorted by resource name.

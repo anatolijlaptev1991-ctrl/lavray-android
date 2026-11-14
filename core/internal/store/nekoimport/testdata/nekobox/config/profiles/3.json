@@ -1,0 +1,22 @@
+{
+    "type": "trojan",
+    "id": 3,
+    "gid": 0,
+    "yc": 120,
+    "bean": {
+        "_v": 0,
+        "name": "trojan tls",
+        "addr": "203.0.113.12",
+        "port": 443,
+        "pass": "trojan-demo-pass",
+        "stream": {
+            "net": "tcp",
+            "sec": "tls",
+            "sni": "tr.example.com",
+            "alpn": "h2,http/1.1",
+            "insecure": false,
+            "ed_len": 0,
+            "mux_s": 0
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "profile": {
+    "id": 3101,
+    "type": "vmess",
+    "name": "G31 forTest mode (FR-UI-196)",
+    "address": "vm31.example.org",
+    "port": 443,
+    "detail": {"uuid": "b831381d-6324-4d53-ad4f-8cda48b30812", "security": "auto"}
+  },
+  "for_test": true
+}

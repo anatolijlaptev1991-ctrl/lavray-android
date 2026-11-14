@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "id": 1001,
+    "type": "vless",
+    "name": "G10 vless reality vision",
+    "address": "vl1.example.org",
+    "port": 443,
+    "detail": {
+      "password": "b831381d-6324-4d53-ad4f-8cda48b30816",
+      "flow": "xtls-rprx-vision"
+    },
+    "stream": {
+      "network": "tcp",
+      "security": "reality",
+      "sni": "www.microsoft.com",
+      "reality_public_key": "SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc",
+      "reality_short_id": "0123abcd"
+    }
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "route",
+        "domain_suffix": [
+          "google.ru"
+        ],
+        "rule_set": [
+          "geosite-google"
+        ],
+        "server": "dns-remote"
+      },
+      {
+        "action": "route",
+        "rule_set": [
+          "geosite-category-ru"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "action": "predefined",
+        "query_type": [
+          32,
+          33
+        ],
+        "rcode": 0
+      },
+      {
+        "action": "predefined",
+        "domain_suffix": [
+          ".lan"
+        ],
+        "rcode": 0
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "domain_resolver": "dns-local",
+        "path": "/dns-query",
+        "server": "dns.google",
+        "tag": "dns-remote",
+        "type": "https"
+      },
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "server": "203.0.113.23",
+      "server_port": 1080,
+      "tag": "proxy",
+      "type": "socks"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "final": "proxy",
+    "rule_set": [
+      {
+        "format": "binary",
+        "path": "geo/geosite/google.srs",
+        "tag": "geosite-google",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ru.srs",
+        "tag": "geosite-category-ru",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geosite/category-ads-all.srs",
+        "tag": "geosite-category-ads-all",
+        "type": "local"
+      },
+      {
+        "format": "binary",
+        "path": "geo/geoip/ru.srs",
+        "tag": "geoip-ru",
+        "type": "local"
+      }
+    ],
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "mixed-in",
+          "tun-in"
+        ],
+        "timeout": "3s"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "outbound": "block",
+        "rule_set": [
+          "geosite-category-ads-all"
+        ]
+      },
+      {
+        "domain_suffix": [
+          "google.ru"
+        ],
+        "outbound": "proxy",
+        "rule_set": [
+          "geosite-google"
+        ]
+      },
+      {
+        "outbound": "bypass",
+        "rule_set": [
+          "geosite-category-ru"
+        ]
+      },
+      {
+        "ip_cidr": [
+          "10.0.0.0/8"
+        ],
+        "ip_is_private": true,
+        "outbound": "bypass",
+        "rule_set": [
+          "geoip-ru"
+        ]
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

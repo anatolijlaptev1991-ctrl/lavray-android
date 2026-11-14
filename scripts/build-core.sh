@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # Сборка Go-ядра LAVRay в app/libs/lavray-core.aar (gomobile bind).
-# Работает в Git Bash на Windows и в Linux CI. Субмодуль third_party/lavray не
-# меняется: ядро копируется в build/go/core, туда же кладётся core-overlay
-# (пакет mobile) и добавляется зависимость gomobile (go get и -mod=mod нужны
-# только в этой копии).
+# Работает в Git Bash на Windows и в Linux CI. Ядро лежит в core/ этого репозитория
+# (пакет mobile — мост с Android). Сборка идёт в копии build/go/core: туда добавляется
+# зависимость gomobile и подменяется modernc.org/libc (go get, -mod=mod и replace
+# меняют go.mod только копии, core/ не трогается).
 #
 # Переменные окружения (все необязательные):
 #   ABIS             цели gomobile (по умолчанию android/arm64,android/arm,android/amd64)
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="$ROOT/third_party/lavray/core"
+SRC="$ROOT/core"
 BUILD="$ROOT/build/go"
 COPY="$BUILD/core"
 LIBC="$BUILD/libc"
@@ -54,7 +54,7 @@ find_ndk() {
 
 # modernc.org/libc (SQLite) issues legacy x86-64 system calls (open, stat, lstat, ...) that
 # Android's seccomp filter kills with SIGSYS. The module is copied to build/go/libc, every
-# raw system call in its musl glue goes through core-overlay/libc-android (which rewrites
+# raw system call in its musl glue goes through scripts/libc-android (which rewrites
 # them into the *at calls), and the core module is pointed at the copy. Only the build
 # copy changes; arm64 and arm never issued these calls, so the rewrite is a no-op there.
 patch_libc() {
@@ -67,8 +67,8 @@ patch_libc() {
   rm -rf "$LIBC"
   cp -r "$src" "$LIBC"
   chmod -R u+w "$LIBC"
-  cp -r "$ROOT/core-overlay/libc-android/androidcompat" "$LIBC/"
-  cp "$ROOT"/core-overlay/libc-android/rawsys_*.go "$LIBC/"
+  cp -r "$ROOT/scripts/libc-android/androidcompat" "$LIBC/"
+  cp "$ROOT"/scripts/libc-android/rawsys_*.go "$LIBC/"
   sed -i -e 's/unix.Syscall6(/rawSyscall6(/g' -e 's/unix.Syscall(/rawSyscall(/g' "$LIBC/syscall_musl.go"
   if grep -q 'unix.Syscall' "$LIBC/syscall_musl.go"; then
     echo "syscall_musl.go: остались прямые unix.Syscall" >&2; exit 1
@@ -144,39 +144,12 @@ patch_singbox() {
   echo "==> sing-box: из реестра убраны api, ssmapi, origin_ca, resolved, bridge${SINGBOX_DROP:+, $SINGBOX_DROP}"
 }
 
-# Патчи ядра: core-overlay/patches/*.patch применяются к копии (build/go/core), субмодуль
-# не меняется. Целевые файлы приводятся к LF (на Windows подмодуль может быть с CRLF).
-# Нулевой допуск: если патч не ложится (ядро обновилось), сборка падает, а не молчит.
-apply_patches() {
-  local p files f
-  for p in "$ROOT"/core-overlay/patches/*.patch; do
-    [ -f "$p" ] || continue
-    files="$(sed -n "s|^+++ b/||p" "$p")"
-    for f in $files; do
-      [ -f "$COPY/$f" ] || { echo "патч $(basename "$p"): нет файла $f" >&2; exit 1; }
-      sed -i "s/$//" "$COPY/$f"
-    done
-    if ! (cd "$COPY" && patch -p1 -N -F0 --no-backup-if-mismatch < "$p" >/dev/null); then
-      echo "ПАТЧ НЕ ПРИМЕНИЛСЯ: $(basename "$p"); ядро в third_party/lavray изменилось, обновите патч" >&2
-      exit 1
-    fi
-    echo "==> патч применён: $(basename "$p")"
-  done
-}
-
 prepare() {
-  [ -f "$SRC/go.mod" ] || { echo "нет $SRC (git submodule update --init)" >&2; exit 1; }
+  [ -f "$SRC/go.mod" ] || { echo "нет $SRC/go.mod" >&2; exit 1; }
   echo "==> копия ядра в $COPY"
   rm -rf "$COPY"
   mkdir -p "$BUILD"
   cp -r "$SRC" "$COPY"
-  mkdir -p "$COPY/mobile"
-  cp "$ROOT"/core-overlay/*.go "$COPY/mobile/"
-  cp "$ROOT"/core-overlay/inject/api/*.go "$COPY/internal/api/"
-  # Встроенные наборы только для телефона (LAV Preset RU Linux); имя файла вносит в
-  # BuiltinFiles патч 0002, go:embed берёт весь каталог builtin.
-  cp "$ROOT"/core-overlay/presets/*.json "$COPY/internal/presets/builtin/"
-  apply_patches
   (
     cd "$COPY"
     export GOFLAGS=-mod=mod
@@ -197,13 +170,13 @@ tags() {
 }
 
 run_tests() {
-  echo "==> go vet и go test ./mobile (теги: $(tags))"
+  # Ядро теперь своё (core/), поэтому проверяется целиком, а не только мост.
+  echo "==> go vet и go test всего ядра (теги: $(tags))"
   (
     cd "$COPY"
     export GOFLAGS=-mod=mod
-    go vet -tags "$(tags)" ./mobile/
-    go test -count=1 -tags "$(tags)" ./mobile/
-    go test -count=1 -tags "$(tags)" -run "TestSetTestInstanceFactory|TestTunnelClient|TestDialError|TestAndroidTunnel" ./internal/api/
+    go vet -tags "$(tags)" ./...
+    go test -count=1 -tags "$(tags)" ./...
   )
   (cd "$LIBC" && GOFLAGS=-mod=mod go test -count=1 ./androidcompat/)
 }

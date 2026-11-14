@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "id": 2901,
+    "type": "socks",
+    "name": "G29 LAV Preset CN",
+    "address": "203.0.113.29",
+    "port": 1080,
+    "detail": {
+      "proto": "socks5"
+    }
+  },
+  "preset": "lav-cn",
+  "settings": {
+    "goos": "windows",
+    "inbound": {
+      "address": "127.0.0.1",
+      "port": 2080
+    }
+  }
+}

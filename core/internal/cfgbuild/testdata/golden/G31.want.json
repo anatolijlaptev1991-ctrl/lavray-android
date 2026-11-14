@@ -1,0 +1,92 @@
+{
+  "dns": {
+    "rules": [
+      {
+        "action": "route",
+        "domain": [
+          "vm31.example.org"
+        ],
+        "server": "dns-direct"
+      }
+    ],
+    "servers": [
+      {
+        "tag": "dns-direct",
+        "type": "local"
+      },
+      {
+        "tag": "dns-local",
+        "type": "local"
+      }
+    ]
+  },
+  "inbounds": [],
+  "log": {
+    "level": "info"
+  },
+  "outbounds": [
+    {
+      "alter_id": 0,
+      "security": "auto",
+      "server": "vm31.example.org",
+      "server_port": 443,
+      "tag": "proxy",
+      "type": "vmess",
+      "uuid": "b831381d-6324-4d53-ad4f-8cda48b30812"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "bypass",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "dns-direct"
+    },
+    "rules": [
+      {
+        "action": "sniff",
+        "inbound": [
+          "mixed-in",
+          "tun-in"
+        ],
+        "timeout": "3s"
+      },
+      {
+        "network": [
+          "udp"
+        ],
+        "outbound": "block",
+        "port": [
+          135,
+          137,
+          138,
+          139,
+          5353
+        ]
+      },
+      {
+        "ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ],
+        "outbound": "block"
+      },
+      {
+        "outbound": "block",
+        "source_ip_cidr": [
+          "224.0.0.0/3",
+          "ff00::/8"
+        ]
+      }
+    ]
+  }
+}

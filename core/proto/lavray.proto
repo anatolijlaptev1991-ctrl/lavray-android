@@ -1,0 +1,2411 @@
+// ============================================================================
+// LAVRay — контракт API UI ↔ ядро, v1 (ЧЕРНОВИК Этапа 3, ревизия 2 по L2-ревью)
+// ============================================================================
+//
+// Транспорт: ConnectRPC (connectrpc.com). Один и тот же контракт обслуживает
+// три клиента: Tauri-оболочку (десктоп), веб-панель (OpenWrt, HTTP+JSON) и
+// headless-клиенты (curl/скрипты). Протоколы на одном маршруте: proto-бинарник
+// (application/proto), Connect-стриминг и JSON (application/json) — см.
+// proto/README.md.
+//
+// Транспорты по платформам (THREAT-MODEL §3): десктоп — БЕЗ TCP-листенеров:
+// unix-socket (0600, каталог 0700) / named pipe с ACL; TCP-листенер — только
+// веб-режим (OpenWrt), bind на конкретный LAN-адрес из UCI (OPENWRT-GATEWAY
+// §6). Никогда 0.0.0.0 без явного флага.
+//
+// Ошибки: НЕ полями в сообщениях, а кодами ConnectRPC (google.rpc Code) +
+// деталь ErrorInfo { domain: "lavray.core" }. Пример: удаление запущенного
+// профиля → FAILED_PRECONDITION (FR-UI-038).
+//
+// Headless-совместимость: ни один метод не требует GUI; все события несут
+// полное состояние (а не дельту для отрисовки); стримы переживают переподклю-
+// чение клиента (переподписка с tail где поддержано; ограничения — в
+// комментариях сервисов Stats/Connections). UI-настройки (ширины колонок
+// и т.п.) ядро хранит как opaque-значения — см. SettingsService.
+//
+// Идентификаторы требований FR-UI-NNNN — из docs/REQUIREMENTS.md (действующая
+// редакция: 281 FR, включая раздел 21 и DROP-решения аудита 2026-10).
+// Ссылки LNB-NN — из docs/BUGS.md (LNB-01…36 — баги, которые нельзя воспроиз-
+// вести). Обновления — docs/UPDATE-SYSTEM.md v2.0 (TUF-lite).
+//
+// Правила эволюции (подробно в proto/README.md): proto3, явный `optional`
+// для всех необязательных скаляров, удалённые поля — в `reserved`, нумерация
+// полей никогда не переиспользуется, новые поля только в конец блока.
+// ============================================================================
+
+syntax = "proto3";
+
+package lavray.v1;
+
+option go_package = "github.com/anatolijlaptev1991-ctrl/lavray-android/core/internal/gen/lavrayv1;lavrayv1";
+
+// ============================================================================
+// Общие типы
+// ============================================================================
+
+// Пустой запрос/ответ. Для ошибок используется модель Connect, а не поле.
+message Empty {}
+
+message Page {
+  int64 offset = 1; // с 0
+  int32 limit = 2; // 0 = значение по умолчанию (100)
+}
+
+// Исходящий, на который направляется трафик правила/набора.
+// Тег "bypass" в NekoBox соответствует DIRECT (тот же outbound "direct").
+enum Outbound {
+  OUTBOUND_UNSPECIFIED = 0; // = текущий def_outbound набора
+  OUTBOUND_PROXY = 1; // тег "proxy" — активный профиль/цепочка
+  OUTBOUND_DIRECT = 2; // тег "direct" (в NekoBox также "bypass")
+  OUTBOUND_BLOCK = 3; // тег "block"
+}
+
+// Режим сниффинга (FR-UI-132). Третий режим некора («Sniff result for
+// destination») — DROP аудита 2026-10: генерировал то же правило, что и
+// «для маршрута» (ConfigBuilder.cpp:734). В контракте только 0|1.
+enum SniffingMode {
+  SNIFFING_DISABLED = 0;
+  SNIFFING_FOR_ROUTING = 1;
+  reserved 2; // SNIFFING_FOR_DESTINATION — DROP (аудит 2026-10), не реанимировать
+}
+
+// Доменная стратегия исходящего (FR-UI-133: outbound_domain_strategy некора;
+// значения = domain_strategy sing-box). UNSPECIFIED = поле не пишется в конфиг.
+enum DomainStrategy {
+  DOMAIN_STRATEGY_UNSPECIFIED = 0; // as-is (в некоре «AsIs»)
+  DOMAIN_STRATEGY_PREFER_IPV4 = 1;
+  DOMAIN_STRATEGY_PREFER_IPV6 = 2;
+  DOMAIN_STRATEGY_IPV4_ONLY = 3;
+  DOMAIN_STRATEGY_IPV6_ONLY = 4;
+}
+
+// Уровень лога (FR-UI-220; sing-box: trace..panic).
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_TRACE = 1;
+  LOG_LEVEL_DEBUG = 2;
+  LOG_LEVEL_INFO = 3;
+  LOG_LEVEL_WARN = 4;
+  LOG_LEVEL_ERROR = 5;
+  LOG_LEVEL_PANIC = 6;
+}
+
+// ============================================================================
+// Сервис 1: CoreService — соединение и жизненный цикл инстанса sing-box
+// ============================================================================
+
+service CoreService {
+  // Запустить профиль. Конфиг sing-box ядро собирает САМО (ConfigBuilder
+  // портирован в ядро — AUDIT §8 «Конфигбилдер»); UI передаёт только идентифи-
+  // катор и режим. Покрытие: FR-UI-032 (Start), FR-UI-006/007 (режимы),
+  // веб-режим «Шлюз: выкл/TProxy/TUN» (fix-plan 00-README §4). Возвращает
+  // FAILED_PRECONDITION, если соединение уже активно (нужен Disconnect/
+  // RestartProfile).
+  //
+  // Валидаторы (FR-UI-279, LNB-33): inbound-адрес не loopback при пустой
+  // авторизации → INVALID_ARGUMENT («пароль обязателен при доступе из LAN»);
+  // в режиме TUN mixed-слушатель остаётся (паритет с NekoBox: системный
+  // прокси и приложения пользуются им без TUN) — warnings: tun_mixed_enabled.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+
+  // Остановить инстанс. Финальная статистика возвращается в ответе —
+  // диффы и накопление считает ядро, а не UI (AUDIT §8). Покрытие:
+  // FR-UI-033 (Stop), FR-UI-214 (финальный опрос).
+  rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
+
+  // Перезапустить текущий профиль с тем же режимом (FR-UI-020).
+  rpc RestartProfile(RestartProfileRequest) returns (ConnectResponse);
+
+  // Снимок состояния ядра (для стартового экрана и headless-поллинга).
+  rpc GetStatus(GetStatusRequest) returns (CoreStatus);
+
+  // Поток событий ядра. Заменяет парсинг stdout-строк nekobox_core
+  // («grpc server listening» и пр. — FR-UI-253). Один стрим на клиента;
+  // при переподключении клиент получает снимок в первом же событии.
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream CoreEvent);
+
+  // Конфиг, сгенерированный для текущего/последнего запуска (диагностика).
+  // Никогда не отдаётся в логах (LNB-01/28); только аутентифицированному
+  // клиенту. Внутри применён redact() (LNB-28: без env/argv/секретов).
+  rpc GetRuntimeConfig(GetRuntimeConfigRequest) returns (GetRuntimeConfigResponse);
+
+  // Мягкое завершение ядра: instance.Close() (TUN/маршруты/инбаунды) и выход.
+  // Замена старого Exit (AUDIT §7.1.2: os.Exit без Close = зависший TUN).
+  // Оболочка использует Disconnect + завершение процесса; Shutdown нужен
+  // headless/сервисному режиму (procd stop) и вендор-диагностике.
+  rpc Shutdown(ShutdownRequest) returns (Empty);
+}
+
+// Режим подключения. На десктопе UI показывает «Системный прокси / TUN»,
+// в веб-режиме (роутер) — «Шлюз: выкл / TProxy / TUN» (fix-plan 00-README §4).
+// GATEWAY_* допустимы ТОЛЬКО на OpenWrt: на десктопе ядро отвечает
+// INVALID_ARGUMENT (контракт фиксирует это явно).
+enum ConnectMode {
+  CONNECT_MODE_UNSPECIFIED = 0; // = последний режим профиля (remember)
+  CONNECT_MODE_SYSTEM_PROXY = 1; // mixed-inbound, системный прокси ставит оболочка
+  CONNECT_MODE_TUN = 2; // внутренний TUN (права — через помощника, FR-UI-269)
+  CONNECT_MODE_GATEWAY_TPROXY = 3; // только OpenWrt: tproxy-шлюз (OPENWRT-GATEWAY §3)
+  CONNECT_MODE_GATEWAY_TUN = 4; // только OpenWrt: tun-шлюз роутера
+}
+
+message ConnectRequest {
+  // Ровно одно из двух: profile_id (сохранённый) или inline_profile
+  // (ещё не сохранённый — «подключить без сохранения», быстрый тест).
+  optional int64 profile_id = 1;
+  optional Profile inline_profile = 2;
+  ConnectMode mode = 3;
+  // true = собрать конфиг, провалидировать, но не стартовать (dry-run
+  // редактора профиля и диагностики). Возвращает предупреждения сборки.
+  optional bool validate_only = 4;
+}
+
+message ConnectResponse {
+  CoreStatus status = 1;
+  // Предупреждения сборки конфига: systemd-resolved+TUN (FR-UI-154),
+  // устаревший custom DNS (LNB-08), mixed-слушатель в TUN остаётся
+  // (FR-UI-279), DROP-поля пресета (domain_strategy и пр.) и т.п.
+  repeated string warnings = 2;
+}
+
+message DisconnectRequest {
+  // false = не ждать финальной статистики (быстрая остановка).
+  optional bool collect_stats = 1;
+}
+
+message DisconnectResponse {
+  StatsSnapshot final_stats = 1; // финальные счётчики сессии (FR-UI-211/214)
+}
+
+message RestartProfileRequest {}
+
+message GetStatusRequest {}
+
+message SubscribeEventsRequest {
+  // Фильтр типов; пусто = все. Первый кадр — всегда полный CoreStatus.
+  repeated string event_kinds = 1;
+}
+
+message GetRuntimeConfigRequest {}
+message GetRuntimeConfigResponse {
+  string sing_box_json = 1; // конфиг текущего/последнего инстанса (redacted)
+  optional int64 profile_id = 2;
+}
+
+message ShutdownRequest {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_EXIT = 1; // обычный выход оболочки
+    REASON_UPDATE = 2; // перезапуск для применения обновления
+    REASON_FATAL = 3; // самоубийство по внутренней ошибке
+  }
+  Reason reason = 1;
+}
+
+// Состояние инстанса. Единый источник правды для UI-индикаторов —
+// устраняет «лживый статус» после краха ядра (LNB-21, U-04). Соответствует
+// конечному автомату подключения FR-UI-261 (тексты состояний — UI).
+enum CoreState {
+  CORE_STATE_IDLE = 0; // инстанс не запущен
+  CORE_STATE_CONNECTING = 1; // сборка конфига + старт sing-box
+  CORE_STATE_CONNECTED = 2; // работает
+  CORE_STATE_DISCONNECTING = 3; // instance.Close() в процессе
+  CORE_STATE_ERROR = 4; // старт не удался (детали в last_error)
+  CORE_STATE_RECONNECTING = 5; // авторестарт после сбоя (headless)
+}
+
+message CoreStatus {
+  CoreState state = 1;
+  optional int64 active_profile_id = 2;
+  optional int64 active_group_id = 3;
+  optional string active_profile_name = 4; // для трея/headless без обращения к профилям
+  ConnectMode mode = 5;
+  optional int64 started_at_ms = 6;
+  string core_version = 7; // схема «1.14.1-lav.N» (UPDATE-SYSTEM §7); в UI ядро не называется
+  optional string last_error = 8;
+  // Активный inbound для статусной строки (FR-UI-044: «Mixed: адрес:порт»).
+  InboundInfo inbound = 9;
+  optional string routing_preset_id = 10;
+  TunInfo tun = 11;
+  // Проверка связи после подключения (0.2.1): инстанс запущен, но запрос test.url
+  // через исходящее не прошёл. Краткая причина: код типового сбоя (refused,
+  // reset, no_host, timeout — интерфейс переводит их) либо текст ошибки; пусто —
+  // проверка прошла, не выполнялась или выключена (connect.health_check).
+  // Сбрасывается при отключении и новом запуске.
+  optional string health_error = 12;
+}
+
+message InboundInfo {
+  string listen = 1; // например 127.0.0.1
+  int32 port = 2; // mixed-порт (FR-UI-157, default 2080)
+  bool auth_enabled = 3; // FR-UI-158/279 (наличие пароля; сами секреты не отдаются)
+}
+
+message TunInfo {
+  bool enabled = 1;
+  optional string interface_name = 2; // FR-UI-184; настраиваемое имя (THREAT-MODEL: детект VPN)
+}
+
+// Событие ядра. oneof kind — расширяется только новыми полями.
+message CoreEvent {
+  int64 ts_ms = 1;
+  oneof kind {
+    CoreStatus state_changed = 2; // любое изменение CoreStatus
+    CoreWarning warning_raised = 3; // предупреждение (не фатально)
+    CoreError error_raised = 4; // ошибка (инстанс в ERROR)
+    string shutdown_imminent = 5; // ядро сейчас завершится (reason)
+  }
+}
+
+message CoreWarning {
+  string code = 1; // стабильный машинный код ("systemd_resolved_tun", ...)
+  string message = 2; // локализуется UI по коду; это — fallback-текст
+}
+
+message CoreError {
+  string code = 1;
+  string message = 2;
+  bool recoverable = 3; // headless будет ретраить, UI — показать действие
+}
+
+// ============================================================================
+// Сервис 2: ProfileService — профили, группы, импорт/экспорт, тесты
+// ============================================================================
+
+service ProfileService {
+  // Список профилей. FR-UI-065–077 (таблица), FR-UI-008 (поиск — фильтр
+  // на стороне ядра, чтобы headless/веб получали тот же результат).
+  rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse);
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+
+  // Создание/сохранение. FR-UI-030 (new), FR-UI-088 (save). Если изменён
+  // запущенный профиль — ответ содержит needs_profile_restart (FR-UI-062;
+  // UI решает, спросить или авто-применить).
+  rpc CreateProfile(CreateProfileRequest) returns (Profile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  // Запрещено для запущенного профиля (FR-UI-038) → FAILED_PRECONDITION.
+  rpc DeleteProfile(DeleteProfileRequest) returns (Empty);
+
+  // Массовые операции таблицы: FR-UI-035 (Move), FR-UI-036 (Clone),
+  // FR-UI-037/212 (Reset Traffic), FR-UI-074 (Reorder/Drag&Drop),
+  // FR-UI-042 (Remove Unavailable / Remove Duplicates).
+  rpc MoveProfiles(MoveProfilesRequest) returns (Empty);
+  rpc CloneProfiles(CloneProfilesRequest) returns (CloneProfilesResponse);
+  rpc ResetTraffic(ResetTrafficRequest) returns (Empty);
+  rpc ReorderProfiles(ReorderProfilesRequest) returns (Empty);
+  rpc RemoveUnavailableProfiles(RemoveUnavailableProfilesRequest) returns (RemoveUnavailableResponse);
+  rpc DeduplicateProfiles(DeduplicateProfilesRequest) returns (DeduplicateResponse);
+
+  // Метаданные профиля — новинка LAVRay (REQUIREMENTS §20.18): избранное,
+  // теги, заметки. Частичное обновление.
+  rpc SetProfileMeta(SetProfileMetaRequest) returns (Profile);
+
+  // Подтверждение custom-полей (T-08B, FR-UI-257). Подтверждение привязано к
+  // sha256 канонического содержимого custom_outbound_json, custom_config_json
+  // и (для internal-full) полного конфига: любая правка содержимого снимает
+  // его, клиент выставить флаг не может.
+  // PreviewCustomFields — diff конфига без custom-полей и с ними (redacted),
+  // затронутые ключи и хэш, который нужно вернуть в ConfirmCustomFields.
+  // NOT_FOUND — нет профиля; FAILED_PRECONDITION — у профиля нет custom-полей;
+  // INVALID_ARGUMENT — custom-JSON или сборка конфига невалидны.
+  rpc PreviewCustomFields(PreviewCustomFieldsRequest) returns (PreviewCustomFieldsResponse);
+  // ConfirmCustomFields — подтвердить ровно то содержимое, хэш которого
+  // показал PreviewCustomFields. INVALID_ARGUMENT — хэш не из 64 hex-символов;
+  // NOT_FOUND; FAILED_PRECONDITION — содержимое изменилось после предпросмотра
+  // (хэш устарел) или custom-полей нет.
+  rpc ConfirmCustomFields(ConfirmCustomFieldsRequest) returns (Profile);
+
+  // Импорт произвольного содержимого: ссылки всех схем, base64-блоб,
+  // Clash YAML, happ://, подписка sing-box JSON (автопроба формата —
+  // FR-UI-264), многострочник. Единая точка входа — FR-UI-114–129,
+  // FR-UI-197 (TryParseLink), FR-UI-198/199 (happ в ядре).
+  //
+  // БЕЗОПАСНЫЙ ИМПОРТ (FR-UI-257, LNB-25): у импортированных профилей поля
+  // custom_config (c_cfg), custom_outbound (c_out), custom core/cmd
+  // ОТБРАСЫВАЮТСЯ или сохраняются неподтверждёнными. preview_only=true —
+  // разбор без сохранения, с предупреждениями. Применить custom-поля можно
+  // только через PreviewCustomFields → ConfirmCustomFields (флаг
+  // allow_custom_fields удалён, T-08B). Валидатор URL подписки
+  // на стороне ядра (LNB-05: только http/https, запрет приватных целей без
+  // явного флага, лимит размера — LNB-12).
+  rpc ImportContent(ImportContentRequest) returns (ImportContentResponse);
+
+  // Экспорт ссылок: FR-UI-190 (стандартные share-links),
+  // FR-UI-191/193 (Neko Links), FR-UI-164 (старый формат VMess v2rayN),
+  // FR-UI-112 (ссылки всей группы).
+  rpc ExportLinks(ExportLinksRequest) returns (ExportLinksResponse);
+
+  // Экспорт конфига sing-box для профиля: FR-UI-196 (Export config,
+  // варианты Run/Test), FR-UI-039 (Debug Info).
+  rpc ExportConfig(ExportConfigRequest) returns (ExportConfigResponse);
+
+  // Пакетный тест задержки. Серверный стрим: каждый готовый профиль прихо-
+  // дит отдельным событием (FR-UI-209 «точечное обновление строк»).
+  // Режимы: FR-UI-200 TcpPing, FR-UI-201 UrlTest, FR-UI-202 FullTest
+  // (структурированный отчёт вместо строки — REQUIREMENTS §20.10).
+  // Параллельность ограничена настройкой test_concurrent (FR-UI-206).
+  // Отмена — закрытие стрима клиентом; повторный вызов поверх бегущего —
+  // ABORTED (FR-UI-206). Поле url проходит тот же валидатор, что URL
+  // подписки (LNB-05: http/https, не приватные цели без явного разрешения).
+  rpc TestLatency(TestLatencyRequest) returns (stream LatencyResult);
+
+  // FR-UI-203 Stop Testing (отмена всех тестов, включая стримы других клиентов).
+  rpc StopTests(StopTestsRequest) returns (Empty);
+  // FR-UI-204 Clear Test Result.
+  rpc ClearTestResults(ClearTestResultsRequest) returns (Empty);
+
+  // FR-UI-043 Resolve Domain: резолв адреса сервера в IP + перенос домена
+  // в SNI/host. Пропускает chain/custom и уже-IP.
+  rpc ResolveDomains(ResolveDomainsRequest) returns (ResolveDomainsResponse);
+
+  // ---- Группы (вкладки) -------------------------------------------------
+  // FR-UI-102–113: карточки, создание, удаление (нельзя последнюю —
+  // FAILED_PRECONDITION, FR-UI-107), порядок вкладок, front proxy группы
+  // (FR-UI-111), архив (FR-UI-110).
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+  rpc CreateGroup(CreateGroupRequest) returns (Group);
+  rpc UpdateGroup(UpdateGroupRequest) returns (Group);
+  rpc DeleteGroup(DeleteGroupRequest) returns (Empty);
+  rpc ReorderGroups(ReorderGroupsRequest) returns (Empty);
+}
+
+// ----------------------------------------------------------------------------
+// Модель профиля (порт bean-иерархии fmt/*Bean.hpp, AUDIT §2.1)
+// ----------------------------------------------------------------------------
+
+enum ProfileType {
+  PROFILE_TYPE_UNSPECIFIED = 0;
+  PROFILE_TYPE_SOCKS = 1; // SocksHttpBean (socks4/5)
+  PROFILE_TYPE_HTTP = 2; // SocksHttpBean
+  PROFILE_TYPE_SHADOWSOCKS = 3; // ShadowSocksBean
+  PROFILE_TYPE_TROJAN = 4; // TrojanVLESSBean
+  PROFILE_TYPE_VMESS = 5; // VMessBean
+  PROFILE_TYPE_VLESS = 6; // TrojanVLESSBean
+  PROFILE_TYPE_NAIVE = 7; // NaiveBean (внешнее ядро — ТОЛЬКО за флагом enable_external_cores; решение владельца 2026-10-23: скрытая опция, off по умолчанию)
+  PROFILE_TYPE_HYSTERIA2 = 8; // QUICBean — всегда внутренний sing-box
+  PROFILE_TYPE_TUIC = 9; // QUICBean — всегда внутренний sing-box
+  PROFILE_TYPE_CUSTOM_OUTBOUND = 10; // CustomBean core=internal (FR-UI-100a)
+  PROFILE_TYPE_CUSTOM_CONFIG = 11; // CustomBean core=internal-full (FR-UI-100b); разрешение — как для custom-полей импорта (LNB-25)
+  PROFILE_TYPE_CUSTOM_EXTERNAL = 12; // CustomBean core=external — ТОЛЬКО за флагом enable_external_cores (решение владельца)
+  PROFILE_TYPE_CHAIN = 13; // ChainBean (FR-UI-098)
+}
+
+// Результат тестов профиля. latency_ms: 0 = не тестировали, <0 = unavailable,
+// >0 = латентность (семантика yc из NekoBox сохранена для миграции).
+message TestResult {
+  optional int32 latency_ms = 1;
+  optional FullTestReport full_report = 2;
+  optional int64 tested_at_ms = 3;
+  optional string last_error = 4; // FR-UI-208: ошибка конфига — в колонку результата
+}
+
+// Структурированный Full Test (замена строкового отчёта; REQUIREMENTS §20.10).
+message FullTestReport {
+  optional int32 latency_ms = 1; // FR-UI-202
+  optional int32 udp_latency_ms = 2; // UDP-DNS тест (цель настраивается; фикс хардкода 8.8.8.8 — AUDIT §7.1.4)
+  optional double download_bps = 3; // скорость скачивания
+  optional string ingress_ip = 4; // входной IP (In and Out IP)
+  optional string egress_ip = 5; // выходной IP
+  optional string error = 6;
+}
+
+message TrafficCounters {
+  int64 uplink_bytes = 1;
+  int64 downlink_bytes = 2;
+  optional int64 last_update_ms = 3;
+}
+
+message Profile {
+  int64 id = 1;
+  int64 group_id = 2;
+  ProfileType type = 3;
+  string name = 4;
+  string address = 5; // serverAddress; пробелы вырезаются (FR-UI-083)
+  int32 port = 6; // 0 невалиден (LNB-15: не даём дефолт-порт молча)
+  TestResult test_result = 7;
+  TrafficCounters traffic = 8; // FR-UI-211 накопленный трафик
+
+  // Метаданные LAVRay (новое; REQUIREMENTS §20.18).
+  bool favorite = 9;
+  repeated string tags = 10;
+  optional string notes = 11;
+  optional int64 created_at_ms = 12;
+  optional int64 updated_at_ms = 13;
+
+  // Точки расширения конфига (FR-UI-084/085, FR-UI-256). custom_outbound_json
+  // глубоко мержится в исходящий outbound профиля; custom_config_json — в
+  // корень конфига (семантика "+key"/"key+" = конкатенация массивов), НО
+  // только по ALLOWLIST ключей (LNB-25: experimental, log.output, чужие
+  // inbounds запрещены) — см. core-port-plan §3.1.1.
+  optional string custom_outbound_json = 14;
+  optional string custom_config_json = 15;
+  // ТОЛЬКО ЧТЕНИЕ (T-08B): true = текущее custom-содержимое подтверждено через
+  // ConfirmCustomFields (хэш совпадает). Значение от клиента в Create/
+  // UpdateProfile и в inline-профиле Connect игнорируется.
+  bool custom_fields_confirmed = 16;
+
+  // Транспорт/TLS для v2ray-подобных типов (socks/http/ss/vmess/vless/trojan).
+  optional StreamSettings stream = 17;
+
+  // Типоспецифичная часть — ровно одна (нарушение → INVALID_ARGUMENT).
+  oneof detail {
+    SocksHttpDetail socks_http = 20;
+    ShadowsocksDetail shadowsocks = 21;
+    VmessDetail vmess = 22;
+    TrojanVlessDetail trojan_vless = 23;
+    NaiveDetail naive = 24;
+    Hysteria2Detail hysteria2 = 25;
+    TuicDetail tuic = 26;
+    CustomDetail custom = 27;
+    ChainDetail chain = 28;
+  }
+
+  // Страна/регион сервера: ISO 3166-1 alpha-2 в нижнем регистре ("jp", "nl"),
+  // пусто = неизвестна. Заполняется ядром при импорте (эмодзи-флаг, код в
+  // имени, название, TLD) — UI группирует ключи подписки по странам.
+  string geo = 29;
+
+  // ТОЛЬКО ЧТЕНИЕ, вычисляется ядром, не хранится: непусто, если ядро не умеет
+  // собрать этот профиль. Сейчас единственная причина — "xhttp_unsupported"
+  // (транспорт XHTTP); Connect такого профиля → FAILED_PRECONDITION с
+  // ErrorInfo.reason = "transport_unsupported". Значение от клиента игнорируется.
+  string unsupported_reason = 30;
+}
+
+// V2Ray Stream Settings (FR-UI-090a–090l; fmt/V2RayStreamSettings.hpp).
+message StreamSettings {
+  enum Network {
+    NETWORK_UNSPECIFIED = 0; // = tcp
+    NETWORK_TCP = 1;
+    NETWORK_HTTP = 2;
+    NETWORK_WS = 3;
+    NETWORK_GRPC = 4;
+    NETWORK_HTTP_UPGRADE = 5;
+    NETWORK_QUIC = 6; // FR-UI-267 (SHOULD): поле зарезервировано контрактом;
+    // реализация транспорта — после решения о доп-протоколах
+    NETWORK_XHTTP = 7; // Xray XHTTP (бывший splithttp): ссылка импортируется, но
+    // ядро (форк sing-box) транспорта не имеет — Profile.unsupported_reason
+  }
+  enum Security {
+    SECURITY_NONE = 0;
+    SECURITY_TLS = 1;
+    SECURITY_REALITY = 2; // включается автоматически при непустом pbk (FR-UI-090i)
+  }
+  enum PacketEncoding { // FR-UI-090j
+    PACKET_ENCODING_DEFAULT = 0;
+    PACKET_ENCODING_PACKET_ADDR = 1;
+    PACKET_ENCODING_XUDP = 2;
+  }
+  enum MultiplexStatus { // FR-UI-090k
+    MULTIPLEX_DEFAULT = 0; // глобальная настройка mux_default_on
+    MULTIPLEX_ON = 1;
+    MULTIPLEX_OFF = 2;
+  }
+
+  Network network = 1;
+  optional string header_type = 2; // tcp: none/http (FR-UI-090b)
+  string path = 3;
+  string host = 4;
+  optional string ws_early_data_header = 5; // FR-UI-090c
+  optional int32 ws_early_data_max = 6;
+
+  Security security = 7;
+  string sni = 8; // FR-UI-090e
+  string alpn = 9; // через запятую, нормализуется в список при сборке
+  bool allow_insecure = 10; // FR-UI-090f (дефолт берётся из настроек, FR-UI-177)
+  optional string certificate = 11; // FR-UI-090g
+  string utls_fingerprint = 12; // FR-UI-090h; "" = глобальный дефолт
+  // REALITY (FR-UI-090i): непустой public_key включает REALITY.
+  optional string reality_public_key = 13;
+  optional string reality_short_id = 14;
+  // REALITY spiderX (FR-UI-267, SHOULD): зарезервировано контрактом,
+  // реализация — с волной доп-протоколов.
+  optional string reality_spx = 18;
+  PacketEncoding packet_encoding = 15;
+  MultiplexStatus multiplex = 16;
+
+  // XHTTP (Xray; network = NETWORK_XHTTP): режим ("auto", "packet-up", "stream-up",
+  // "stream-one") и дополнительные параметры (сырой JSON, параметр extra ссылки). Ядро
+  // их не использует (транспорта нет), но хранит, чтобы импорт и экспорт ссылки не
+  // теряли настройки сервера и UpdateProfile их не стирал.
+  string xhttp_mode = 19;
+  string xhttp_extra = 20;
+}
+
+message SocksHttpDetail { // FR-UI-091
+  enum Proto {
+    PROTO_UNSPECIFIED = 0;
+    PROTO_SOCKS4 = 1;
+    PROTO_SOCKS5 = 2;
+    PROTO_HTTP = 3;
+  }
+  Proto proto = 1;
+  optional string username = 2;
+  optional string password = 3;
+}
+
+message ShadowsocksDetail { // FR-UI-092
+  string method = 1; // пресет из fmt/Preset.hpp: 2022-blake3-*, aes-*-gcm/ctr/cfb, chacha20*, xchacha20*, rc4-md5, none
+  optional string password = 2;
+  // Плагин строкой «plugin;arg=val;…» (obfs-local / v2ray-plugin) — формат
+  // NekoBox сохранён для миграции; при редактировании UI парсит на поля.
+  optional string plugin = 3;
+  enum Uot { // UDP over TCP
+    UOT_OFF = 0;
+    UOT_V1 = 1;
+    UOT_V2 = 2;
+  }
+  Uot udp_over_tcp = 4;
+}
+
+message VmessDetail { // FR-UI-093
+  string uuid = 1;
+  int32 alter_id = 2;
+  string security = 3; // auto/none/zero/aes-128-gcm/chacha20-poly1305
+}
+
+message TrojanVlessDetail { // FR-UI-094
+  string password = 1; // у VLESS здесь UUID
+  optional string flow = 2; // xtls-rprx-vision
+}
+
+message NaiveDetail { // FR-UI-095. Внешнее ядро: доступно ТОЛЬКО при
+  // включённом флаге enable_external_cores (решение
+  // владельца ожидается — README допущений, ревью №5);
+  // по умолчанию CreateProfile(PROFILE_TYPE_NAIVE) →
+  // FAILED_PRECONDITION с человекочитаемым кодом.
+  optional string username = 1;
+  optional string password = 2;
+  enum Proto {
+    PROTO_UNSPECIFIED = 0;
+    PROTO_HTTPS = 1;
+    PROTO_HTTP = 2;
+  }
+  Proto proto = 3;
+  optional string extra_headers = 4;
+  optional string sni = 5;
+  optional string certificate = 6;
+  optional int32 insecure_concurrency = 7;
+  optional bool disable_logs = 8;
+}
+
+// Hysteria2 (FR-UI-096 + FR-UI-268/LNB-35): имена полей и типы — как в
+// sing-box 1.14: server_ports строкой «a:b», hop_interval строкой длительности
+// («30s»); golden-тест обязателен + sing-box check в CI.
+message Hysteria2Detail {
+  optional string password = 1;
+  optional string obfs_password = 2;
+  optional int32 upload_mbps = 3;
+  optional int32 download_mbps = 4;
+  optional string server_ports = 5; // «a:b» — меняет отображение адреса
+  optional string hop_interval = 6; // Duration-строка, напр. «30s»
+  reserved 7; // force_external_core — удалён: hy2 всегда внутренний (ревью №5)
+  optional string sni = 8;
+  optional string ca = 9;
+  optional bool allow_insecure = 10;
+  optional bool disable_sni = 11;
+}
+
+message TuicDetail { // FR-UI-097 (+ uos для Clash-импорта); всегда внутренний.
+  string uuid = 1;
+  optional string password = 2;
+  enum CongestionControl {
+    CONGESTION_CONTROL_UNSPECIFIED = 0; // = bbr
+    CONGESTION_CONTROL_BBR = 1;
+    CONGESTION_CONTROL_CUBIC = 2;
+    CONGESTION_CONTROL_NEW_RENO = 3;
+  }
+  CongestionControl congestion_control = 3;
+  enum UdpRelayMode {
+    UDP_RELAY_MODE_UNSPECIFIED = 0; // = native
+    UDP_RELAY_MODE_NATIVE = 1;
+    UDP_RELAY_MODE_QUIC = 2;
+  }
+  UdpRelayMode udp_relay_mode = 4;
+  optional bool zero_rtt_handshake = 5;
+  optional string heartbeat = 6; // Duration-строка, напр. «10s»
+  optional string sni = 7;
+  optional string alpn = 8;
+  optional string ca = 9;
+  optional bool allow_insecure = 10;
+  optional bool disable_sni = 11;
+  optional bool udp_over_stream = 12; // uos (FR-UI-097, примечание)
+  reserved 13; // force_external_core — удалён: tuic всегда внутренний (ревью №5)
+}
+
+message CustomDetail { // FR-UI-099, FR-UI-100a/100b
+  enum Core {
+    CORE_UNSPECIFIED = 0;
+    CORE_INTERNAL = 1; // один outbound JSON
+    CORE_INTERNAL_FULL = 2; // полный конфиг sing-box «как есть»; прохождение
+    // через allowlist-валидатор с LNB-25
+    CORE_EXTERNAL = 3; // внешняя программа — только за флагом
+    // enable_external_cores (решение владельца)
+  }
+  Core core = 1;
+  optional string external_core_name = 2;
+  optional string command = 3; // строка, разбивается по пробелам; лог env/argv запрещён (LNB-28)
+  optional string config_suffix = 4;
+  optional string config_template = 5; // плейсхолдеры %mapping_port% %socks_port% %server_addr% %server_port% (FR-UI-235)
+  optional int32 mapping_port = 6; // 0 = случайный
+  optional int32 socks_port = 7; // 0 = случайный
+  optional string outbound_json = 8; // для CORE_INTERNAL
+  optional string full_config_json = 9; // для CORE_INTERNAL_FULL (валидация + allowlist)
+}
+
+message ChainDetail { // FR-UI-098
+  // Порядок сверху вниз = порядок трафика. Запрет chain-in-chain и циклов
+  // валидируется ядром (INVALID_ARGUMENT).
+  repeated int64 profile_ids = 1;
+}
+
+// ----------------------------------------------------------------------------
+// Группа (db/Group.hpp; FR-UI-102–113) + per-sub настройки (FR-UI-263)
+// ----------------------------------------------------------------------------
+
+message Group {
+  int64 id = 1;
+  string name = 2;
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_BASIC = 1;
+    KIND_SUBSCRIPTION = 2;
+  }
+  Kind kind = 3;
+  optional string subscription_url = 4; // обязателен для KIND_SUBSCRIPTION
+  bool archive = 5; // FR-UI-110: заморозка
+  bool skip_auto_update = 6;
+  optional int64 front_proxy_id = 7; // FR-UI-111
+  // ВЫЧИСЛЯЕМОЕ поле: порядок профилей выводится из profiles.sort_key
+  // (канонический источник — БД). Клиенту отдаётся для отрисовки;
+  // менять порядок — только ReorderProfiles.
+  repeated int64 profile_order = 8;
+  SubscriptionInfo subscription_info = 9;
+  optional int64 last_update_ms = 10; // FR-UI-127
+  // ---- per-sub настройки (FR-UI-263, MUST) ----
+  optional int32 update_interval_min = 11; // 0 = глобальный sub_auto_update
+  optional string user_agent = 12; // свой UA (пресеты + свой, FR-UI-264)
+  map<string, string> http_headers = 13; // свои заголовки запроса
+  optional string http_basic_user = 14; // HTTP Basic (пароль — в settings-secret, не дублируется)
+  // «Последний рабочий источник» (FR-UI-263): запоминается ядром при
+  // успешном обновлении; при сбое основного URL пробуется он первым.
+  optional string last_working_url = 15;
+  // HWID-заголовки (FR-UI-265, SHOULD) — opt-in глобальной настройкой
+  // sub.hwid_enabled; сама политика описана в SettingsService.
+  // UI-настройки, ядро хранит opaque (перенос формата NekoBox).
+  optional string ui_state_json = 16;
+}
+
+// Информация из ответа подписки (FR-UI-118 subscription-userinfo;
+// FR-UI-262 — расширенные заголовки и строки «#key: value» в теле).
+// Значения «Без лимита»/«Бессрочно» UI выводит по отсутствию/нулевым полям.
+message SubscriptionInfo {
+  optional int64 upload_bytes = 1;
+  optional int64 download_bytes = 2;
+  optional int64 total_bytes = 3;
+  optional int64 expire_ms = 4;
+  // profile-update-interval (часы) → рекомендованный интервал обновления.
+  optional int32 update_interval_hours = 5;
+  // profile-title (base64:…) — отображаемое имя подписки.
+  optional string title = 6;
+  // profile-web-page-url / support-url (https-only; проверяются схемой).
+  optional string web_page_url = 7;
+  optional string support_url = 8;
+  // announce — объявление провайдера (plain text, экранируется UI).
+  optional string announce = 9;
+  // routing — строка маршрута от провайдера (информативно; НЕ применяется
+  // автоматически — только по явному действию пользователя).
+  optional string routing = 10;
+}
+
+// ----------------------------------------------------------------------------
+// Запросы/ответы ProfileService
+// ----------------------------------------------------------------------------
+
+message ListProfilesRequest {
+  optional int64 group_id = 1; // пусто = все группы
+  optional string search = 2; // FR-UI-008: вхождение в type/address/name
+  optional bool favorites_only = 3;
+  repeated string tags_any_of = 4;
+  bool include_archived_groups = 5;
+  Page page = 6;
+}
+
+message ListProfilesResponse {
+  repeated Profile profiles = 1;
+  int64 total = 2;
+}
+
+message GetProfileRequest {
+  int64 id = 1;
+}
+
+message CreateProfileRequest {
+  Profile profile = 1; // id/group_id игнорируются (group_id обязателен)
+}
+
+message UpdateProfileRequest {
+  Profile profile = 1; // полное замещающее значение (кроме traffic/test_result
+  // — читаются, не перезаписываются клиентом)
+  optional string update_mask = 2; // зарезервировано на будущее (fieldmask)
+}
+
+message UpdateProfileResponse {
+  Profile profile = 1;
+  bool needs_profile_restart = 2; // FR-UI-062/088: сохранён запущенный профиль
+}
+
+message DeleteProfileRequest {
+  repeated int64 ids = 1;
+}
+
+message MoveProfilesRequest { // FR-UI-035
+  repeated int64 ids = 1;
+  int64 target_group_id = 2;
+}
+
+message CloneProfilesRequest {
+  repeated int64 ids = 1;
+} // FR-UI-036
+
+message CloneProfilesResponse {
+  repeated int64 new_ids = 1;
+}
+
+message ResetTrafficRequest {
+  repeated int64 ids = 1;
+} // FR-UI-037/212
+
+message ReorderProfilesRequest { // FR-UI-074/075; канонический порядок — sort_key
+  int64 group_id = 1;
+  repeated int64 ordered_ids = 2; // самокоррекция от удалённых — в ядре
+}
+
+message RemoveUnavailableProfilesRequest { // FR-UI-042 (Ctrl+Alt+R)
+  int64 group_id = 1;
+  bool apply = 2; // false = dry-run (только отчёт)
+}
+
+message RemoveUnavailableResponse {
+  repeated int64 would_remove_ids = 1;
+  repeated int64 removed_ids = 2;
+  // Недоступные, которые не тронуты: активный профиль и звенья цепочек
+  // (в том числе front proxy группы).
+  repeated int64 skipped_ids = 3;
+}
+
+message DeduplicateProfilesRequest { // FR-UI-042 (Ctrl+Alt+D); ключ — FR-UI-249
+  int64 group_id = 1;
+  bool apply = 2;
+}
+
+message DeduplicateResponse {
+  repeated Profile duplicates = 1; // найденные дубликаты
+  repeated int64 removed_ids = 2; // применённые удаления
+}
+
+message SetProfileMetaRequest {
+  int64 id = 1;
+  optional bool favorite = 2;
+  repeated string tags = 3; // замещающе
+  optional string notes = 4;
+}
+
+message PreviewCustomFieldsRequest {
+  int64 profile_id = 1;
+}
+
+message PreviewCustomFieldsResponse {
+  // sha256 (64 hex) текущего custom-содержимого — вернуть в ConfirmCustomFields.
+  string custom_hash = 1;
+  // Unified diff конфига sing-box: «---» без custom-полей, «+++» с ними.
+  // Каждая строка прошла маскирование секретов (logs.Redact).
+  string diff = 2;
+  // JSON-пути (до 3 уровней), которые custom-поля меняют: "dns.servers",
+  // "outbounds[0].tls" и т.п.
+  repeated string touched_keys = 3;
+  // Коды предупреждений: "internal_full" — конфиг заменяется целиком;
+  // "inbounds_changed" — custom-поля меняют входящие слушатели.
+  repeated string warnings = 4;
+  bool already_confirmed = 5;
+  bool diff_truncated = 6; // diff обрезан по пределу строк
+}
+
+message ConfirmCustomFieldsRequest {
+  int64 profile_id = 1;
+  string custom_hash = 2; // из PreviewCustomFieldsResponse.custom_hash
+}
+
+message ImportContentRequest {
+  string content = 1; // ссылка/список/base64/YAML/happ:///sing-box JSON
+  optional int64 target_group_id = 2;
+  enum Intent { // выбор пользователя из диалога FR-UI-115
+    INTENT_AUTO = 0; // ядро определяет: URL без группы → вернёт подсказку
+    INTENT_AS_LINKS = 1; // «As link(s)»
+    INTENT_AS_SUBSCRIPTION_HERE = 2; // «As Subscription (add to this group)»
+    INTENT_AS_SUBSCRIPTION_NEW = 3; // «As Subscription (create new group)»
+  }
+  Intent intent = 3;
+  // Явное разрешение локальных/приватных URL подписки (LNB-05; UI спрашивает).
+  optional bool allow_private_urls = 4;
+  // ДВУХФАЗНЫЙ БЕЗОПАСНЫЙ ИМПОРТ (FR-UI-257, LNB-25):
+  // 1) preview_only=true — разобрать, НЕ сохранять; ответ содержит
+  //    parsed-профили (без custom-полей) и custom_field_warnings с diff;
+  // 2) повторный вызов без preview_only сохраняет профили; custom-поля
+  //    остаются неподтверждёнными до ConfirmCustomFields (T-08B).
+  optional bool preview_only = 5;
+  // allow_custom_fields — удалено (T-08B): клиентский флаг разрешал custom-поля
+  // без привязки к содержимому.
+  reserved 6;
+  reserved "allow_custom_fields";
+}
+
+message ImportContentResponse {
+  enum ContentKind {
+    CONTENT_KIND_UNSPECIFIED = 0;
+    CONTENT_KIND_SHARE_LINKS = 1; // одна/несколько ссылок, FR-UI-129
+    CONTENT_KIND_CLASH_YAML = 2;
+    CONTENT_KIND_BASE64 = 3;
+    CONTENT_KIND_HAPP = 4; // FR-UI-128/198
+    CONTENT_KIND_SINGBOX_JSON = 5; // FR-UI-264: подписка в формате sing-box JSON
+    CONTENT_KIND_SUBSCRIPTION_URL = 6; // требует решения Intent
+  }
+  ContentKind kind = 1;
+  repeated Profile parsed_profiles = 2; // preview: разобранные профили (id=0)
+  repeated int64 added_profile_ids = 3;
+  optional int64 created_group_id = 4; // FR-UI-116: группа по хосту URL
+  // Отброшенные опасные поля (LNB-25): какие поля у каких профилей вырезаны
+  // и их значение для diff (секреты в diff редactятся).
+  repeated CustomFieldWarning custom_field_warnings = 5;
+  // Санитизированные строки лога импорта (без URL/секретов — LNB-01/22).
+  repeated string log = 6;
+  optional string hint = 7; // например «Looks like a subscription URL…» (FR-UI-198)
+}
+
+message CustomFieldWarning {
+  int32 profile_index = 1; // индекс в parsed_profiles
+  repeated string dropped_fields = 2; // "custom_config", "custom_outbound", "custom_core", "custom_command"
+  optional string preview = 3; // краткий diff/фрагмент для подтверждения (redacted)
+}
+
+message ExportLinksRequest {
+  repeated int64 ids = 1; // пусто + group_id = вся группа (FR-UI-112)
+  optional int64 group_id = 2;
+  enum Format {
+    FORMAT_STANDARD = 0; // FR-UI-190
+    FORMAT_NEKO = 1; // FR-UI-191
+    FORMAT_VMESS_V2RAYN = 2; // FR-UI-164 (old share link format)
+  }
+  Format format = 3;
+}
+
+message ExportLinksResponse {
+  repeated string links = 1;
+}
+
+message ExportConfigRequest {
+  int64 profile_id = 1;
+  enum Purpose {
+    PURPOSE_RUN = 0; // рабочий конфиг (inbounds/routing пользовательские)
+    PURPOSE_TEST = 1; // тестовый (без inbounds/пользовательских правил) — FR-UI-196
+  }
+  Purpose purpose = 2;
+}
+
+message ExportConfigResponse {
+  string sing_box_json = 1;
+  bool is_raw_config = 2; // для CUSTOM_CONFIG (internal-full) — «как есть»
+}
+
+message TestLatencyRequest {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    MODE_TCP_PING = 1; // FR-UI-200
+    MODE_URL_TEST = 2; // FR-UI-201
+    MODE_FULL_TEST = 3; // FR-UI-202
+  }
+  repeated int64 profile_ids = 1;
+  Mode mode = 2;
+  optional string url = 3; // дефолт из настроек test_url; валидатор LNB-05
+  optional int32 timeout_ms = 4; // дефолт 10000 (FR-UI-201)
+  optional int32 concurrency = 5; // дефолт test_concurrent (FR-UI-206)
+  // Опции Full Test (минимум один флаг — INVALID_ARGUMENT иначе).
+  optional bool full_latency = 6;
+  optional bool full_udp_latency = 7;
+  optional bool full_speed = 8;
+  optional bool full_in_out_ip = 9;
+  optional string full_speed_url = 10; // дефолт test_url_dl; валидатор LNB-05
+  optional int32 full_speed_timeout_ms = 11;
+}
+
+message LatencyResult { // один кадр на профиль (FR-UI-209)
+  int64 profile_id = 1;
+  TestResult result = 2;
+  int32 index = 3; // позиция в батче — прогресс «Проверено i из N» (UX-20)
+  int32 total = 4;
+}
+
+message StopTestsRequest {}
+message ClearTestResultsRequest {
+  repeated int64 ids = 1;
+} // FR-UI-204
+
+message ResolveDomainsRequest {
+  repeated int64 ids = 1;
+} // FR-UI-043
+
+message ResolveDomainsResponse {
+  repeated int64 resolved_ids = 1;
+  repeated int64 skipped_ids = 2; // chain/custom/уже-IP
+  repeated ResolveFailure failed = 3; // не удалось: остальные профили разрешены
+}
+
+// Причина отказа ResolveDomains: id профиля и стабильный код причины
+// ("not_found" | "timeout" | "no_address" | "lookup_failed" | "canceled"),
+// без имени сервера и текста системной ошибки.
+message ResolveFailure {
+  int64 id = 1;
+  string reason = 2;
+}
+
+message ListGroupsRequest {}
+message ListGroupsResponse {
+  repeated Group groups = 1;
+} // порядок = порядок вкладок
+
+message CreateGroupRequest {
+  Group group = 1;
+} // FR-UI-106
+
+message UpdateGroupRequest {
+  Group group = 1;
+  // Смена kind после создания запрещена (FR-UI-109) → FAILED_PRECONDITION.
+}
+
+message DeleteGroupRequest {
+  int64 id = 1;
+} // FR-UI-107: не последняя, профили удаляются каскадно
+
+message ReorderGroupsRequest {
+  repeated int64 ordered_ids = 1;
+} // FR-UI-113
+
+// ============================================================================
+// Сервис 3: SubscriptionService — подписки (группы с URL)
+// ============================================================================
+
+service SubscriptionService {
+  // Список только групп-подписок (для вкладки «Подписки»).
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+
+  // Создать подписку (группа + URL). FR-UI-115/116: UI вызывает после выбора
+  // в диалоге импорта; имя группы по умолчанию — хост URL.
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (Group);
+
+  // Сменить URL/флаги/per-sub настройки (FR-UI-263: interval, UA, заголовки,
+  // HTTP Basic — через ProfileService.UpdateGroup; здесь только подписочные).
+  rpc UpdateSubscriptionSettings(UpdateSubscriptionSettingsRequest) returns (Group);
+  rpc DeleteSubscription(DeleteSubscriptionRequest) returns (Empty);
+
+  // Обновить подписку. Стрим прогресса: фазы запрос/расшифровка happ/парсинг/
+  // дифф/сохранение — FR-UI-117–127.
+  //
+  // ЗАЩИТА ОТ ПОТЕРЬ (FR-UI-258, LNB-29): разбор идёт в промежуточной копии;
+  // результат из 0 профилей или с удалением > 50 % существующих НЕ применяется
+  // — эмитится PHASE_CONFIRM_REQUIRED с would_remove_count, обновление
+  // продолжается только повторным вызовом с confirm_destructive=true.
+  // Перед применением создаётся снапшот группы (RollbackSubscription).
+  //
+  // Идемпотентность/переподключение: повторный UpdateSubscription по группе
+  // с бегущим обновлением → ALREADY_EXISTS (прогресс текущего можно получить
+  // переподпиской на новый стрим — ядро мультиплексирует прогресс операции
+  // по group_id в течение её выполнения; хвост до подписки не выдаётся).
+  rpc UpdateSubscription(UpdateSubscriptionRequest) returns (stream SubscriptionProgress);
+
+  // Последовательное обновление всех подходящих подписок (FR-UI-108;
+  // skip_auto_update/archive пропускаются, событие SKIPPED).
+  rpc UpdateAllSubscriptions(UpdateAllSubscriptionsRequest) returns (stream SubscriptionProgress);
+
+  // Откат подписки к снапшоту последнего успешного обновления (FR-UI-258):
+  // восстанавливает состав и порядок профилей группы (статистика профилей,
+  // существовавших до отката, сохраняется).
+  rpc RollbackSubscription(RollbackSubscriptionRequest) returns (RollbackSubscriptionResponse);
+}
+
+message ListSubscriptionsRequest {}
+message ListSubscriptionsResponse {
+  repeated Group groups = 1;
+}
+
+message CreateSubscriptionRequest {
+  string name = 1;
+  string url = 2; // проходит валидатор LNB-05 (INVALID_ARGUMENT с деталью)
+}
+
+message UpdateSubscriptionSettingsRequest {
+  int64 group_id = 1;
+  optional string url = 2;
+}
+
+message DeleteSubscriptionRequest {
+  int64 group_id = 1;
+}
+
+message UpdateSubscriptionRequest {
+  int64 group_id = 1;
+  // Разовые переопределения (дефолты — из Settings и per-sub полей Group).
+  optional bool use_proxy = 2; // FR-UI-117; ДЕФОЛТ true — через туннель, если поднят (LNB-33)
+  optional bool insecure_tls = 3; // FR-UI-173 (sub_insecure); логируется как предупреждение
+  optional string user_agent = 4; // FR-UI-117/264
+  optional bool clear_before = 5; // FR-UI-124 (sub_clear)
+  optional bool allow_private_urls = 6; // LNB-05
+  // Подтверждение деструктивного результата (FR-UI-258): разрешает применить
+  // 0-профильный ответ/удаление > 50 %, показанные в PHASE_CONFIRM_REQUIRED.
+  optional bool confirm_destructive = 7;
+  // Раздельные таймауты и ретраи (аудит 2026-10): connect — на установку
+  // соединения (3 с), overall — на весь ответ (30 с); 2 ретрая с докачкой.
+  optional int32 connect_timeout_ms = 8;
+  optional int32 overall_timeout_ms = 9;
+}
+
+message UpdateAllSubscriptionsRequest {}
+
+message RollbackSubscriptionRequest {
+  int64 group_id = 1;
+}
+
+message RollbackSubscriptionResponse {
+  bool success = 1;
+  optional int32 restored_count = 2;
+  optional string error = 3;
+}
+
+message SubscriptionProgress {
+  int64 group_id = 1;
+  int64 ts_ms = 2;
+  enum Phase {
+    PHASE_UNSPECIFIED = 0;
+    PHASE_STARTED = 1;
+    PHASE_REQUESTING = 2; // HTTP GET; в detail — санитизированный лог
+    PHASE_DECRYPTING_HAPP = 3; // FR-UI-128
+    PHASE_PARSING = 4;
+    PHASE_DIFFING = 5;
+    PHASE_CONFIRM_REQUIRED = 6; // FR-UI-258: ждёт confirm_destructive
+    PHASE_SAVING = 7;
+    PHASE_DONE = 8;
+    PHASE_FAILED = 9; // detail = ошибка (без секретов)
+    PHASE_SKIPPED = 10; // только в UpdateAll (skip_auto_update/archive)
+  }
+  Phase phase = 3;
+  optional string detail = 4; // строка лога (redacted, LNB-01/28)
+  optional int32 added_count = 5; // FR-UI-123
+  optional int32 removed_count = 6;
+  optional int32 total_count = 7;
+  // Для PHASE_CONFIRM_REQUIRED: сколько профилей было бы удалено и сколько
+  // распознано (0 распознанных = подозрительный ответ, LNB-29).
+  optional int32 would_remove_count = 8;
+  optional int32 parsed_count = 9;
+  optional SubscriptionInfo user_info = 10; // FR-UI-118/262
+}
+
+// ============================================================================
+// Сервис 4: RoutingService — наборы маршрутизации (пресеты)
+// ============================================================================
+
+service RoutingService {
+  // Список наборов: пользовательские + ВСЕ встроенные (LAV Preset RU,
+  // LAV Preset CN, Глобальный, Всё через прокси, Всё напрямую — PRESET-LAV-RU
+  // §3a, fix-plan 00-README §4; «Выборочный» — пустой пользовательский набор,
+  // не файл). FR-UI-130/140/141/276.
+  rpc ListPresets(ListPresetsRequest) returns (ListPresetsResponse);
+  rpc GetPreset(GetPresetRequest) returns (RoutingPreset);
+
+  // CRUD пользовательских наборов. Builtin нельзя Update/Delete — только
+  // клонировать (Create с builtin_id источником) или Reset к ревизии.
+  rpc CreatePreset(CreatePresetRequest) returns (RoutingPreset);
+  rpc UpdatePreset(UpdatePresetRequest) returns (UpdatePresetResponse);
+  // Встроенный удалить нельзя; удаление активного переключает на «global»
+  // (T-80: DeletePresetResponse.new_active_id, needs_profile_restart).
+  rpc DeletePreset(DeletePresetRequest) returns (DeletePresetResponse);
+
+  // Активация набора. Если соединение активно — ответ предлагает перезапуск
+  // (needs_profile_restart, FR-UI-141/062); headless может применить сам
+  // через CoreService.RestartProfile.
+  rpc ActivatePreset(ActivatePresetRequest) returns (ActivatePresetResponse);
+  rpc GetActivePreset(GetActivePresetRequest) returns (RoutingPreset);
+
+  // Восстановить встроенный пресет к заводской ревизии (пользовательская
+  // копия сохраняется как обычный набор; UPDATE-SYSTEM §8: правки никогда
+  // не теряются молча).
+  rpc ResetBuiltinPreset(ResetBuiltinPresetRequest) returns (RoutingPreset);
+
+  // Импорт маршрута NekoRay 4.x (JSON) через конвертер. Путь в конфиге
+  // NekoBox — config/routes_box/<name> (поправка аудита 2026-10; каталог
+  // routes/ старых форков тоже принимается). Эталон конвертации —
+  // nekobox-ru-bypass-games «RU-bypass + Games» (PRESET-LAV-RU §3).
+  rpc ImportNekoRayRoute(ImportNekoRayRouteRequest) returns (ImportNekoRayRouteResponse);
+
+  // Обмен наборами файлом (T-80, формат presets/SCHEMA.md). Экспорт отдаёт
+  // JSON набора (встроенного тоже); импорт принимает JSON LAVRay или маршрут
+  // NekoRay (формат определяется сам) и ВСЕГДА создаёт новый пользовательский
+  // набор с новым id — id встроенного файл занять не может.
+  rpc ExportPreset(ExportPresetRequest) returns (ExportPresetResponse);
+  rpc ImportPreset(ImportPresetRequest) returns (ImportPresetResponse);
+}
+
+// ----------------------------------------------------------------------------
+// Модель набора маршрутов (формат LAVRay; надмножество NekoRay Routing)
+// ----------------------------------------------------------------------------
+
+message RoutingPreset {
+  string id = 1; // стабильный слаг ("lav-ru", "custom:my-set")
+  string display_name = 2; // для builtin — ключ локализации UI
+  bool builtin = 3;
+  int32 revision = 4; // ревизия данных пресета (presets/SCHEMA.md)
+
+  // 6 списков правил, построчный синтаксис NekoRay (FR-UI-134/135):
+  // префиксы geosite:, geoip:, domain:, full:, keyword:, regexp:; без
+  // префикса — суффикс домена; IP — CIDR. «#» — комментарий.
+  repeated string proxy_domain = 10;
+  repeated string direct_domain = 11;
+  repeated string block_domain = 12; // включает geosite:category-ads-all (§3b)
+  repeated string proxy_ip = 13;
+  repeated string direct_ip = 14;
+  repeated string block_ip = 15;
+
+  // Процессные правила — структурно (в NekoRay жили в custom-JSON).
+  // Platform-scoped: на OpenWrt опускаются с предупреждением (§3c).
+  repeated ProcessRule process_rules = 16;
+
+  Outbound default_outbound = 17; // FR-UI-139 def_outbound
+  reserved 18; // domain_strategy — DROP (аудит 2026-10, FR-UI-131): мёртвое поле
+  // некора без эффекта на конфиг; пере-включение — только решение
+  // владельца вместе с портированием билдера
+  SniffingMode sniffing_mode = 19; // FR-UI-132: только DISABLED/FOR_ROUTING
+  DomainStrategy outbound_domain_strategy = 20; // FR-UI-133
+
+  // Custom Route на набор (FR-UI-137): JSON-массив правил sing-box,
+  // добавляется к сгенерированным. Валидируется при сохранении.
+  optional string custom_rules_json = 21;
+
+  // DNS принадлежит набору (как в NekoRay Routing) — раздельный DNS
+  // привязан к спискам маршрутов (FR-UI-150). Редактируется через DnsService,
+  // но хранится здесь.
+  DnsSettings dns = 22;
+
+  // Источник копии (T-80): id и ревизия встроенного набора, с которого она
+  // снята (пусто / 0 — набор создан с нуля или импортирован). Только чтение:
+  // ядро проставляет их само, значения от клиента игнорируются.
+  string builtin_source_id = 23;
+  int32 builtin_source_revision = 24;
+  // Встроенный источник обновился (его ревизия выше записанной): UI
+  // предлагает ResetBuiltinPreset. Вычисляется при чтении, не хранится.
+  bool source_updated = 25;
+}
+
+message ProcessRule {
+  repeated string process_names = 1; // имена процессов (Windows: *.exe; POSIX: basename)
+  Outbound outbound = 2; // proxy/direct/block
+  // Пусто = все платформы. Значения: "windows", "linux", "macos", "openwrt".
+  // Имена *.exe автоматически считаются windows-only (§3c).
+  repeated string platforms = 3;
+}
+
+// ----------------------------------------------------------------------------
+// Запросы/ответы RoutingService
+// ----------------------------------------------------------------------------
+
+message ListPresetsRequest {}
+message ListPresetsResponse {
+  repeated RoutingPreset presets = 1;
+  string active_preset_id = 2;
+}
+
+message GetPresetRequest {
+  string id = 1;
+}
+
+message CreatePresetRequest {
+  optional string builtin_source_id = 1; // клонировать встроенный
+  optional RoutingPreset preset = 2; // или создать из значений
+}
+
+message UpdatePresetRequest {
+  RoutingPreset preset = 1;
+  // Конфликт ревизий (пресет обновился «Центром обновлений») → ABORTED;
+  // UI показывает diff/merge (UPDATE-SYSTEM §8, пресеты).
+  int32 expected_revision = 2;
+}
+
+message UpdatePresetResponse {
+  RoutingPreset preset = 1;
+  int32 new_revision = 2;
+  // Изменён активный набор при работающем соединении (T-80).
+  bool needs_profile_restart = 3;
+}
+
+message DeletePresetRequest {
+  string id = 1;
+}
+
+message DeletePresetResponse {
+  // Удалён активный набор при работающем соединении (T-80).
+  bool needs_profile_restart = 1;
+  // Непусто, если активным стал другой набор ("global" после удаления активного).
+  string new_active_id = 2;
+}
+
+message ActivatePresetRequest {
+  string id = 1;
+}
+
+message ActivatePresetResponse {
+  bool needs_profile_restart = 1;
+  // Человекочитаемое превью набора (FR-UI-142 DisplayRouting) для
+  // подтверждения в UI и headless-лога.
+  string preview = 2;
+}
+
+message GetActivePresetRequest {}
+message ResetBuiltinPresetRequest {
+  string id = 1;
+}
+
+message ImportNekoRayRouteRequest {
+  string nekobox_json = 1; // содержимое файла routes_box/<name> (или routes/<name>)
+  optional string name = 2;
+}
+
+message ImportNekoRayRouteResponse {
+  RoutingPreset preset = 1; // созданный пользовательский набор
+  repeated string warnings = 2; // что конвертер отбросил или заменил
+}
+
+message ExportPresetRequest {
+  string id = 1;
+}
+
+message ExportPresetResponse {
+  string json = 1; // файл набора (presets/SCHEMA.md), отступ в 2 пробела
+  string suggested_name = 2; // имя файла без расширения (латиница, цифры, «-»)
+}
+
+message ImportPresetRequest {
+  string json = 1; // файл набора LAVRay либо маршрут NekoRay, до 1 МиБ
+}
+
+message ImportPresetResponse {
+  RoutingPreset preset = 1;
+  repeated string warnings = 2;
+}
+
+// ============================================================================
+// Сервис 5: DnsService — режимы DNS
+// ============================================================================
+
+service DnsService {
+  // Текущие DNS-настройки (из активного набора маршрутов).
+  rpc GetDns(GetDnsRequest) returns (DnsSettings);
+
+  // Записать DNS-настройки в активный набор. Реализация — САХАР над
+  // RoutingService.UpdatePreset (active, expected_revision): конфликт
+  // ревизий обрабатывается одинаково (ABORTED → diff/merge в UI).
+  // Если соединение активно — needs_profile_restart (FR-UI-062/150).
+  rpc SetDns(SetDnsRequest) returns (SetDnsResponse);
+
+  // Валидация «продвинутого» JSON: кнопка Format (FR-UI-149). Проверка
+  // типизированной схемой sing-box 1.12+/1.14 (LNB-08: старый формат —
+  // структурная ошибка с подсказкой миграции, не тихий краш старта).
+  rpc ValidateDnsJson(ValidateDnsJsonRequest) returns (ValidateDnsJsonResponse);
+}
+
+// DROP аудита 2026-10 (FR-UI-148): direct_dns_strategy и dns_final_out в
+// некоре не влияли на генерируемый конфиг — из контракта убраны (reserved);
+// работают Remote DNS + Query Strategy. Пере-включение — решение владельца.
+message DnsSettings {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    MODE_SIMPLE = 1; // FR-UI-148 Simple DNS Settings
+    MODE_ADVANCED = 2; // FR-UI-149 Use DNS Object
+  }
+  Mode mode = 1;
+
+  // Simple-режим (строки-адреса транслируются ядром в типизированные
+  // серверы sing-box 1.12+ — FR-UI-155, MakeDnsServer).
+  optional string remote_dns = 2; // напр. https://dns.google/dns-query
+  optional DomainStrategy remote_query_strategy = 3; // Query Strategy (живая настройка)
+  optional string direct_dns = 4; // напр. local; используется dns-local/resolver
+  reserved 5, 7; // direct_strategy, final_out — DROP (аудит 2026-10, мёртвые поля)
+  bool routing_enabled = 6; // FR-UI-150 Enable DNS Routing
+
+  // Advanced-режим: полный JSON секции dns sing-box.
+  optional string advanced_json = 8;
+
+  // Underlying DNS ядра (FR-UI-152; default "local").
+  optional string underlying_dns = 9;
+  // FakeDNS (FR-UI-151): включается в TUN-настройках, здесь read-only.
+  optional bool fake_dns_enabled = 10;
+
+  // Карточка экрана DNS (FR-UI-148): "auto" — DNS пресета без переопределения,
+  // "tunnel" — DoH внутри туннеля, "doh" — DoH напрямую, "dot" и "local" — по
+  // своему адресу, "custom" — remote_dns пользователя. Выбор хранится для
+  // активного пресета и на другие не действует. В SetDns пусто: remote_dns
+  // пуст — "auto", иначе "custom"; в GetDns — выбранная карточка.
+  optional string choice = 11;
+}
+
+message GetDnsRequest {}
+
+message SetDnsRequest {
+  DnsSettings dns = 1;
+  int32 expected_revision = 2; // ревизия активного пресета (см. UpdatePreset)
+}
+
+message SetDnsResponse {
+  bool needs_profile_restart = 1;
+  DnsSettings applied = 2; // нормализованное значение
+  int32 new_revision = 3;
+}
+
+message ValidateDnsJsonRequest {
+  string json = 1;
+}
+message ValidateDnsJsonResponse {
+  bool valid = 1;
+  repeated string errors = 2; // путь + причина
+  optional string formatted = 3; // форматированный JSON (кнопка Format)
+}
+
+// ============================================================================
+// Сервис 6: SettingsService — карта настроек (DataStore)
+// ============================================================================
+
+service SettingsService {
+  // Каталог ключей с типами/дефолтами/флагами перезапуска — UI строит
+  // «Параметры» динамически; headless валидирует конфиг. Полная таблица
+  // миграции 56 ключей DataStore NekoBox (Приложение А REQUIREMENTS) —
+  // core-port-plan §5.4; extraCore.core_map — DROP (FR-UI-175).
+  rpc DescribeSettings(DescribeSettingsRequest) returns (DescribeSettingsResponse);
+
+  // Получить значения по ключам (пусто = все).
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+
+  // Записать значения. Неизвестный ключ → INVALID_ARGUMENT со списком.
+  // Валидаторы (FR-UI-279, LNB-33): inbound_address не loopback при пустом
+  // inbound_auth → INVALID_ARGUMENT («пароль обязателен при доступе из LAN»).
+  // Ответ содержит aggregated-флаги: нужен ли перезапуск профиля/приложения
+  // (FR-UI-062/063/064: единый индикатор «требуется перезапуск» — UX-5).
+  rpc SetSettings(SetSettingsRequest) returns (SetSettingsResponse);
+
+  // Сброс к дефолтам (всей группы или отдельных ключей).
+  rpc ResetSettings(ResetSettingsRequest) returns (SetSettingsResponse);
+
+  // Поток изменений настроек (мультиклиентская консистентность: веб-панель
+  // и окно приложения видят одну карту).
+  rpc SubscribeSettings(SubscribeSettingsRequest) returns (stream SettingsChanged);
+}
+
+enum SettingType {
+  SETTING_TYPE_UNSPECIFIED = 0;
+  SETTING_TYPE_STRING = 1;
+  SETTING_TYPE_BOOL = 2;
+  SETTING_TYPE_INT = 3;
+  SETTING_TYPE_DOUBLE = 4;
+  SETTING_TYPE_STRING_LIST = 5;
+  SETTING_TYPE_JSON = 6;
+}
+
+message SettingDescriptor {
+  string key = 1;
+  SettingType type = 2;
+  string group_id = 3; // секция UI: inbound/sub/vpn/mux/core/security/update/web
+  optional string default_value_json = 4;
+  bool requires_profile_restart = 5;
+  bool requires_app_restart = 6; // меняет только оболочка/UI
+  bool shell_owned = 7; // ключ читается оболочкой, ядро только хранит
+  optional string deprecated_by = 8; // миграция со старого ключа DataStore
+}
+
+message DescribeSettingsRequest {}
+message DescribeSettingsResponse {
+  repeated SettingDescriptor descriptors = 1;
+  repeated SettingGroup groups = 2;
+}
+
+message SettingGroup {
+  string id = 1;
+  string name_key = 2; // локализуемое имя — UI; здесь стабильный ключ
+}
+
+message GetSettingsRequest {
+  repeated string keys = 1;
+}
+
+message GetSettingsResponse {
+  map<string, SettingValue> values = 1;
+}
+
+message SetSettingsRequest {
+  map<string, SettingValue> values = 1;
+}
+
+message SetSettingsResponse {
+  repeated string accepted_keys = 1;
+  bool needs_profile_restart = 2;
+  bool needs_app_restart = 3;
+}
+
+message ResetSettingsRequest {
+  repeated string keys = 1;
+} // пусто = все
+
+message SubscribeSettingsRequest {}
+
+message SettingsChanged {
+  map<string, SettingValue> changed = 1;
+  repeated string removed = 2; // сброшенные к дефолту
+}
+
+message SettingValue {
+  oneof value {
+    string string_value = 1;
+    bool bool_value = 2;
+    int64 int_value = 3;
+    double double_value = 4;
+    StringList string_list_value = 5;
+    string json_value = 6;
+  }
+}
+
+message StringList {
+  repeated string items = 1;
+}
+
+// ============================================================================
+// Сервис 7: LogService — журнал с серверной редакцией
+// ============================================================================
+
+service LogService {
+  // Подписка на журнал. Источники: лог-фабрика sing-box (SetLogWritter →
+  // мультиплексор), менеджер подписок, тесты, внешние ядра (если включены
+  // флагом — core-port-plan §6.2). Строки ОБОЛОЧКИ (ранний stdout ядра,
+  // её собственные события) в ядро не форвардятся: UI склеивает два канала
+  // (LogService + Tauri-события) локально, клейка по timestamp — на UI.
+  //
+  // РЕДАКЦИЯ НА СТОРОНЕ ЯДРА (LNB-01/28): до отправки клиенту и до записи
+  // в файл: userinfo URL, query-токены, содержимое share/happ-ссылок,
+  // JSON-поля password/token/uuid/secret/private_key; ЗАПРЕЩЕНО логировать
+  // env/argv внешних ядер и core_config (LNB-28). Тест: golden-векторы +
+  // негативный «секрета нет ни в одной строке» (TEST-PLAN набор 6).
+  //
+  // Покрытие: FR-UI-215 (хвост и follow), FR-UI-216 (фильтр-ключевые слова —
+  // серверные), FR-UI-217 (ignore-слова в Settings), FR-UI-218 (VT100-очистка
+  // в ядре), FR-UI-219 (префиксы источников — поле source), FR-UI-146.
+  rpc Subscribe(SubscribeLogsRequest) returns (stream LogLine);
+
+  // Хвост журнала без подписки (восстановление окна, headless-диагностика).
+  rpc GetTail(GetTailRequest) returns (GetTailResponse);
+}
+
+message SubscribeLogsRequest {
+  optional LogLevel min_level = 1; // глобальный минимум
+  repeated string exclude_keywords = 2; // FR-UI-216
+  repeated string include_keywords = 3; // только строки с этими словами
+  repeated string sources = 4; // "core" | "subs" | "test" | "ext:*" | "update" | "gateway"
+  optional int32 tail_lines = 5; // сколько истории отдать сразу (0 = нет)
+  optional int32 max_lines_per_second = 6; // антифлуд ядра (FR-UI-216)
+}
+
+message LogLine {
+  int64 ts_ms = 1;
+  LogLevel level = 2;
+  string source = 3; // "core" | "subs" | "test" | "ext:<name>" | "update" | "gateway"
+  string message = 4; // уже redacted и без ANSI
+}
+
+message GetTailRequest {
+  int32 lines = 1;
+}
+message GetTailResponse {
+  repeated LogLine lines = 1;
+} // от старых к новым
+
+// ============================================================================
+// Сервис 8: StatsService — стрим скоростей и сессии
+// ============================================================================
+
+service StatsService {
+  // Подписка на кадры статистики. PUSH вместо поллинга QueryStats
+  // (AUDIT §1.4): ядро само считает диффы за такт, UI только рисует.
+  // Интервал = настройка traffic_loop_interval (FR-UI-168: 500..5000 мс,
+  // 0 = off → стрим молчит, кроме финального кадра — FR-UI-214).
+  // ХВОСТ НЕ ПОДДЕРЖАН (кадры мгновенны): после переподключения клиент
+  // восстанавливает состояние через GetStatus + GetTrafficTotals — это
+  // оговорено контрактом. Покрытие: FR-UI-210/211/214, FR-UI-077.
+  rpc Subscribe(SubscribeStatsRequest) returns (stream StatsSnapshot);
+
+  // Суммарный трафик по профилям (без подписки; для таблицы после старта).
+  rpc GetTrafficTotals(GetTrafficTotalsRequest) returns (GetTrafficTotalsResponse);
+
+  // Сводка трафика по группе/подписке за период (UX-25: «группы без
+  // статистики»; данные — таблица sessions, core-port-plan §5.2).
+  rpc GetTrafficSummary(GetTrafficSummaryRequest) returns (GetTrafficSummaryResponse);
+}
+
+message SubscribeStatsRequest {
+  optional int32 interval_ms = 1; // переопределение: 0 = из настроек, иначе 250..10000 мс
+  repeated string tags = 2; // теги исходящих; пусто = все ("proxy", "direct", …)
+}
+
+message StatsSnapshot {
+  int64 ts_ms = 1;
+  repeated TagStat tags = 2;
+  optional SessionStat session = 3;
+  bool final = 4; // финальный кадр после остановки соединения
+}
+
+message TagStat {
+  string tag = 1; // "proxy", "direct", "g-<id>", ...
+  double uplink_bps = 2;
+  double downlink_bps = 3;
+  int64 uplink_total = 4; // за сессию
+  int64 downlink_total = 5;
+}
+
+message SessionStat {
+  optional int64 profile_id = 1;
+  int64 started_at_ms = 2;
+  int64 uplink_total = 3;
+  int64 downlink_total = 4;
+}
+
+message GetTrafficTotalsRequest {
+  repeated int64 profile_ids = 1;
+}
+
+message GetTrafficTotalsResponse {
+  map<int64, TrafficCounters> totals = 1;
+}
+
+message GetTrafficSummaryRequest {
+  optional int64 group_id = 1; // пусто = все группы
+  optional int64 since_ms = 2; // пусто = за всё время
+}
+
+message GetTrafficSummaryResponse {
+  repeated GroupTrafficSummary groups = 1;
+}
+
+message GroupTrafficSummary {
+  int64 group_id = 1;
+  int64 uplink_bytes = 2;
+  int64 downlink_bytes = 3;
+  int64 session_count = 4;
+  optional int64 first_session_ms = 5;
+  optional int64 last_session_ms = 6;
+}
+
+// ============================================================================
+// Сервис 9: ConnectionService — список соединений
+// ============================================================================
+
+service ConnectionService {
+  // Список активных и недавно закрытых соединений (FR-UI-274). Реализация —
+  // connection-tracker; clash-api-интерфейс НЕ экспонируется наружу
+  // (hardening по LNB-18.2/THREAT-MODEL: bind 127.0.0.1:random или
+  // unix-socket, CSPRNG-секрет только в памяти процесса, external_ui off,
+  // CORS без «*»; альтернатива — v2ray-api без HTTP; детали — core-port-plan
+  // §6.3). Теги из ignore (сервисные inbound-петли) скрыты ядром.
+  rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
+
+  // Стрим снапшотов (активные целиком + дельта закрытых). Фильтры и пагинация
+  // снижают объём; ядро коалесит кадры (не чаще interval_ms и не больше
+  // page_limit активных на кадр — backpressure для роутеров).
+  rpc WatchConnections(WatchConnectionsRequest) returns (stream ConnectionSnapshot);
+
+  // Закрыть соединение по id (UX-12). NOT_FOUND если уже закрыто.
+  rpc CloseConnection(CloseConnectionRequest) returns (Empty);
+}
+
+message ListConnectionsRequest {
+  optional string outbound_filter = 1; // подстрока тега outbound
+  optional string destination_filter = 2;
+  Page page = 3;
+}
+
+message ListConnectionsResponse {
+  repeated Connection connections = 1;
+}
+
+message WatchConnectionsRequest {
+  optional int32 interval_ms = 1; // дефолт 1000
+  optional string outbound_filter = 2;
+  optional string destination_filter = 3;
+  optional int32 active_page_limit = 4; // дефолт 500; избыток — маркер truncated
+}
+
+message ConnectionSnapshot {
+  repeated Connection active = 1;
+  repeated string closed_ids = 2; // закрылись с прошлого кадра
+  bool truncated = 3; // активных больше active_page_limit
+}
+
+message Connection {
+  string id = 1;
+  int64 started_at_ms = 2;
+  optional int64 ended_at_ms = 3; // пусто = активно
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_CLOSED = 2; // иконка history (FR-UI-213)
+    STATUS_BLOCKED = 3; // иконка cancel
+  }
+  Status status = 4;
+  string outbound = 5; // тег outbound
+  string destination = 6; // запрошенный адрес
+  optional string resolved_destination = 7; // после сниффинга/резолва
+  optional string inbound = 8; // mixed-in / tun-in
+  optional string rule = 9; // какое правило маршрутизовало (UX-12)
+  optional string process = 10; // TUN-режим (FR-UI-271/274)
+  int64 upload_bytes = 11; // отправлено через соединение (T-79)
+  int64 download_bytes = 12; // получено через соединение (T-79)
+  string network = 13; // "tcp" | "udp" (T-79)
+  repeated string chain = 14; // теги исходящих от первого к конечному (T-79)
+}
+
+message CloseConnectionRequest {
+  string id = 1;
+}
+
+// ============================================================================
+// Сервис 10: DiagnosticsService — «Почему не работает?» (FR-UI-271/272/273)
+// ============================================================================
+
+service DiagnosticsService {
+  // «Куда пойдёт адрес/приложение» (FR-UI-271): прогон адреса/процесса через
+  // активные правила (без сети) → сработавшее правило и исход. Используется
+  // таблицами решений route-ядра (TEST-PLAN набор 4).
+  rpc CheckRoute(CheckRouteRequest) returns (CheckRouteResponse);
+
+  // Диагностика «Почему не работает?» (FR-UI-272): 8 проверок — ядро живо,
+  // сервер достижим, DNS разрешает, прокси/TUN активен, часы синхронны
+  // (TLS), подписка не просрочена, порт свободен, IPv6-доступность. Каждая
+  // проверка возвращает статус + человекочитаемое исправление (локализует UI
+  // по коду). Пустой kind[] = все проверки.
+  rpc RunSelfCheck(RunSelfCheckRequest) returns (RunSelfCheckResponse);
+
+  // Публичный IP через указанный путь (FR-UI-273): THROUGH_TUNNEL /
+  // DIRECT. Сравнение делает UI/клиент.
+  rpc GetPublicIp(GetPublicIpRequest) returns (GetPublicIpResponse);
+
+  // Проверка утечек (FR-UI-273): IP через туннель vs прямой, DNS-эгресс
+  // (какой резолвер виден тест-домену), IPv6-утечка (доступен ли v6 в
+  // direct при туннеле). Одна операция = все три замера.
+  rpc CheckLeaks(Empty) returns (LeakReport);
+}
+
+message CheckRouteRequest {
+  string address = 1; // домен, IP, IP:порт или URL
+  optional string process_name = 2; // если задан — учитывать процессные правила
+}
+
+message CheckRouteResponse {
+  optional string matched_rule = 1; // человекочитаемое правило ("geosite:cn → direct")
+  optional string matched_list = 2; // "direct_domain[3]" / "process_rules[0]" / "default"
+  Outbound outbound = 3;
+  // Диагностика DNS: каким сервером и стратегией будет резолв (если адрес — домен).
+  optional string dns_server = 4;
+}
+
+message RunSelfCheckRequest {
+  enum CheckKind {
+    CHECK_KIND_UNSPECIFIED = 0;
+    CHECK_KIND_CORE_ALIVE = 1; // ядро/инстанс жив
+    CHECK_KIND_SERVER_REACHABLE = 2; // сервер профиля достижим (TCP ping)
+    CHECK_KIND_DNS_RESOLVES = 3; // DNS разрешает тест-домен
+    CHECK_KIND_PROXY_ACTIVE = 4; // прокси/TUN активен и пропускает
+    CHECK_KIND_CLOCK_SKEW = 5; // часы не сбиты (TLS-ошибки)
+    CHECK_KIND_SUBSCRIPTION_OK = 6; // активная подписка не пуста/не просрочена
+    CHECK_KIND_PORT_FREE = 7; // mixed-порт не занят другим процессом
+    CHECK_KIND_IPV6 = 8; // IPv6-поведение (утечка/недоступность)
+  }
+  repeated CheckKind kinds = 1; // пусто = все 8
+}
+
+message RunSelfCheckResponse {
+  repeated SelfCheckResult results = 1;
+}
+
+message SelfCheckResult {
+  RunSelfCheckRequest.CheckKind kind = 1;
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_OK = 1;
+    STATUS_WARN = 2;
+    STATUS_FAIL = 3;
+  }
+  Status status = 2;
+  string fix_code = 3; // стабильный код исправления (UI локализует: "restart_profile", "fix_clock", ...)
+  optional string detail = 4; // redacted
+}
+
+message GetPublicIpRequest {
+  enum Via {
+    VIA_UNSPECIFIED = 0; // = through_tunnel если соединение активно
+    VIA_THROUGH_TUNNEL = 1;
+    VIA_DIRECT = 2;
+  }
+  Via via = 1;
+}
+
+message GetPublicIpResponse {
+  optional string ip = 1; // пусто = определить не удалось (детали в error-коде Connect)
+  bool is_ipv6 = 2;
+}
+
+message LeakReport {
+  optional string tunnel_ip = 1; // FR-UI-273
+  optional string direct_ip = 2;
+  optional string dns_egress = 3; // резолвер, видимый тест-домену
+  bool ipv6_direct_available = 4; // true при активном туннеле = риск утечки v6
+  bool tunnel_active = 5;
+  // Замеры, которые НЕ выполнены: "direct_ip", "tunnel_ip", "dns", "ipv6".
+  // Пустое значение поля без замера нельзя читать как «в порядке».
+  repeated string unchecked = 6;
+}
+
+// ============================================================================
+// Сервис 11: GatewayService — шлюз OpenWrt (TProxy/TUN, политики устройств)
+// ============================================================================
+
+// Действует только на OpenWrt (ConnectMode.GATEWAY_*); на десктопе все
+// методы → INVALID_ARGUMENT. Исполнитель — internal/gateway/nft.go
+// (fw4-include, таблица inet lavray, исключения, перехват DNS, IPv6-цепочка
+// по явному включению) + watchdog-откат (OPENWRT-GATEWAY §3/§5).
+service GatewayService {
+  // Состояние шлюза: режим, счётчики перехвата, живость watchdog, IPv6.
+  rpc GetGatewayStatus(Empty) returns (GatewayStatus);
+
+  // Политики per-MAC (OPENWRT-GATEWAY §4): «через прокси» / «напрямую» /
+  // «по пресету». Устройство без политики наследует общую; гостевая сеть —
+  // по умолчанию «напрямую».
+  rpc ListDevicePolicies(Empty) returns (ListDevicePoliciesResponse);
+  rpc SetDevicePolicy(SetDevicePolicyRequest) returns (DevicePolicy);
+}
+
+message GatewayStatus {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    MODE_OFF = 1;
+    MODE_TPROXY = 2;
+    MODE_TUN = 3;
+  }
+  Mode mode = 1;
+  bool ipv6_enabled = 2; // явный переключатель (§3), по умолчанию false
+  bool nft_rules_active = 3; // fw4-include применён
+  bool watchdog_tripped = 4; // правила сняты watchdog'ом (интернет напрямую)
+  optional int32 intercepted_flows = 5;
+  optional string last_error = 6; // redacted
+}
+
+message ListDevicePoliciesResponse {
+  repeated DevicePolicy policies = 1;
+}
+
+message SetDevicePolicyRequest {
+  DevicePolicy policy = 1; // mac обязателен
+}
+
+message DevicePolicy {
+  string mac = 1;
+  enum Action {
+    ACTION_UNSPECIFIED = 0; // = наследовать общую
+    ACTION_PROXY = 1;
+    ACTION_DIRECT = 2;
+    ACTION_PRESET = 3; // пресет применяется к трафику устройства (§4)
+  }
+  Action action = 4;
+  optional string preset_id = 5; // для ACTION_PRESET
+  optional string hostname = 6; // метка из DHCP-лиз, read-only
+}
+
+// ============================================================================
+// Сервис 12: UpdateService — TUF-lite (UPDATE-SYSTEM v2.0)
+// ============================================================================
+
+// Модель доверия (UPDATE-SYSTEM v2.0 §3): четыре подписанных документа —
+// root (порог 2-из-3 офлайн-ключей), timestamp (свежесть ≤ 7 дней),
+// manifest (product×channel, монотонный serial, expires), sources (allowlist
+// зеркал — URL-пиннинга в коде НЕТ). Формат конверта:
+// {"signed": {…}, "signatures": [{keyid, sig}…]}.
+//
+// Разделение ответственности (§4/§6): подпись релиза — ВНЕ CI (релиз-инженер
+// или защищённый Environment с ревью); CI собирает и публикует артефакты+hash.
+// PRESETS/GEO/WEBUI применяет ядро; APP на десктопе — оболочка (rollback-
+// помощник СТАРОЙ версии, §3 принципа 3); APP на OpenWrt — opkg/apk-флоу
+// со snapshot/откатом (§6). Ядро (CORE) может доставляться ОТДЕЛЬНО по полю
+// minApp (§7 — быстрые CVE-фиксы; версия — схема 1.14.1-lav.N).
+service UpdateService {
+  // Полная проверка: параллельная загрузка timestamp.json минимум из двух
+  // источников метаданных → верификация цепочки root→timestamp→manifest
+  // (подписи, serial > сохранённого, expires, product, channel) → ответ.
+  // Порядок сети: сначала через активный туннель, затем напрямую; DNS через
+  // DoH ядра; последний рабочий источник запоминается (§5). «Проверка не
+  // удалась» ≠ «обновлений нет» (принцип 7) — состояние last_checked_at.
+  // Ошибки: UNAVAILABLE — все источники недоступны (last_checked_at не
+  // меняется); FAILED_PRECONDITION с причиной в начале сообщения («<причина>: …»):
+  // not_configured (в сборке нет корня доверия), bad_signature, expired,
+  // serial_rollback, wrong_product, wrong_channel, root_rotation,
+  // artifact_role_missing.
+  rpc CheckUpdates(CheckUpdatesRequest) returns (CheckUpdatesResponse);
+
+  // Скачать выбранные компоненты: стрим прогресса (байты, скорость, докачка
+  // Range, 2 ретрая; проверка Content-Length/sha256/minisign на КАЖДОМ
+  // источнике и редиректе; обрывки удаляются; копия в защищённый каталог и
+  // повторная проверка перед запуском — анти-TOCTOU §5.4).
+  rpc DownloadUpdates(DownloadUpdatesRequest) returns (stream UpdateEvent);
+
+  // Применить скачанное. Для PRESETS/GEO — немедленно (merge-диалог — в
+  // RoutingService). Для APP — перевести в ready_for_restart; применение —
+  // оболочка/служба (десктоп) или opkg/apk (OpenWrt). Для CORE — отдельная
+  // доставка, если app_version >= minApp (§7), иначе FAILED_PRECONDITION.
+  rpc ApplyUpdates(ApplyUpdatesRequest) returns (stream UpdateEvent);
+
+  // Откат компонента. APP: rollback-помощник СТАРОЙ версии + heartbeat-флаг
+  // (§3 принцип 3: новую версию откатывает старая). PRESETS/GEO: предыдущая
+  // ревизия из внутреннего кэша. CORE: к предыдущей минимально необходимой.
+  rpc Rollback(RollbackRequest) returns (RollbackResponse);
+
+  // Состояние подсистемы: фазы по компонентам, last_checked_at, серийники,
+  // источник. UI выводит «последняя успешная проверка N дней назад»
+  // (предупреждение > 7 дней, красный статус > 30 — §2 Freeze).
+  rpc GetUpdateState(GetUpdateStateRequest) returns (UpdateStateResponse);
+
+  // Офлайн-путь «Установить из файла» (§5.8): инсталлятор + .minisig +
+  // манифест; проверка той же цепочкой root→timestamp→manifest. Файлы
+  // выбирает пользователь через оболочку; ядро читает по переданному пути
+  // (валидатор пути — только защищённый staging-каталог).
+  rpc VerifyLocalUpdate(VerifyLocalUpdateRequest) returns (VerifyLocalUpdateResponse);
+}
+
+enum UpdateComponent {
+  UPDATE_COMPONENT_UNSPECIFIED = 0;
+  UPDATE_COMPONENT_APP = 1; // приложение (десктоп: оболочка; OpenWrt: пакеты)
+  UPDATE_COMPONENT_CORE = 2; // ядро: ОТДЕЛЬНАЯ доставка разрешена (v2.0 §7, minApp)
+  UPDATE_COMPONENT_PRESETS = 3; // пресеты (секция presets манифеста, rev)
+  UPDATE_COMPONENT_GEO = 4; // гео-данные (секция geo, подписанный список .srs)
+  UPDATE_COMPONENT_WEBUI = 5; // веб-панель (OpenWrt)
+}
+
+enum UpdateChannel {
+  UPDATE_CHANNEL_STABLE = 0;
+  UPDATE_CHANNEL_BETA = 1; // переход stable→beta — с подтверждением (§9)
+}
+
+message CheckUpdatesRequest {
+  UpdateChannel channel = 1;
+  repeated UpdateComponent components = 2; // пусто = все
+}
+
+message CheckUpdatesResponse {
+  repeated ComponentUpdate available = 1;
+  string current_app_version = 2; // сообщает оболочка при старте
+  string core_version = 3; // схема 1.14.1-lav.N (§7)
+  int64 last_checked_at_ms = 4; // 0 = успешных проверок не было; «нет обновлений» до первой проверки не показывается (§5.7)
+  repeated string working_sources = 5; // последний рабочий источник метаданных/артефактов
+}
+
+message ComponentUpdate {
+  UpdateComponent component = 1;
+  string current_version = 2; // для presets/geo — текущая rev в виде строки
+  optional string available_version = 3; // пусто = нет обновлений
+  map<string, string> notes = 4; // локаль → markdown без картинок (LNB-34: санитизация, без img/onerror)
+  optional UpdateManifest manifest = 5;
+  bool mandatory = 6; // внутри подписанного манифеста (§2 anti-DoS)
+}
+
+// Конверт TUF-lite. signed_json — канонизированный JSON документа `signed`;
+// signatures — список {keyid, sig}; верификация по ролям root.json.
+message UpdateMetadata {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_ROOT = 1; // корень доверия: keys/roles/threshold; ротация — новый root, подписанный порогом старых
+    TYPE_TIMESTAMP = 2; // свежесть: meta {manifest-<channel>.json: {serial, sha256, length}}; expires ≤ +7d
+    TYPE_MANIFEST = 3; // содержимое релиза: product, channel, serial, expires
+    TYPE_SOURCES = 4; // allowlist зеркал: artifacts[], metadata[] (URL-пиннинга в коде нет)
+  }
+  Type type = 1;
+  string signed_json = 2;
+  repeated MetadataSignature signatures = 3;
+}
+
+message MetadataSignature {
+  string keyid = 1;
+  string sig = 2; // base64 (ed25519)
+}
+
+// Развёрнутый манифест (после верификации конверта TYPE_MANIFEST).
+// Соответствует UPDATE-SYSTEM §3.3; поля product/channel/serial/expires/
+// mandatory — ВНУТРИ подписи (downgrade/mix-and-match/подмена канала — §2).
+message UpdateManifest {
+  string product = 1; // "lavray-windows" | "lavray-linux" | … | "lavray-openwrt"
+  UpdateChannel channel = 2;
+  int64 serial = 3; // монотонный по каналу; клиент хранит максимум, меньший отвергается
+  int64 expires_ms = 4;
+  string version = 5;
+  optional string min_upgrade_from = 6;
+  // Ядро: отдельная доставка (§7); version — своя схема; сравнение только ей.
+  optional CoreRef core = 7;
+  map<string, UpdateAsset> assets = 8; // "windows-x64", "linux-amd64", "macos-universal", "openwrt-x86-64", …
+  // Пресеты: rev (не semver) + путь + sha256 (§8).
+  map<string, PresetRef> presets = 9;
+  // Гео-данные: подписанный набор .srs с sha256 (LNB-31: вендоринг, не «latest» с ветки).
+  optional GeoRef geo = 10;
+  map<string, string> notes = 11;
+  bool mandatory = 12;
+}
+
+message CoreRef {
+  string version = 1; // "1.14.1-lav.1" (своя схема, §7)
+  string min_app = 2; // минимальная версия приложения для этой версии ядра
+}
+
+message UpdateAsset {
+  string path = 1; // относительный путь на источнике из sources.json
+  string sha256 = 2;
+  int64 length = 3;
+  string minisig = 4; // minisign; trusted comment: product;platform;channel;version;serial (§3.3)
+}
+
+message PresetRef {
+  int32 rev = 1;
+  string path = 2;
+  string sha256 = 3;
+}
+
+message GeoRef {
+  string path = 1; // архив набора .srs (подписан манифестом)
+  string sha256 = 2;
+  int64 length = 3;
+  optional string generated_at = 4; // дата среза гео-данных
+}
+
+message DownloadUpdatesRequest {
+  repeated UpdateComponent components = 1;
+}
+
+message ApplyUpdatesRequest {
+  repeated UpdateComponent components = 1;
+  // Разрешение «применять при активной сессии» (принцип 1: по умолчанию —
+  // только в спокойном состоянии).
+  bool active_session_confirmed = 2;
+}
+
+message RollbackRequest {
+  UpdateComponent component = 1;
+}
+
+message RollbackResponse {
+  bool success = 1;
+  optional string restored_version = 2;
+  optional string error = 3;
+  // Откат пресетов или гео-набора изменил данные, по которым собран работающий
+  // профиль (активный встроенный набор, каталог geo): чтобы они вступили в силу,
+  // профиль нужно перезапустить (T-75/7.5; для применения то же сообщает событие
+  // ready_for_restart с причиной "profile").
+  bool needs_profile_restart = 4;
+}
+
+message GetUpdateStateRequest {}
+
+message UpdateStateResponse {
+  repeated ComponentState components = 1;
+  int64 last_checked_at_ms = 2;
+  optional ChainStateInfo chain_state = 3; // root-версия, серийники, свежесть timestamp
+}
+
+// Состояние цепочки доверия на клиенте (для экрана «Центр обновлений →
+// подробности» и диагностики freeze).
+message ChainStateInfo {
+  int32 root_version = 1; // последний валидный root.json
+  map<string, int64> max_serial = 2; // канал → максимум манифеста
+  optional int64 timestamp_expires_ms = 3;
+  bool timestamp_fresh = 4; // false после 7 дней без проверки (§2)
+}
+
+message ComponentState {
+  UpdateComponent component = 1;
+  enum Phase {
+    PHASE_UNSPECIFIED = 0;
+    PHASE_IDLE = 1;
+    PHASE_DOWNLOADING = 2;
+    PHASE_DOWNLOADED = 3; // staging, верифицировано
+    PHASE_READY_TO_APPLY = 4;
+    PHASE_APPLYING = 5;
+    PHASE_READY_FOR_RESTART = 6;
+    PHASE_FAILED = 7;
+  }
+  Phase phase = 2;
+  optional string staged_version = 3;
+  optional string error = 4;
+  // Откат доступен, только если оболочка хранит прошлый установщик
+  // (<данные>/updates/previous); его версия — previous_version (T-75).
+  bool rollback_available = 5;
+  optional string previous_version = 6;
+}
+
+message VerifyLocalUpdateRequest {
+  string installer_path = 1; // в защищённом staging-каталоге (оболочка скопировала)
+  string minisig_path = 2;
+  string manifest_path = 3;
+}
+
+message VerifyLocalUpdateResponse {
+  bool valid = 1;
+  optional UpdateManifest manifest = 2;
+  repeated string errors = 3;
+}
+
+// Событие обновления. ready_for_restart — сигнал UI предложить рестарт.
+message UpdateEvent {
+  int64 ts_ms = 1;
+  oneof kind {
+    DownloadProgress progress = 2;
+    VerificationPassed verified = 3; // sha256 + подпись + serial/product/channel ok
+    VerificationFailed verify_failed = 4; // безопасный отказ + чистка (LNB-02)
+    string ready_for_restart = 5; // reason
+    string applied = 6; // component
+    UpdateFailed failed = 7;
+    string rolled_back = 8; // component
+  }
+}
+
+message DownloadProgress {
+  UpdateComponent component = 1;
+  int64 downloaded_bytes = 2;
+  int64 total_bytes = 3;
+  double bps = 4;
+}
+
+message VerificationPassed {
+  UpdateComponent component = 1;
+  string version = 2;
+  // Путь проверенной копии в staging-каталоге (<данные>/updates/staging) и её
+  // sha256 (hex): оболочка при установке заново сверяет оба значения (T-75).
+  string staged_path = 3;
+  string sha256 = 4;
+}
+
+message VerificationFailed {
+  UpdateComponent component = 1;
+  string reason = 2; // "sha256_mismatch" | "bad_signature" | "truncated" | "serial_rollback" | "wrong_product" | "wrong_channel" | "expired" | "not_configured" | ...
+}
+
+message UpdateFailed {
+  UpdateComponent component = 1;
+  string code = 2;
+  string message = 3;
+  bool recoverable = 4; // сеть → ретрай; подпись/serial → никогда (LNB-02)
+}
+
+// ============================================================================
+// Сервис 13: WebSessionService — вход/сессии веб-панели (OpenWrt)
+// ============================================================================
+
+// Сервис работает только при `--web-bind` (веб-режим, роутер). На десктопе без
+// этого флага все 9 методов отвечают UNIMPLEMENTED — постоянная запись в
+// allowUnimplemented: локальный UI аутентифицируется локальным токеном
+// (stdin/UDS), экрана входа нет. UI, получив UNIMPLEMENTED от
+// GetWebModeStatus, считает, что вход не нужен.
+//
+// Аутентификация веб-слушателя (FR-UI-278, OPENWRT-GATEWAY §6, THREAT-MODEL §3):
+// - браузерные клиенты: cookie `HttpOnly; SameSite=Strict` (Secure — на HTTPS)
+//   после Login + CSRF-токен в каждом изменяющем запросе (заголовок
+//   X-Lavray-CSRF, значение — WebSession.csrf_token) + проверка Origin/Host;
+//   Bearer (токен ядра) — только для headless-клиентов (curl/скрипты);
+// - до входа открыты только GetWebModeStatus, SetupFirstAdmin и Login;
+// - токен в query-строке запрещён (LNB-18.2);
+// - перебор: per-ACCOUNT backoff с блокировкой (IP-лимит за NAT бесполезен):
+//   5 неудач — экспоненциальная задержка, 10 — блок на 15 мин; сверх того
+//   лимиты по адресу и общий. Отказ — RESOURCE_EXHAUSTED с заголовком
+//   Retry-After;
+// - пароли — Argon2id (LNB-04), не короче 10 символов; смена пароля отзывает
+//   все сессии, кроме текущей; SetupFirstAdmin работает один раз (повтор —
+//   FAILED_PRECONDITION);
+// - сессий не более 64 на пользователя (старейшая по активности вытесняется),
+//   простой 12 ч, абсолютный предел 7 суток.
+service WebSessionService {
+  rpc GetWebModeStatus(GetWebModeStatusRequest) returns (WebModeStatus);
+  rpc SetupFirstAdmin(SetupFirstAdminRequest) returns (WebSession);
+  rpc Login(LoginRequest) returns (WebSession);
+  rpc Logout(LogoutRequest) returns (Empty);
+  rpc RenewSession(RenewSessionRequest) returns (WebSession);
+  rpc WhoAmI(WhoAmIRequest) returns (WebSession);
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+
+  // Активные сессии + принудительный отзыв (кнопка «Выйти на всех
+  // устройствах» — частично; полная — смена пароля).
+  rpc ListSessions(Empty) returns (ListSessionsResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (Empty);
+}
+
+message GetWebModeStatusRequest {}
+
+message WebModeStatus {
+  bool web_mode_enabled = 1; // всегда true: на десктопе сервис UNIMPLEMENTED
+  bool first_run_setup_required = 2; // нет ни одного администратора
+  // Фактический адрес веб-слушателя (OPENWRT-GATEWAY §6). Не-loopback адрес
+  // ядро принимает только с `--web-allow-remote`, 0.0.0.0 — тоже только с ним.
+  string bind_address = 3;
+  bool tls_enabled = 4;
+  // Отпечаток self-signed сертификата (TLS-бутстрап: показывается в LuCI
+  // при первой установке соединения — OPENWRT-GATEWAY §6).
+  optional string tls_fingerprint_sha256 = 5;
+  int32 session_ttl_minutes = 6; // простой (сессия гаснет без запросов)
+  int32 active_sessions = 7;
+  int32 session_absolute_ttl_minutes = 8; // предел жизни сессии (7 суток)
+  // Первичная настройка требует код (SetupFirstAdminRequest.setup_code): панель
+  // слушает не loopback, и без кода администратора создал бы первый, кто её открыл.
+  // Код лежит в файле web-setup-code каталога данных (права 0600) и в журнале ядра
+  // указан только путь к нему.
+  bool setup_code_required = 9;
+}
+
+message SetupFirstAdminRequest {
+  string username = 1;
+  string password = 2; // политика минимальной длины — в валидаторе ядра
+  optional string setup_code = 3; // обязателен при WebModeStatus.setup_code_required
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  optional string client_label = 3; // метка клиента для страницы сессий
+}
+
+message WebSession {
+  // Всегда пусто: сессия живёт в cookie. Headless-клиенты ходят с Bearer-токеном
+  // ядра, сессию не создают. Поле зарезервировано под будущие токены сессий.
+  string token = 1;
+  int64 expires_at_ms = 2;
+  string username = 3;
+  repeated string permissions = 4; // будущее RBAC; пока ["*"]
+  // Значение для заголовка X-Lavray-CSRF изменяющих запросов. Отдают Login,
+  // SetupFirstAdmin, RenewSession и WhoAmI (последний — после перезагрузки страницы).
+  optional string csrf_token = 5;
+}
+
+message LogoutRequest {}
+message RenewSessionRequest {}
+message WhoAmIRequest {}
+
+message ChangePasswordRequest {
+  string old_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {
+  int32 revoked_other_sessions = 1; // все, кроме текущей (см. сервисный комментарий)
+}
+
+message ListSessionsResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+message SessionInfo {
+  string session_id = 1; // не токен; safe для отображения
+  string username = 2;
+  int64 created_at_ms = 3;
+  int64 expires_at_ms = 4;
+  optional string client_label = 5;
+  int64 last_seen_ms = 6;
+  bool current = 7; // сессия, из которой пришёл запрос
+  optional string remote_addr = 8; // адрес клиента при входе
+}
+
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+// ============================================================================
+// Сервис 14: BackupService — зашифрованная резервная копия всех данных (T-83)
+// ============================================================================
+
+// Формат LAVBK1: заголовок (он же AAD) + XChaCha20-Poly1305 над снимком БД;
+// ключ — Argon2id от пароля. В копию входят настройки, группы, профили (с
+// секретами), подписки (с их адресами) и пользовательские наборы; состояние
+// обновлений (update.*), кэши, гео-файлы и журнал не входят. Забытый пароль =
+// копию не открыть никак. Восстановление полностью ЗАМЕНЯЕТ данные, атомарно.
+//
+// Пароль приходит как UTF-8 (UI нормализует его в NFC), длина — от 8 символов
+// до 1024 байт, ядро его не хранит и не пишет в журнал. Размер копии — до
+// 64 МиБ (лимит тела этого сервиса выше общего, JSON считает base64).
+//
+// Ошибки: код ConnectRPC + деталь ErrorInfo { domain: "lavray.core", reason }.
+//   INVALID_ARGUMENT    — password_too_short | password_too_long | backup_not_recognized
+//   PERMISSION_DENIED   — backup_wrong_password
+//   DATA_LOSS           — backup_tampered (файл изменён или повреждён)
+//   FAILED_PRECONDITION — backup_from_newer_version | confirm_replace_required |
+//                         connection_active
+//   RESOURCE_EXHAUSTED  — backup_too_large
+//   ABORTED             — backup_busy (идёт другая операция с копией)
+//   INTERNAL            — backup_failed (прочий сбой; подробности только в журнале
+//                         ядра, в ответе пути и тексты ошибок ОС не передаются)
+service BackupService {
+  // Собрать и зашифровать копию. Файл сохраняет клиент (диалог «Сохранить как»).
+  rpc ExportBackup(ExportBackupRequest) returns (ExportBackupResponse);
+  // Расшифровать и показать сводку. Данные не меняются.
+  rpc PreviewBackup(PreviewBackupRequest) returns (BackupSummary);
+  // Заменить все данные содержимым копии. Требует confirm_replace и
+  // отсутствия активного подключения.
+  rpc ImportBackup(ImportBackupRequest) returns (ImportBackupResponse);
+}
+
+message ExportBackupRequest {
+  string password = 1;
+}
+
+message ExportBackupResponse {
+  bytes data = 1;
+  string suggested_name = 2; // lavray-backup-YYYYMMDD-HHMMSS.lavbk
+  BackupSummary summary = 3;
+}
+
+message PreviewBackupRequest {
+  bytes data = 1;
+  string password = 2;
+}
+
+message ImportBackupRequest {
+  bytes data = 1;
+  string password = 2;
+  bool confirm_replace = 3; // без true — FAILED_PRECONDITION
+}
+
+message ImportBackupResponse {
+  BackupSummary restored = 1;
+  bool needs_app_restart = 2;
+}
+
+message BackupSummary {
+  int32 groups = 1; // все группы, включая подписки
+  int32 profiles = 2;
+  int32 subscriptions = 3; // из groups: группы-подписки (kind=2)
+  int32 presets = 4; // пользовательские наборы маршрутов
+  int32 settings = 5; // без update.*
+  string app_version = 6;
+  int64 schema_version = 7;
+  int64 created_at_ms = 8;
+}
+
+// ============================================================================
+// MigrationService (T-78): перенос данных из NekoBox/nekoray
+// ============================================================================
+
+// MigrationService переносит каталог config NekoBox (groups/, profiles/,
+// routes_box/, groups/nekobox.json) в LAVRay. Источник только читается; NekoBox
+// не запускается и не останавливается. Агентам весь сервис закрыт.
+//
+// Коды ошибок Connect:
+//   INVALID_ARGUMENT   — путь пуст, не абсолютный, не каталог или в нём нет ни
+//                        groups, ни profiles
+//   NOT_FOUND          — пути нет
+//   RESOURCE_EXHAUSTED — превышены лимиты разбора (файлов, размера)
+//   ABORTED            — параллельный перенос или гонка с записью в базу
+service MigrationService {
+  // Найти установки NekoBox: %APPDATA% и %LOCALAPPDATA% (nekoray\config), каталог
+  // config рядом с запущенным nekobox.exe/nekoray.exe, а также переданные пути.
+  rpc DetectNekoBox(DetectNekoBoxRequest) returns (DetectNekoBoxResponse);
+  // Сухой прогон: числа и причины пропусков те же, что даст ImportNekoBox.
+  rpc PreviewNekoBoxImport(NekoBoxImportRequest) returns (NekoBoxReport);
+  // Перенести всё одной транзакцией: профили, группы, цепочки, по желанию
+  // маршруты и настройки. Повторный перенос не создаёт дублей.
+  rpc ImportNekoBox(NekoBoxImportRequest) returns (NekoBoxReport);
+}
+
+message DetectNekoBoxRequest {
+  repeated string extra_paths = 1; // дополнительные каталоги config (абсолютные)
+}
+
+message NekoBoxCandidate {
+  string path = 1; // каталог config
+  string source = 2; // manual | appdata | localappdata | process
+  int32 groups = 3;
+  int32 profiles = 4;
+  int32 routes = 5;
+  bool looks_running = 6; // NekoBox запущен: перед переносом его лучше закрыть
+}
+
+message DetectNekoBoxResponse {
+  repeated NekoBoxCandidate candidates = 1;
+}
+
+message NekoBoxImportRequest {
+  string path = 1; // каталог config (или каталог установки, в котором есть config)
+  bool include_routes = 2; // маршруты routes_box/ → пользовательские наборы
+  bool include_settings = 3; // groups/nekobox.json → настройки по таблице соответствия
+}
+
+message NekoBoxSkipped {
+  string file = 1; // относительный путь файла в каталоге config
+  int64 id = 2;
+  string type = 3;
+  string reason = 4;
+}
+
+message NekoBoxReport {
+  int32 groups_imported = 1;
+  map<string, int32> profiles_by_type = 2;
+  int32 already_present = 3; // уже перенесено раньше (группы, профили, наборы)
+  repeated NekoBoxSkipped skipped = 4;
+  repeated string warnings = 5;
+  int32 routes_found = 6;
+  int32 routes_imported = 7;
+  int32 renumbered = 8; // записей, чей id пришлось сменить из-за коллизии
+  repeated string settings_imported = 9; // ключи настроек LAVRay
+  bool dry_run = 10;
+  // id набора LAVRay, которым стал активный маршрут NekoBox (active_routing):
+  // клиент предлагает «Сделать активным». Нет значения — маршрут не найден или
+  // не переносится.
+  optional string nekobox_active_route = 11;
+}
+
+// ============================================================================
+// Reserved (эволюция). Удалённые/переименованные поля фиксируются здесь;
+// номера НЕ переиспользуются. История ведётся в proto/README.md §7.
+// ============================================================================
+
+// v1-драфт → ревизия 2 (по L2-ревью 2026-10-23):
+//   SniffingMode: reserved 2 (SNIFFING_FOR_DESTINATION — DROP аудита).
+//   RoutingPreset: reserved 18 (domain_strategy — DROP, FR-UI-131).
+//   DnsSettings: reserved 5, 7 (direct_strategy, final_out — DROP, FR-UI-148).
+//   Hysteria2Detail/TuicDetail: force_external_core удалён (решение №5);
+//   hy2: hop_ports→server_ports, hop_interval_sec→hop_interval (LNB-35).
+//   StreamSettings: + NETWORK_QUIC, reality_spx (FR-UI-267, SHOULD).
+//   Profile: custom_fields_confirmed (FR-UI-257).
+//   Импорт: preview_only/allow_custom_fields/custom_field_warnings (LNB-25).
+//   Подписки: confirm_destructive/PHASE_CONFIRM_REQUIRED/would_remove_count/
+//   RollbackSubscription (FR-UI-258, LNB-29); заголовки FR-UI-262;
+//   per-sub настройки FR-UI-263 (поля Group).
+//   +DiagnosticsService (FR-UI-271/272/273), +GatewayService (OPENWRT-GATEWAY),
+//   +StatsService.GetTrafficSummary (UX-25), +WebSession List/Revoke (P2-35).
+//   UpdateService переработан под UPDATE-SYSTEM v2.0 (TUF-lite).
+//
+// ревизия 3 (0.3.0, T-08B):
+//   ProfileService: + PreviewCustomFields, ConfirmCustomFields — подтверждение
+//   custom-полей привязано к хэшу содержимого.
+//   ImportContentRequest: reserved 6 (allow_custom_fields).
+//   Profile.custom_fields_confirmed — только чтение, вычисляется ядром.
+//
+// ревизия 4 (0.7.0, T-83):
+//   + BackupService (ExportBackup, PreviewBackup, ImportBackup) и сообщения
+//   BackupSummary и др.: зашифрованная резервная копия, формат LAVBK1.
+// ревизия 5 (0.9.0, T-76): WebSessionService сверен с реализацией.
+//   WebModeStatus: + session_absolute_ttl_minutes=8. SessionInfo: + last_seen_ms=6,
+//   current=7, remote_addr=8. WebSession.token всегда пуст. Сервис UNIMPLEMENTED
+//   без `--web-bind`. GatewayService: на десктопе INVALID_ARGUMENT.
+//   Защита первичной настройки: WebModeStatus.setup_code_required=9,
+//   SetupFirstAdminRequest.setup_code=3 (PERMISSION_DENIED при неверном коде).
+//
+// ревизия 6 (0.6.0, T-78):
+//   + MigrationService (DetectNekoBox, PreviewNekoBoxImport, ImportNekoBox) и
+//   сообщения NekoBox*: перенос данных из NekoBox.

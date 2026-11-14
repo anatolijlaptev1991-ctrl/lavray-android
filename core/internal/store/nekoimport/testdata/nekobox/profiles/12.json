@@ -1,0 +1,20 @@
+{
+    "type": "naive",
+    "id": 12,
+    "gid": 1,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "naive https",
+        "addr": "naive.example.com",
+        "port": 443,
+        "username": "user",
+        "password": "naive-pass",
+        "protocol": "https",
+        "extra_headers": "",
+        "sni": "naive.example.com",
+        "certificate": "",
+        "insecure_concurrency": 0,
+        "disable_log": false
+    }
+}

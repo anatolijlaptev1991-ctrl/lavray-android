@@ -1,0 +1,17 @@
+{
+    "type": "socks",
+    "id": 7,
+    "gid": 1,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "socks custom",
+        "addr": "203.0.113.15",
+        "port": 1080,
+        "v": 5,
+        "username": "user7",
+        "password": "pass7",
+        "c_cfg": "{\"outbounds\":[{\"type\":\"direct\"}]}",
+        "c_out": "{\"type\":\"socks\"}"
+    }
+}

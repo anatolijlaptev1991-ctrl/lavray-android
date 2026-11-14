@@ -1,0 +1,13 @@
+{
+  "profile": {
+    "id": 301,
+    "type": "shadowsocks",
+    "name": "G03 ss aes-256-gcm",
+    "address": "ss1.example.org",
+    "port": 8388,
+    "detail": {
+      "method": "aes-256-gcm",
+      "password": "p@ssw0rd"
+    }
+  }
+}

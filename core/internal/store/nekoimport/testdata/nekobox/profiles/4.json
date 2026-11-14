@@ -1,0 +1,24 @@
+{
+    "type": "vmess",
+    "id": 4,
+    "gid": 1,
+    "yc": 90,
+    "bean": {
+        "_v": 0,
+        "name": "vmess grpc",
+        "addr": "9.9.9.9",
+        "port": 443,
+        "id": "b831381d-6324-4d53-ad4f-8cda48b30811",
+        "aid": 0,
+        "sec": "auto",
+        "stream": {
+            "net": "grpc",
+            "sec": "tls",
+            "path": "/grpc",
+            "sni": "vm.example.com",
+            "insecure": false,
+            "ed_len": 0,
+            "mux_s": 2
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "type": "wireguard",
+    "id": 9,
+    "gid": 0,
+    "yc": 0,
+    "bean": {
+        "_v": 0,
+        "name": "wg future",
+        "addr": "203.0.113.16",
+        "port": 51820
+    }
+}

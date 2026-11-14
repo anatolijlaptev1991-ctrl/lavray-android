@@ -1,0 +1,3 @@
+happ://crypt/RvdpzSL6VpVzudhV8kd9NIE9F2wpRUH41uE6B7FyXmZITGiaM/cM4qLYVpFr1xf8TCz/r8HE/gQ1Yin7GKAAnJsFPdWAhfybNhdqc6Ip4WnJjTesvVZk2OqWzfGwdKLHFtJwO19QMB+iMEBZd8yx8IAPeMLE9LWWEvouT18TeEk=
+trojan://pass@example.org:443#TR2
+happ://crypt5/short

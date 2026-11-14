@@ -13,7 +13,7 @@ export function extractObjectLiteral(source, label) {
   if (!match) {
     throw new I18nError(
       `${label}: no "export const xDict = { ... }" declaration found. ` +
-        'Check that the file is a desktop dictionary module (is the third_party/lavray submodule up to date?).',
+        'Check that the file is an interface dictionary module (tools/i18n/dictionaries).',
     );
   }
   const body = text

@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "id": 2701,
+    "type": "socks",
+    "name": "G27 DNS use_dns_object / advanced (FR-UI-149)",
+    "address": "203.0.113.27",
+    "port": 1080,
+    "detail": {"proto": "socks5"}
+  },
+  "preset_obj": {
+    "version": 1,
+    "id": "g27-advanced",
+    "name": {"en": "G27 advanced dns"},
+    "routing": {"def_outbound": "proxy", "sniffing_mode": 1},
+    "dns": {
+      "mode": "advanced",
+      "advanced_json": "{\"servers\":[{\"tag\":\"dns-direct\",\"type\":\"local\"},{\"tag\":\"dns-remote\",\"type\":\"https\",\"server\":\"dns.google\",\"path\":\"/dns-query\",\"detour\":\"proxy\",\"domain_resolver\":\"dns-local\"},{\"tag\":\"dns-local\",\"type\":\"local\"}],\"rules\":[{\"domain_suffix\":[\"corp.example\"],\"action\":\"route\",\"server\":\"dns-direct\"}],\"final\":\"dns-remote\",\"strategy\":\"prefer_ipv4\"}"
+    }
+  }
+}

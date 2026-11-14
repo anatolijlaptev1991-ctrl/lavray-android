@@ -36,7 +36,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
           fetch-depth: 0
           persist-credentials: false
 
@@ -77,7 +76,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
           persist-credentials: false
 
       # Первым делом: без любого из четырёх секретов Gradle молча подписал бы отладочным ключом.

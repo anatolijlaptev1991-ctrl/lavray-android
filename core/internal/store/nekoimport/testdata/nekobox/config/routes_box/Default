@@ -1,0 +1,10 @@
+{
+    "def_outbound": "proxy",
+    "direct_domain": "",
+    "direct_ip": "geoip:private",
+    "proxy_domain": "",
+    "proxy_ip": "",
+    "block_domain": "",
+    "block_ip": "",
+    "sniffing_mode": 1
+}

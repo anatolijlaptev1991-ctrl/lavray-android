@@ -1,0 +1,1 @@
+{"outbounds": [{"type": "trojan", "server": "ok.example.com", "server_port": 443, "password": "p"},

@@ -1,0 +1,14 @@
+{
+  "profile": {
+    "id": 401,
+    "type": "shadowsocks",
+    "name": "G04 ss 2022-blake3 + uot v2",
+    "address": "ss2.example.org",
+    "port": 8388,
+    "detail": {
+      "method": "2022-blake3-aes-128-gcm",
+      "password": "8JCsNks3hfF3iCIAJRu9xQ==",
+      "udp_over_tcp": 2
+    }
+  }
+}
