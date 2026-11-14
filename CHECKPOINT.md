@@ -1,6 +1,15 @@
 # CHECKPOINT — LAVRay Android
 
-Обновлено: 2026-11-10.
+Обновлено: 2026-11-14.
+
+## Задача 2026-11-14: пресет Linux и списки приложений (в работе)
+- Просьба владельца: пресет для Linux по умолчанию (LAV Preset RU без приложений Windows); списки «Всегда через VPN» и «Всегда напрямую» с приоритетом над сетевыми настройками, одно приложение только в одном списке; следить за производительностью.
+- Пресет: `core-overlay/presets/lav-ru-linux.json` (генератор `tools/presets/lav-ru-linux.mjs`), копия в builtin в build-core.sh, патч `0002-builtin-lav-ru-linux.patch` (BuiltinFiles), по умолчанию через `core-overlay/defaults.go` (applyDefaultPreset: только без явного выбора, выбор DNS lav-ru переносится). Общий код lavray не тронут.
+- Списки: `AppSelection.viaVpn/direct` (тот же AIDL и prefs), `applyTo(options, lockdown)`: «напрямую» исключается из туннеля (дёшево), при «Блокировать без VPN» остаётся в туннеле и идёт direct правилом ядра. «Через VPN» — правило ядра `package_name` (logical and, кроме ip_is_private) + DNS dns-remote, сразу за sniff/hijack-dns (`core-overlay/patch_apps.go`). Platform.AppRoutes() — новый метод моста. Кэш пакетов за uid на запуск (host.packagesFor).
+- UI: строки «Всегда через VPN/напрямую» в «Туннель» и карточка на экране маршрутов; пикер `AppPickerScreen(route)`.
+- Ревью (code-reviewer): учтены снимок выбора и блокировки на запуск, лог при сбое, coerceInputValues, кэш системных uid, nil-проверка dns. Найдено на эмуляторе: isLockdownEnabled до первого интерфейса всегда false — служба сверяет после «Подключено» и один раз пересобирает (checkLockdown).
+- Проверено: Go-тесты (кроме TestStartStopLifecycle — chmod unix-сокета на Windows), гейт 819 тестов + lint + assembleRelease, эмулятор: сценарии A–D, чистая установка, замер +1–3 мс на соединение (MEASUREMENTS §12). Эмулятор погашен, тестовые приложения удалены.
+- Дальше: коммит и push в main; выпуск 0.9.5 — только по слову владельца.
 
 ## Состояние (сводка оркестратора)
 - Локальный git в `D:\ZCode\nekobox\lavray-android`, ветка `main`, субмодуль `third_party/lavray` на `v0.9.3` (9899ae9). Всё закоммичено автором noreply, удалённого репозитория нет.

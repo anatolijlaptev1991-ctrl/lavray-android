@@ -29,7 +29,7 @@
 - **Ehrlicher Verbindungsstatus:** Nach dem Verbinden prüft der Core, ob der Datenverkehr wirklich über den Server läuft, und der Bildschirm zeigt das Ergebnis. „Kanal ist geschützt“ steht nur, wenn kein Problem gefunden wurde.
 - **Änderungen, die einen Neustart brauchen** (Routing-Set, DNS, MTU, App-Liste), sind mit „gilt nach dem Neustart“ markiert, und die App bietet den Neustart an.
 - **Latenztest** für alle Server und ein URL-Test.
-- **Routing-Sets:** „Global“, „Alles durch den Proxy“, „Alles direkt“, **LAV Preset RU** (Revision 3, standardmäßig aktiv: russische Seiten und Spiele direkt, alles andere über den Proxy) und LAV Preset CN. Eigene Sets, Import und Export sowie eine Prüfung, wohin eine Adresse geroutet wird.
+- **Routing-Sets:** „Global“, „Alles durch den Proxy“, „Alles direkt“, **LAV Preset RU Linux** (standardmäßig aktiv: LAV Preset RU ohne die Regeln für Windows-Programme; russische Seiten und Spiele direkt, alles andere über den Proxy), LAV Preset RU (Revision 3) und LAV Preset CN. Eigene Sets, Import und Export sowie eine Prüfung, wohin eine Adresse geroutet wird.
 - **DNS**, **Verbindungen**, **Protokoll**, **Statistik** und der Bildschirm „Warum funktioniert es nicht?“.
 - **Tunnel pro App:** alle Apps, nur ausgewählte oder alle außer ausgewählten.
 - **Automatisches Verbinden nach dem Neustart** mit dem zuletzt genutzten Server und Unterstützung für das systemweite Always-on-VPN. Der Tunnel kommt nach einem App-Update und nach dem Beenden des Dienstes durch das System zurück.
@@ -77,7 +77,7 @@ Zertifikat `CN=LAVRay, O=LAVRay`, SHA-256-Fingerabdruck: `fe058a98b9abb7ba8c853c
 1. **APK installieren.** Erlaube die Installation aus der gewählten Quelle (Browser, Dateien), öffne die Datei und bestätige.
 2. **Server hinzufügen.** „Verbindung“ → „Server hinzufügen“ oder „Server“ → Symbol „+“. Füge einen Server- oder Abo-Link ein, scanne einen QR-Code mit der Kamera, wähle ein Bild mit QR-Code oder eine Datei. Vor dem Import siehst du, was hinzugefügt wird.
 3. **Verbinden.** „Verbindung“ → „Verbinden“. Ab Android 13 fragt die App zuerst nach der Benachrichtigungsberechtigung (das VPN läuft als Vordergrunddienst mit einer Benachrichtigung), danach erscheint der VPN-Zustimmungsdialog: Bestätige beides. Nach dem Verbinden zeigt der Bildschirm Land und Adresse des Ausgangs, die Leak-Prüfung und die Geschwindigkeit.
-4. **Routen prüfen.** LAV Preset RU ist bereits aktiv: Russische Seiten öffnen direkt, alles andere läuft über den Server. Ein anderes Set wählst du unter „Regeln“.
+4. **Routen prüfen.** LAV Preset RU Linux ist bereits aktiv: Russische Seiten öffnen direkt, alles andere läuft über den Server. Ein anderes Set wählst du unter „Regeln“.
 5. **Automatisch verbinden.** „Einstellungen“ → „Start“ → „Beim Start des Telefons verbinden“ (standardmäßig aus). Details und Grenzen stehen weiter unten.
 
 ---
@@ -106,7 +106,7 @@ Zertifikat `CN=LAVRay, O=LAVRay`, SHA-256-Fingerabdruck: `fe058a98b9abb7ba8c853c
 
 ### Tunnel pro App
 
-„Einstellungen“ → „Tunnel“ → „Apps im Tunnel“: alle Apps, nur ausgewählte oder alle außer ausgewählten. LAVRay selbst bleibt immer außerhalb des Tunnels. Eine Änderung gilt nach dem erneuten Verbinden: Die App bietet „Jetzt neu verbinden“ an.
+„Einstellungen“ → „Tunnel“ → „Apps im Tunnel“: alle Apps, nur ausgewählte oder alle außer ausgewählten. LAVRay selbst bleibt immer außerhalb des Tunnels. Eine Änderung gilt nach dem erneuten Verbinden: Die App bietet „Jetzt neu verbinden“ an. Zwei weitere Listen stehen über dieser Auswahl und dem Routing-Set: „Immer über VPN“ (der gesamte Internetverkehr der App läuft über den Server, Routing-Regeln gelten für sie nicht; Geräte im Heimnetz bleiben direkt erreichbar) und „Immer direkt“ (die App arbeitet wie ohne VPN). Eine App kann nur in einer Liste stehen. Die Listen öffnen sich auch über „Regeln“. Unter Android 9 und älter sorgt „Immer über VPN“ nur dafür, dass die App im Tunnel ist.
 
 ### Einstellungen
 
@@ -126,7 +126,7 @@ Die Seite „Updates“ öffnet nur die Release-Seite. Die App fragt das Netz ni
 
 - Schalte „Beim Start des Telefons verbinden“ ein: Nach einem Neustart verbindet sich die App mit dem zuletzt genutzten Server. Android sendet das Boot-Signal erst nach der **ersten Entsperrung** des Telefons.
 - Ist das Telefon ohne Netz gestartet (zum Beispiel im Flugmodus), wartet die App still und verbindet sich, sobald ein Netz da ist. Es gibt keine Timer und kein Polling.
-- Am zuverlässigsten ist das systemweite **Always-on-VPN**. In LAVRay: „Einstellungen“ → „System“ → „VPN-Einstellungen öffnen“. Es öffnet sich die VPN-Liste von Android: Tippe auf das Zahnrad neben LAVRay und aktiviere „Always-on-VPN“ und, falls gewünscht, „Verbindungen ohne VPN blockieren“ (die Namen hängen vom Gerät ab). LAVRay sieht diese Schalter nicht und kann sie nicht ändern. Startet das System die App, behandelt sie das als Always-on-Start und verbindet den zuletzt genutzten Server.
+- Am zuverlässigsten ist das systemweite **Always-on-VPN**. In LAVRay: „Einstellungen“ → „System“ → „VPN-Einstellungen öffnen“. Es öffnet sich die VPN-Liste von Android: Tippe auf das Zahnrad neben LAVRay und aktiviere „Always-on-VPN“ und, falls gewünscht, „Verbindungen ohne VPN blockieren“ (die Namen hängen vom Gerät ab). LAVRay ändert diese Schalter nicht. Die Blockierung berücksichtigt die App an einer Stelle: Apps aus „Immer direkt“ bleiben dann im Tunnel und umgehen den Server, sonst ließe Android sie ohne Netz. Startet das System die App, behandelt sie das als Always-on-Start und verbindet den zuletzt genutzten Server.
 - Eine zwangsweise beendete App erhält das Boot-Signal erst, wenn du sie wieder öffnest. Ein erzwungenes Beenden in den Android-Einstellungen schaltet den Tunnel ab, und er kommt nicht von selbst zurück: Das ist Absicht.
 - Beendet das System den VPN-Dienst, startet er neu und baut den Tunnel wieder auf, und die App zeigt einen Hinweis mit der Ursache. Nach einem App-Update kommt ein eingeschalteter Tunnel wieder hoch.
 - Herstelleroberflächen (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) können den Autostart blockieren oder den Dienst bei ausgeschaltetem Bildschirm beenden. Nimm LAVRay dann in die Ausnahmen der Autostart- und Akkuverwaltung auf. Mehr dazu in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russisch).

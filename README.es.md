@@ -29,7 +29,7 @@
 - **Estado de la conexión sin adornos:** tras conectar, el núcleo comprueba si el tráfico pasa de verdad por el servidor y la pantalla muestra el resultado. «Canal protegido» solo aparece si no se encontró ningún problema.
 - **Los cambios que necesitan reinicio** (conjunto de rutas, DNS, MTU, lista de apps) se marcan como «se aplica tras reiniciar» y la app ofrece reiniciar.
 - **Prueba de latencia** de todos los servidores y prueba de URL.
-- **Conjuntos de rutas:** «Global», «Todo por el proxy», «Todo directo», **LAV Preset RU** (revisión 3, activo por defecto: los sitios y juegos rusos van directos y el resto por el proxy) y LAV Preset CN. Conjuntos propios, importación y exportación, y una comprobación de «a dónde va esta dirección».
+- **Conjuntos de rutas:** «Global», «Todo por el proxy», «Todo directo», **LAV Preset RU Linux** (activo por defecto: LAV Preset RU sin las reglas de programas de Windows; los sitios y juegos rusos van directos y el resto por el proxy), LAV Preset RU (revisión 3) y LAV Preset CN. Conjuntos propios, importación y exportación, y una comprobación de «a dónde va esta dirección».
 - **DNS**, **conexiones**, **registro**, **estadísticas** y una pantalla «¿Por qué no funciona?».
 - **Túnel por app:** todas, solo las elegidas o todas menos las elegidas.
 - **Conexión automática tras reiniciar** al último servidor y compatibilidad con la VPN siempre activa del sistema. El túnel se restablece tras actualizar la app y tras un cierre del servicio por parte del sistema.
@@ -77,7 +77,7 @@ Certificado `CN=LAVRay, O=LAVRay`, huella SHA-256: `fe058a98b9abb7ba8c853c0ae39c
 1. **Instala el APK.** Permite instalar desde el origen que uses (navegador, Archivos), abre el archivo y confirma.
 2. **Añade un servidor.** «Conexión» → «Añadir servidor», o «Servidores» → el icono «+». Pega un enlace de servidor o de suscripción, escanea un código QR con la cámara, elige una imagen con un código QR o elige un archivo. Antes de importar ves lo que se va a añadir.
 3. **Conecta.** «Conexión» → «Conectar». En Android 13 y posteriores aparece primero la petición de permiso de notificaciones (la VPN funciona como servicio en primer plano con una notificación) y después el diálogo de consentimiento de VPN: acepta ambos. Al conectar, la pantalla muestra el país y la dirección de salida, la comprobación de fugas y la velocidad.
-4. **Revisa las rutas.** LAV Preset RU ya está activo: los sitios rusos se abren directos y el resto pasa por el servidor. Otro conjunto se elige en «Reglas».
+4. **Revisa las rutas.** LAV Preset RU Linux ya está activo: los sitios rusos se abren directos y el resto pasa por el servidor. Otro conjunto se elige en «Reglas».
 5. **Conexión automática.** «Ajustes» → «Inicio» → «Conectar al iniciar el teléfono» (desactivado por defecto). Los detalles y límites están más abajo.
 
 ---
@@ -106,7 +106,7 @@ Certificado `CN=LAVRay, O=LAVRay`, huella SHA-256: `fe058a98b9abb7ba8c853c0ae39c
 
 ### Túnel por app
 
-«Ajustes» → «Túnel» → «Apps en el túnel»: todas las apps, solo las elegidas o todas menos las elegidas. LAVRay siempre queda fuera del túnel. El cambio se aplica tras reconectar: la app ofrece «Reconectar ahora».
+«Ajustes» → «Túnel» → «Apps en el túnel»: todas las apps, solo las elegidas o todas menos las elegidas. LAVRay siempre queda fuera del túnel. El cambio se aplica tras reconectar: la app ofrece «Reconectar ahora». Otras dos listas están por encima de esta selección y del conjunto de rutas: «Siempre por la VPN» (todo el tráfico de internet de la app va por el servidor y las reglas de enrutamiento no se le aplican; los dispositivos de la red doméstica siguen accesibles directamente) y «Siempre directo» (la app funciona como sin VPN). Una app solo puede estar en una lista. Las listas también se abren desde «Reglas». En Android 9 y anteriores «Siempre por la VPN» solo garantiza que la app esté en el túnel.
 
 ### Ajustes
 
@@ -126,7 +126,7 @@ La página «Actualizaciones» solo abre la página de versiones. La app no cons
 
 - Activa «Conectar al iniciar el teléfono»: tras reiniciar, la app se conecta al último servidor. Android envía la señal de arranque solo después del **primer desbloqueo** del móvil.
 - Si el móvil arrancó sin red (por ejemplo, en modo avión), la app espera en silencio y conecta cuando aparece una red. No hay temporizadores ni sondeos.
-- La forma más fiable es la **VPN siempre activa** del sistema. En LAVRay: «Ajustes» → «Sistema» → «Abrir ajustes de VPN». Se abre la lista de VPN de Android: toca el engranaje junto a LAVRay y activa «VPN siempre activa» y, si quieres, «Bloquear conexiones sin VPN» (los nombres dependen del móvil). LAVRay no ve ni puede cambiar esos interruptores. Si el sistema inicia la app, la trata como un inicio de VPN siempre activa y conecta el último servidor.
+- La forma más fiable es la **VPN siempre activa** del sistema. En LAVRay: «Ajustes» → «Sistema» → «Abrir ajustes de VPN». Se abre la lista de VPN de Android: toca el engranaje junto a LAVRay y activa «VPN siempre activa» y, si quieres, «Bloquear conexiones sin VPN» (los nombres dependen del móvil). LAVRay no cambia esos interruptores. Tiene en cuenta el bloqueo en un solo punto: las apps de «Siempre directo» se quedan entonces en el túnel y evitan el servidor; si no, Android las dejaría sin red. Si el sistema inicia la app, la trata como un inicio de VPN siempre activa y conecta el último servidor.
 - Una app detenida a la fuerza no recibe la señal de arranque hasta que la abras de nuevo. Detener a la fuerza en los ajustes de Android apaga el túnel y este no vuelve solo: es intencionado.
 - Si el sistema cierra el servicio VPN, este se reinicia y recupera el túnel, y la app muestra un aviso con el motivo. Tras actualizar la app, un túnel que estaba activo vuelve a levantarse.
 - Las capas de los fabricantes (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) pueden bloquear el inicio automático o cerrar el servicio con la pantalla apagada. En ese caso añade LAVRay a las excepciones del gestor de inicio automático y de batería. Más detalles en [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (en ruso).

@@ -29,7 +29,7 @@
 - **Honest connection state:** after connecting, the core checks whether traffic really passes through the server, and the screen shows the result. "Channel is protected" appears only when no problem was found.
 - **Changes that need a restart** (route preset, DNS, MTU, the app list) are marked "applies after the restart", and the app offers to restart.
 - **Latency test** for all servers and a URL test.
-- **Route presets:** "Global", "Route everything through the proxy", "Route everything directly", **LAV Preset RU** (revision 3, active by default: Russian sites and games go direct, everything else goes through the proxy) and LAV Preset CN. Your own presets, import and export, and a "where does this address go" check.
+- **Route presets:** "Global", "Route everything through the proxy", "Route everything directly", **LAV Preset RU Linux** (active by default: LAV Preset RU without the rules for Windows programs; Russian sites and games go direct, everything else goes through the proxy), LAV Preset RU (revision 3) and LAV Preset CN. Your own presets, import and export, and a "where does this address go" check.
 - **DNS**, **connections**, **log**, **statistics**, and a "Why isn’t it working?" screen.
 - **Per-app tunnel:** all apps, only selected apps, or all except selected.
 - **Auto-connect after reboot** to the last server, and support for the system Always-on VPN. The tunnel is restored after an app update and after the system kills the service.
@@ -77,7 +77,7 @@ Certificate `CN=LAVRay, O=LAVRay`, SHA-256 fingerprint: `fe058a98b9abb7ba8c853c0
 1. **Install the APK.** Allow installs from your chosen source (browser, Files), open the file and confirm.
 2. **Add a server.** "Connection" → "Add server", or "Servers" → the "+" icon. Paste a server or subscription link, scan a QR code with the camera, pick an image with a QR code, or pick a file. You see what will be added before it is imported.
 3. **Connect.** "Connection" → "Connect". On Android 13 and newer you first get a notification permission prompt (the VPN runs as a foreground service with a notification), then the VPN consent dialog: accept both. Once connected, the screen shows the exit country and address, a leak check and the speed.
-4. **Check the routes.** LAV Preset RU is already active: Russian sites open directly, everything else goes through the server. Pick another preset under "Rules".
+4. **Check the routes.** LAV Preset RU Linux is already active: Russian sites open directly, everything else goes through the server. Pick another preset under "Rules".
 5. **Auto-connect.** "Settings" → "Startup" → "Connect when the phone starts" (off by default). Details and limits are below.
 
 ---
@@ -106,7 +106,7 @@ Certificate `CN=LAVRay, O=LAVRay`, SHA-256 fingerprint: `fe058a98b9abb7ba8c853c0
 
 ### Per-app tunnel
 
-"Settings" → "Tunnel" → "Apps in the tunnel": all apps, only selected, or all except selected. LAVRay itself always stays outside the tunnel. A change applies after a reconnect: the app offers "Reconnect now".
+"Settings" → "Tunnel" → "Apps in the tunnel": all apps, only selected, or all except selected. LAVRay itself always stays outside the tunnel. A change applies after a reconnect: the app offers "Reconnect now". Two more lists come before this choice and the route preset: "Always through VPN" (all of the app's internet traffic goes through the server and routing rules do not apply to it; devices on the home network stay reachable directly) and "Always direct" (the app works as without a VPN). An app can be in one list only. The lists also open from the "Rules" screen. On Android 9 and earlier "Always through VPN" only guarantees that the app is in the tunnel.
 
 ### Settings
 
@@ -126,7 +126,7 @@ The "Updates" page only opens the releases page. The app does not contact the ne
 
 - Turn on "Connect when the phone starts": after a reboot the app connects to the last server. Android sends the boot signal only after the **first unlock** of the phone.
 - If the phone booted with no network (for example, in airplane mode), the app waits quietly and connects when a network appears. There are no timers or polling.
-- The most reliable way is the system **Always-on VPN**. In LAVRay: "Settings" → "System" → "Open VPN settings". This opens Android's VPN list: tap the gear next to LAVRay and turn on "Always-on VPN" and, if you want, "Block connections without VPN" (names vary by phone). LAVRay cannot see or change those switches. When the system starts the app, it treats it as an Always-on start and connects the last server.
+- The most reliable way is the system **Always-on VPN**. In LAVRay: "Settings" → "System" → "Open VPN settings". This opens Android's VPN list: tap the gear next to LAVRay and turn on "Always-on VPN" and, if you want, "Block connections without VPN" (names vary by phone). LAVRay does not change those switches. It takes the blocking switch into account in one place: apps in "Always direct" then stay in the tunnel and bypass the server, otherwise Android would leave them without a network. When the system starts the app, it treats it as an Always-on start and connects the last server.
 - An app that was force-stopped does not get the boot signal until you open it again. A force-stop in Android settings turns the tunnel off and it does not come back by itself: this is intended.
 - If the system kills the VPN service, it restarts and brings the tunnel back, and the app shows a banner with the reason. After an app update, a tunnel that was on comes back up.
 - Manufacturer skins (Xiaomi/HyperOS, Huawei/HarmonyOS, Samsung, Oppo/Realme/OnePlus, Vivo) may block autostart or kill the service when the screen is off. Then add LAVRay to the autostart and battery manager exceptions. More in [docs/PHONE-CHECKLIST.md](docs/PHONE-CHECKLIST.md) (Russian).
